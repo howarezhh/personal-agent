@@ -1,0 +1,95 @@
+/* MCP服务管理页面样式 */
+
+.mcp-page {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: calc(100vh - 64px);
+}
+
+.page-header {
+  background: white;
+  padding: 24px;
+  margin-bottom: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.page-header h2 {
+  margin-bottom: 8px;
+  color: #1890ff;
+}
+
+.page-header p {
+  margin-bottom: 0;
+  color: #666;
+}
+
+.mcp-card {
+  height: 100%;
+  transition: all 0.3s;
+  border-radius: 8px;
+}
+
+.mcp-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+}
+
+.mcp-card .ant-card-meta-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mcp-card .ant-card-meta-description {
+  min-height: 80px;
+}
+
+.mcp-card .ant-card-actions {
+  background: #fafafa;
+}
+
+.mcp-card .ant-card-actions > li {
+  margin: 8px 0;
+}
+
+.mcp-card .ant-card-actions > li > span {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mcp-card .ant-btn-link {
+  color: #1890ff;
+}
+
+.mcp-card .ant-btn-link:hover {
+  color: #40a9ff;
+}
+
+/* 详情对话框样式 */
+.ant-descriptions-item-label {
+  font-weight: 600;
+  background: #fafafa;
+}
+
+/* 执行结果样式 */
+pre {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .mcp-page {
+    padding: 16px;
+  }
+
+  .page-header {
+    padding: 16px;
+  }
+
+  .mcp-card .ant-card-meta-description {
+    min-height: auto;
+  }
+}

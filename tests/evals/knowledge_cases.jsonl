@@ -1,0 +1,21 @@
+55555# 知识库评测样例模板
+# 支持空行和 # 注释行。
+#
+# 字段说明：
+# - case_id: 唯一用例 ID
+# - question: 原始问题
+# - query: 可选；为空时默认回退到 question
+# - user_id: 可选；也可以通过 --default-user-id 统一传入
+# - knowledge_base_id: 可选；也可以通过 --default-knowledge-base-id 统一传入
+# - expected_document_ids: 推荐填写上传后返回的 document_id，最适合做 Hit@k / MRR
+# - expected_sources: 可选文件名兜底；当你暂时没有 document_id 时可先用它
+# - expected_keywords: 用于 chunk 覆盖率与关键词兜底匹配
+# - tags: 方便用 --tag 过滤，比如 title/table/code/pdf
+# - notes: 备注
+# - vector_search_filter: 可选，给 retrieval_agent 模式附加过滤条件
+
+{"case_id":"exact_title_author_001","question":"知识库里《请替换为你的论文标题》是谁写的？","query":"知识库里《请替换为你的论文标题》是谁写的？","user_id":"user-1","knowledge_base_id":"kb-1","expected_document_ids":["replace-with-your-document-id-1"],"expected_sources":["replace-with-your-file-name-1.pdf"],"expected_keywords":["请替换为你的论文标题","作者"],"tags":["title","exact_phrase","pdf"],"notes":"标题精确问法，适合测 exact phrase + query rewrite"}
+{"case_id":"paragraph_fact_001","question":"请问文档中关于项目目标的核心描述是什么？","query":"项目目标的核心描述是什么？","user_id":"user-1","knowledge_base_id":"kb-1","expected_document_ids":["replace-with-your-document-id-2"],"expected_sources":["project-overview.md"],"expected_keywords":["高内聚","低耦合"],"tags":["paragraph","markdown"],"notes":"段落事实类问答，适合测 chunk_size / overlap"}
+{"case_id":"table_lookup_001","question":"预算表里服务器采购费用是多少？","query":"预算表里服务器采购费用是多少？","user_id":"user-1","knowledge_base_id":"kb-1","expected_document_ids":["replace-with-your-document-id-3"],"expected_sources":["budget.xlsx"],"expected_keywords":["服务器","采购费用"],"tags":["table","excel"],"notes":"表格问答，适合测 Excel 解析与检索召回"}
+{"case_id":"code_config_001","question":"知识库里 JWT 密钥配置是从哪个环境变量读取的？","query":"JWT 密钥配置是从哪个环境变量读取的？","user_id":"user-1","knowledge_base_id":"kb-1","expected_document_ids":["replace-with-your-document-id-4"],"expected_sources":["settings.py"],"expected_keywords":["JWT","env"],"tags":["code","config"],"notes":"代码/配置定位类问题，适合测文本解析和切块边界"}
+{"case_id":"policy_summary_001","question":"这个制度文档里关于权限审批的要求有哪些？","query":"制度文档里关于权限审批的要求有哪些？","user_id":"user-1","knowledge_base_id":"kb-1","expected_document_ids":["replace-with-your-document-id-5"],"expected_sources":["security-policy.docx"],"expected_keywords":["审批","权限"],"tags":["summary","word"],"notes":"汇总型问题，适合测多 chunk 召回与 rerank 排序"}

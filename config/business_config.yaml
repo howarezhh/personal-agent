@@ -1,0 +1,226 @@
+# 业务配置文件
+
+# API配置
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+  reload: true  # 开发环境自动重载
+  workers: 4  # 生产环境worker数量
+
+  # CORS配置
+  cors:
+    allow_origins:
+      - "http://localhost:3000"
+      - "http://localhost:3001"
+      - "http://localhost:5173"
+      - "http://127.0.0.1:3000"
+      - "http://127.0.0.1:3001"
+      - "http://127.0.0.1:5173"
+    allow_origin_regex: '^https?://(localhost|127\.0\.0\.1)(:\d+)?$'
+    allow_credentials: true
+    allow_methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+      - "PATCH"
+    allow_headers:
+      - "*"  # 允许所有headers
+
+  # 请求限制
+  rate_limit:
+    enabled: true
+    default_limit: 100  # 默认每个时间窗口的请求限制
+    default_window: 60  # 默认时间窗口（秒）
+
+    # 不同端点的速率限制
+    endpoints:
+      "/api/v1/auth/login":
+        limit: 5
+        window: 60  # 1分钟内最多5次登录尝试
+      "/api/v1/auth/register":
+        limit: 3
+        window: 3600  # 1小时内最多3次注册
+      "/api/v1/chat/ask":
+        limit: 30
+        window: 60  # 1分钟内最多30条消息
+# JWT认证配置
+jwt:
+  secret_key_env: "JWT_SECRET_KEY"
+  algorithm: "HS256"
+  access_token_expire_minutes: 1440  # 24小时
+  refresh_token_expire_days: 30
+
+# 文件上传配置
+file_upload:
+  upload_directory: "./data/uploads"
+  max_file_size_mb: 50
+  allowed_extensions:
+    - "pdf"
+    - "docx"
+    - "xlsx"
+    - "txt"
+    - "md"
+    - "csv"
+    - "png"
+    - "jpg"
+    - "jpeg"
+
+  # 文件清理
+  auto_cleanup: true
+  cleanup_after_days: 30
+
+# 知识库配置
+knowledge:
+  # 文档分块配置
+  chunk_size: 800  # 每个文本块的字符数
+  chunk_overlap: 100  # 文本块之间的重叠字符数
+
+  # 支持的文件类型
+  supported_types:
+    - "txt"
+    - "md"
+    - "markdown"
+    - "rst"
+    - "log"
+    - "py"
+    - "js"
+    - "ts"
+    - "tsx"
+    - "jsx"
+    - "java"
+    - "c"
+    - "cpp"
+    - "h"
+    - "hpp"
+    - "go"
+    - "rs"
+    - "sh"
+    - "bash"
+    - "bat"
+    - "ps1"
+    - "sql"
+    - "json"
+    - "yaml"
+    - "yml"
+    - "xml"
+    - "html"
+    - "css"
+    - "scss"
+    - "less"
+    - "vue"
+    - "ini"
+    - "conf"
+    - "toml"
+    - "env"
+    - "properties"
+    - "gitignore"
+    - "pdf"
+    - "docx"
+    - "doc"
+    - "xlsx"
+    - "csv"
+    - "tsv"
+
+  # 向量化配置
+  embedding:
+    batch_size: 10  # 批量生成向量的大小
+    max_retries: 3  # 失败重试次数
+
+  # 检索配置
+  retrieval:
+    default_top_k: 5  # 默认返回结果数量
+    max_top_k: 20  # 最大返回结果数量
+    min_similarity_score: 0.5  # 最小相似度分数
+
+# 日志配置
+logging:
+  level: "INFO"  # DEBUG/INFO/WARNING/ERROR/CRITICAL
+  format: "json"  # json/text
+  output:
+    - "console"
+    - "file"
+
+  # 文件日志配置
+  file:
+    directory: "./logs"
+    filename: "app.log"
+    max_bytes: 10485760  # 10MB
+    backup_count: 10
+    rotation: "size"  # size/time
+
+  # 日志内容
+  include_timestamp: true
+  include_level: true
+  include_module: true
+  include_function: true
+
+# 监控配置
+monitoring:
+  enabled: true
+  metrics_port: 9090
+
+  # 性能监控
+  track_response_time: true
+  track_token_usage: true
+  track_agent_execution: true
+
+  # 告警配置
+  alerts:
+    slow_response_threshold_ms: 5000
+    error_rate_threshold: 0.05  # 5%
+
+# 缓存配置
+cache:
+  enabled: true
+  backend: "redis"  # redis/memory
+
+  # 缓存策略
+  strategies:
+    conversation_history:
+      ttl: 3600  # 1小时
+      max_size: 1000
+
+    retrieval_results:
+      ttl: 1800  # 30分钟
+      max_size: 500
+
+    user_sessions:
+      ttl: 86400  # 24小时
+      max_size: 10000
+
+# 安全配置
+security:
+  # CSRF保护
+  csrf:
+    enabled: true
+    secret_key_env: "CSRF_SECRET_KEY"
+    token_name: "csrf_token"
+    header_name: "X-CSRF-Token"
+    cookie_name: "csrf_token"
+    safe_methods:
+      - "GET"
+      - "HEAD"
+      - "OPTIONS"
+      - "TRACE"
+
+  # 密码策略
+  password:
+    min_length: 8
+    require_uppercase: true
+    require_lowercase: true
+    require_digit: true
+    require_special_char: false
+
+  # 登录限制
+  login:
+    max_attempts: 5
+    lockout_duration_minutes: 30
+
+  # 敏感信息脱敏
+  data_masking:
+    enabled: true
+    mask_email: true
+    mask_phone: true

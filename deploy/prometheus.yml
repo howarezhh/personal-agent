@@ -1,0 +1,38 @@
+# Prometheus配置文件
+
+global:
+  scrape_interval: 15s  # 抓取间隔
+  evaluation_interval: 15s  # 评估间隔
+  external_labels:
+    cluster: 'personal-agent'
+    environment: 'production'
+
+# 告警规则文件
+rule_files:
+  # - "alerts.yml"
+
+# 抓取配置
+scrape_configs:
+  # 后端应用指标
+  - job_name: 'backend'
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus自身指标
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # MySQL指标（如果安装了mysql_exporter）
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+    scrape_interval: 30s
+
+  # Redis指标（如果安装了redis_exporter）
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s

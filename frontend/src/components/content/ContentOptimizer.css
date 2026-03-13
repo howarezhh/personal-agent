@@ -1,0 +1,65 @@
+/* 内容优化器样式 */
+
+.content-optimizer {
+  width: 100%;
+}
+
+.form-card {
+  margin-bottom: 16px;
+}
+
+.result-card {
+  margin-top: 16px;
+}
+
+.result-section {
+  margin-bottom: 20px;
+}
+
+.result-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #262626;
+}
+
+.result-content {
+  background: #f5f5f5;
+  padding: 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 500px;
+  overflow: auto;
+}
+
+.result-meta {
+  display: flex;
+  justify-content: space-around;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #595959;
+  margin-top: 16px;
+}
+
+.result-meta span {
+  display: flex;
+  align-items: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .result-content {
+    font-size: 13px;
+    padding: 12px;
+  }
+
+  .result-meta {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

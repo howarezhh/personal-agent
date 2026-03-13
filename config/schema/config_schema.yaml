@@ -1,0 +1,7 @@
+required:
+  - model.primary_model.provider
+  - model.primary_model.model_name
+  - database.mysql.host
+  - database.mysql.port
+  - database.mysql.database
+  - database.mysql.username

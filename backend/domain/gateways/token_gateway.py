@@ -1,0 +1,10 @@
+"""Token gateway protocol."""
+
+from typing import Protocol, runtime_checkable, Any
+
+
+@runtime_checkable
+class TokenGatewayPort(Protocol):
+    def generate_access_token(self, user_id: str, username: str, additional_claims: dict[str, Any] | None = None) -> str: ...
+    def generate_refresh_token(self, user_id: str, username: str, additional_claims: dict[str, Any] | None = None) -> str: ...
+    def verify_token(self, token: str): ...

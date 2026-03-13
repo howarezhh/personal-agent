@@ -1,0 +1,460 @@
+"""
+脚本生成工具
+支持AI自动生成各类脚本（影视剧本、短视频脚本、广告脚本等）
+"""
+
+from typing import Dict, Any, Optional
+from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
+from backend.core.config_manager import get_config_manager
+from backend.core.prompt_manager import get_prompt_manager
+import logging
+import json
+
+
+class ScriptGeneratorTool(BaseTool):
+    """
+    脚本生成工具
+
+    功能：
+    - 生成影视剧本
+    - 生成短视频脚本
+    - 生成广告脚本
+    - 生成舞台剧脚本
+    - 生成分镜脚本
+    """
+
+    # 脚本类型
+    SCRIPT_TYPES = {
+        "movie": "电影剧本",
+        "tv_series": "电视剧剧本",
+        "short_video": "短视频脚本",
+        "advertisement": "广告脚本",
+        "stage_play": "舞台剧脚本",
+        "animation": "动画脚本",
+        "documentary": "纪录片脚本",
+        "variety_show": "综艺节目脚本"
+    }
+
+    # 脚本风格
+    SCRIPT_STYLES = {
+        "comedy": "喜剧",
+        "drama": "剧情",
+        "action": "动作",
+        "romance": "爱情",
+        "thriller": "惊悚",
+        "scifi": "科幻",
+        "fantasy": "奇幻",
+        "documentary": "纪实"
+    }
+
+    def __init__(self):
+        """初始化脚本生成工具"""
+        super().__init__()
+        self.config_manager = get_config_manager()
+        self.prompt_manager = get_prompt_manager()
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.info("脚本生成工具初始化完成")
+
+    def _create_definition(self) -> ToolDefinition:
+        """创建工具定义"""
+        return ToolDefinition(
+            name="script_generator",
+            description="AI脚本生成工具，支持生成影视剧本、短视频脚本、广告脚本等各类脚本",
+            category="creative",
+            parameters=[
+                ToolParameter(
+                    name="action",
+                    type="string",
+                    description="操作类型：outline(生成大纲), scene(生成场景), dialogue(生成对白), storyboard(生成分镜)",
+                    required=True,
+                    enum=["outline", "scene", "dialogue", "storyboard", "complete"]
+                ),
+                ToolParameter(
+                    name="script_type",
+                    type="string",
+                    description="脚本类型",
+                    required=True,
+                    enum=list(self.SCRIPT_TYPES.keys())
+                ),
+                ToolParameter(
+                    name="style",
+                    type="string",
+                    description="脚本风格",
+                    required=False,
+                    enum=list(self.SCRIPT_STYLES.keys())
+                ),
+                ToolParameter(
+                    name="title",
+                    type="string",
+                    description="脚本标题",
+                    required=False
+                ),
+                ToolParameter(
+                    name="theme",
+                    type="string",
+                    description="脚本主题或简介",
+                    required=False
+                ),
+                ToolParameter(
+                    name="duration",
+                    type="integer",
+                    description="时长（分钟）",
+                    required=False
+                ),
+                ToolParameter(
+                    name="scene_number",
+                    type="integer",
+                    description="场景编号",
+                    required=False
+                ),
+                ToolParameter(
+                    name="scene_description",
+                    type="string",
+                    description="场景描述",
+                    required=False
+                ),
+                ToolParameter(
+                    name="characters",
+                    type="string",
+                    description="角色列表（逗号分隔）",
+                    required=False
+                ),
+                ToolParameter(
+                    name="target_audience",
+                    type="string",
+                    description="目标受众",
+                    required=False
+                ),
+                ToolParameter(
+                    name="outline",
+                    type="string",
+                    description="脚本大纲",
+                    required=False
+                )
+            ],
+            timeout=120
+        )
+
+    async def execute(self, action: str, script_type: str, **kwargs) -> Dict[str, Any]:
+        """
+        执行脚本生成操作
+
+        Args:
+            action: 操作类型
+            script_type: 脚本类型
+            **kwargs: 其他参数
+
+        Returns:
+            生成结果
+        """
+        try:
+            self.logger.info(f"执行脚本生成操作: {action}, 类型: {script_type}")
+
+            if action == "outline":
+                return await self._generate_outline(
+                    script_type,
+                    kwargs.get("title"),
+                    kwargs.get("theme"),
+                    kwargs.get("style"),
+                    kwargs.get("duration"),
+                    kwargs.get("target_audience")
+                )
+            elif action == "scene":
+                return await self._generate_scene(
+                    script_type,
+                    kwargs.get("scene_number", 1),
+                    kwargs.get("scene_description"),
+                    kwargs.get("characters"),
+                    kwargs.get("style"),
+                    kwargs.get("outline")
+                )
+            elif action == "dialogue":
+                return await self._generate_dialogue(
+                    script_type,
+                    kwargs.get("characters"),
+                    kwargs.get("scene_description"),
+                    kwargs.get("style")
+                )
+            elif action == "storyboard":
+                return await self._generate_storyboard(
+                    script_type,
+                    kwargs.get("scene_description"),
+                    kwargs.get("style")
+                )
+            elif action == "complete":
+                return await self._generate_complete_script(
+                    script_type,
+                    kwargs.get("title"),
+                    kwargs.get("theme"),
+                    kwargs.get("style"),
+                    kwargs.get("duration"),
+                    kwargs.get("target_audience")
+                )
+            else:
+                return {
+                    "success": False,
+                    "data": None,
+                    "error": f"不支持的操作类型: {action}"
+                }
+
+        except Exception as e:
+            self.logger.error(f"脚本生成失败: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "data": None,
+                "error": f"生成失败: {str(e)}"
+            }
+
+    async def _generate_outline(self, script_type: str, title: Optional[str],
+                               theme: Optional[str], style: Optional[str],
+                               duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
+        """生成脚本大纲"""
+        try:
+            from backend.core.llm_manager import get_llm_manager
+
+            llm_manager = get_llm_manager()
+
+            type_name = self.SCRIPT_TYPES.get(script_type, script_type)
+            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+
+            prompt = self.prompt_manager.format_prompt(
+                "tool.script_generator_outline_prompt",
+                title=title or "??",
+                type_name=type_name,
+                style_name=style_name,
+                duration=duration or "???",
+                target_audience=target_audience or "??",
+                theme=theme or "????????????"
+            )
+
+            response = await llm_manager.generate(prompt, temperature=0.8)
+
+            # 尝试解析JSON
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response[json_start:json_end]
+                    outline_data = json.loads(json_str)
+                else:
+                    outline_data = {"raw_outline": response}
+            except:
+                outline_data = {"raw_outline": response}
+
+            self.logger.info("脚本大纲生成完成")
+
+            return {
+                "success": True,
+                "data": {
+                    "title": title,
+                    "script_type": type_name,
+                    "style": style_name,
+                    "duration": duration,
+                    "outline": outline_data
+                },
+                "error": None
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "data": None,
+                "error": f"生成大纲失败: {str(e)}"
+            }
+
+    async def _generate_scene(self, script_type: str, scene_number: int,
+                             scene_description: Optional[str], characters: Optional[str],
+                             style: Optional[str], outline: Optional[str]) -> Dict[str, Any]:
+        """生成场景脚本"""
+        try:
+            from backend.core.llm_manager import get_llm_manager
+
+            llm_manager = get_llm_manager()
+
+            type_name = self.SCRIPT_TYPES.get(script_type, script_type)
+            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+
+            prompt = self.prompt_manager.format_prompt(
+                "tool.script_generator_scene_prompt",
+                type_name=type_name,
+                scene_number=scene_number,
+                scene_description=scene_description or "?????????",
+                characters=characters or "??????",
+                style_name=style_name,
+                outline_text=outline or "?"
+            )
+
+            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=3000)
+
+            self.logger.info(f"第{scene_number}场脚本生成完成")
+
+            return {
+                "success": True,
+                "data": {
+                    "scene_number": scene_number,
+                    "script_type": type_name,
+                    "style": style_name,
+                    "content": response
+                },
+                "error": None
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "data": None,
+                "error": f"生成场景失败: {str(e)}"
+            }
+
+    async def _generate_dialogue(self, script_type: str, characters: Optional[str],
+                                scene_description: Optional[str], style: Optional[str]) -> Dict[str, Any]:
+        """生成对白"""
+        try:
+            from backend.core.llm_manager import get_llm_manager
+
+            llm_manager = get_llm_manager()
+
+            type_name = self.SCRIPT_TYPES.get(script_type, script_type)
+            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+
+            prompt = self.prompt_manager.format_prompt(
+                "tool.script_generator_dialogue_prompt",
+                type_name=type_name,
+                scene_description=scene_description or "??????",
+                characters=characters or "??????",
+                style_name=style_name
+            )
+
+            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=2000)
+
+            self.logger.info("对白生成完成")
+
+            return {
+                "success": True,
+                "data": {
+                    "script_type": type_name,
+                    "style": style_name,
+                    "dialogue": response
+                },
+                "error": None
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "data": None,
+                "error": f"生成对白失败: {str(e)}"
+            }
+
+    async def _generate_storyboard(self, script_type: str, scene_description: Optional[str],
+                                  style: Optional[str]) -> Dict[str, Any]:
+        """生成分镜脚本"""
+        try:
+            from backend.core.llm_manager import get_llm_manager
+
+            llm_manager = get_llm_manager()
+
+            type_name = self.SCRIPT_TYPES.get(script_type, script_type)
+            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+
+            prompt = self.prompt_manager.format_prompt(
+                "tool.script_generator_storyboard_prompt",
+                type_name=type_name,
+                scene_description=scene_description or "?????",
+                style_name=style_name
+            )
+
+            response = await llm_manager.generate(prompt, temperature=0.8)
+
+            # 尝试解析JSON
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response[json_start:json_end]
+                    storyboard_data = json.loads(json_str)
+                else:
+                    storyboard_data = {"raw_storyboard": response}
+            except:
+                storyboard_data = {"raw_storyboard": response}
+
+            self.logger.info("分镜脚本生成完成")
+
+            return {
+                "success": True,
+                "data": {
+                    "script_type": type_name,
+                    "style": style_name,
+                    "storyboard": storyboard_data
+                },
+                "error": None
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "data": None,
+                "error": f"生成分镜脚本失败: {str(e)}"
+            }
+
+    async def _generate_complete_script(self, script_type: str, title: Optional[str],
+                                       theme: Optional[str], style: Optional[str],
+                                       duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
+        """生成完整脚本"""
+        try:
+            # 先生成大纲
+            outline_result = await self._generate_outline(
+                script_type, title, theme, style, duration, target_audience
+            )
+
+            if not outline_result["success"]:
+                return outline_result
+
+            from backend.core.llm_manager import get_llm_manager
+
+            llm_manager = get_llm_manager()
+
+            type_name = self.SCRIPT_TYPES.get(script_type, script_type)
+            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+            outline_str = json.dumps(outline_result["data"]["outline"], ensure_ascii=False, indent=2)
+
+            prompt = self.prompt_manager.format_prompt(
+                "tool.script_generator_complete_prompt",
+                title=title or "??",
+                type_name=type_name,
+                style_name=style_name,
+                duration=duration or "???",
+                outline_json=outline_str
+            )
+
+            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=4000)
+
+            self.logger.info("完整脚本生成完成")
+
+            return {
+                "success": True,
+                "data": {
+                    "title": title,
+                    "script_type": type_name,
+                    "style": style_name,
+                    "duration": duration,
+                    "outline": outline_result["data"]["outline"],
+                    "complete_script": response
+                },
+                "error": None
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "data": None,
+                "error": f"生成完整脚本失败: {str(e)}"
+            }
+
+    def get_supported_types(self) -> Dict[str, str]:
+        """获取支持的脚本类型"""
+        return self.SCRIPT_TYPES.copy()
+
+    def get_supported_styles(self) -> Dict[str, str]:
+        """获取支持的脚本风格"""
+        return self.SCRIPT_STYLES.copy()

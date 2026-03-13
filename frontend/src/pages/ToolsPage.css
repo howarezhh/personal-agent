@@ -1,0 +1,112 @@
+/* 工具管理页面样式 */
+
+.tools-page {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+.tools-header {
+  margin-bottom: 24px;
+}
+
+.tools-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1890ff;
+}
+
+.tools-header p {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+.tools-filters-card {
+  margin-bottom: 24px;
+}
+
+.tools-grid {
+  margin-top: 16px;
+}
+
+.tool-card {
+  height: 100%;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.tool-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.tool-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.tool-card-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: #262626;
+}
+
+.tool-description {
+  font-size: 14px;
+  color: #595959;
+  margin-bottom: 16px;
+  min-height: 40px;
+  line-height: 1.5;
+}
+
+.tool-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #8c8c8c;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 0;
+  color: #8c8c8c;
+}
+
+.empty-state p {
+  font-size: 16px;
+}
+
+.tool-modal-description {
+  font-size: 14px;
+  color: #595959;
+  margin-bottom: 20px;
+  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .tools-page {
+    padding: 16px;
+  }
+
+  .tools-header h1 {
+    font-size: 24px;
+  }
+
+  .tool-card-header h3 {
+    font-size: 14px;
+  }
+
+  .tool-description {
+    font-size: 13px;
+  }
+}

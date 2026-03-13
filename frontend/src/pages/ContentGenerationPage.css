@@ -1,0 +1,40 @@
+/* 内容生成页面样式 */
+
+.content-generation-page {
+  padding: 24px;
+  background: #f0f2f5;
+  min-height: 100vh;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1890ff;
+}
+
+.page-header p {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+.content-tabs-card {
+  background: #fff;
+  border-radius: 8px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .content-generation-page {
+    padding: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 24px;
+  }
+}

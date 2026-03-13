@@ -1,0 +1,20 @@
+name: Tool selection
+version: v1
+agent: tool
+scene: selection
+input_variables:
+  - user_input
+  - available_tools
+output_requirements:
+  - 为工具选择场景提供系统提示词
+applicable_models:
+  - gpt-4o-mini
+change_log:
+  - version: v1
+    date: 2026-03-09
+    summary: 建立工具选择标准提示词
+prompts:
+  tool_selection_prompt: |
+    请根据用户问题和可用工具选择最合适的工具。
+    用户问题：{user_input}
+    可用工具：{available_tools}

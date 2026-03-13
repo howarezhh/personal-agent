@@ -1,0 +1,31 @@
+name: Tool database query
+version: v1
+agent: tool
+scene: database_query
+input_variables:
+  - schema_info
+  - database_type
+  - query
+output_requirements:
+  - 生成只读 SQL 查询提示词
+applicable_models:
+  - gpt-4o-mini
+change_log:
+  - version: v1
+    date: 2026-03-09
+    summary: 外置 SQL 生成提示词
+prompts:
+  database_query_system_prompt: |
+    你是专业 SQL 生成器，只生成安全、只读的查询语句。
+    只允许输出 SELECT 查询，不得输出解释性文字。
+  database_query_sql_generation_prompt: |
+    给定以下数据库 schema：
+    {schema_info}
+
+    请为以下请求生成 {database_type} SQL 查询："{query}"
+
+    要求：
+    1. 只生成 SELECT 查询
+    2. 使用 schema 中真实存在的表名与列名
+    3. 如需要，补充合适的 WHERE 条件
+    4. 只返回 SQL

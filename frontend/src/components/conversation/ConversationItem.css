@@ -1,0 +1,13 @@
+.conversation-item {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.conversation-item.active {
+  border-color: #1890ff;
+  background: #e6f7ff;
+}
+
+.conversation-item:hover {
+  border-color: #1890ff;
+}

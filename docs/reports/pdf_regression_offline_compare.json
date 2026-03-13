@@ -1,0 +1,129 @@
+{
+  "generated_for": "offline_pdf_regression",
+  "cases": [
+    {
+      "case_id": "pdf_relation_001",
+      "query": "?????????????????",
+      "expected_chunk_id": "pdf-eval-9e6d2869-chunk-4"
+    },
+    {
+      "case_id": "pdf_reason_001",
+      "query": "??????????????????????????????????",
+      "expected_chunk_id": "pdf-eval-9e6d2869-chunk-6"
+    },
+    {
+      "case_id": "pdf_definition_001",
+      "query": "?????????",
+      "expected_chunk_id": "pdf-eval-9e6d2869-chunk-5"
+    }
+  ],
+  "results": [
+    {
+      "name": "vector_only",
+      "top1": 0.3333333333333333,
+      "top3": 0.3333333333333333,
+      "mrr": 0.3333333333333333,
+      "rows": [
+        {
+          "case_id": "pdf_relation_001",
+          "rank": null,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-3"
+          ]
+        },
+        {
+          "case_id": "pdf_reason_001",
+          "rank": 1,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-0"
+          ]
+        },
+        {
+          "case_id": "pdf_definition_001",
+          "rank": null,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-3"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hybrid_only",
+      "top1": 0.3333333333333333,
+      "top3": 0.3333333333333333,
+      "mrr": 0.3333333333333333,
+      "rows": [
+        {
+          "case_id": "pdf_relation_001",
+          "rank": null,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-3"
+          ]
+        },
+        {
+          "case_id": "pdf_reason_001",
+          "rank": 1,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-0"
+          ]
+        },
+        {
+          "case_id": "pdf_definition_001",
+          "rank": null,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-3"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hybrid_plus_rerank",
+      "top1": 0.3333333333333333,
+      "top3": 0.3333333333333333,
+      "mrr": 0.3333333333333333,
+      "rows": [
+        {
+          "case_id": "pdf_relation_001",
+          "rank": null,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-3"
+          ]
+        },
+        {
+          "case_id": "pdf_reason_001",
+          "rank": 1,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-0"
+          ]
+        },
+        {
+          "case_id": "pdf_definition_001",
+          "rank": null,
+          "ranked_ids": [
+            "pdf-eval-9e6d2869-chunk-2",
+            "pdf-eval-9e6d2869-chunk-6",
+            "pdf-eval-9e6d2869-chunk-3"
+          ]
+        }
+      ]
+    }
+  ],
+  "cross_encoder_status": "dependency_installed_but_model_download_timed_out",
+  "cross_encoder_model": "BAAI/bge-reranker-base"
+}

@@ -1,0 +1,83 @@
+name: Tool content optimizer
+version: v1
+agent: tool
+scene: content_optimizer
+input_variables:
+  - content
+  - requirements
+  - target_length
+  - style_name
+  - keywords
+output_requirements:
+  - 为内容优化类动作提供稳定提示词
+applicable_models:
+  - gpt-4o-mini
+change_log:
+  - version: v1
+    date: 2026-03-09
+    summary: 外置内容优化工具提示词
+prompts:
+  content_optimizer_polish_prompt: |
+    请对以下内容进行润色，使其更流畅、优美、专业。
+
+    原文：
+    {content}
+
+    特殊要求：{requirements}
+
+    要求：保持原意不变，修正语法和表达问题，直接输出润色后的内容。
+  content_optimizer_rewrite_prompt: |
+    请对以下内容进行改写，用不同表达传达相同意思。
+
+    原文：
+    {content}
+
+    特殊要求：{requirements}
+
+    要求：保持核心意思不变，避免照抄，直接输出改写后的内容。
+  content_optimizer_expand_prompt: |
+    请对以下内容进行扩写，增加细节与描述。
+
+    原文：
+    {content}
+
+    目标字数：{target_length}
+    特殊要求：{requirements}
+
+    要求：不偏离主题，保持逻辑连贯，直接输出扩写后的内容。
+  content_optimizer_summarize_prompt: |
+    请对以下内容进行缩写，提炼核心要点。
+
+    原文：
+    {content}
+
+    目标字数：{target_length}
+    特殊要求：{requirements}
+
+    要求：保留关键结论和事实，直接输出缩写后的内容。
+  content_optimizer_style_transfer_prompt: |
+    请将以下内容转换为“{style_name}”风格。
+
+    原文：
+    {content}
+
+    特殊要求：{requirements}
+
+    要求：保留原意，调整表达风格，直接输出转换后的内容。
+  content_optimizer_grammar_check_prompt: |
+    请检查以下内容的语法、错别字和标点问题，并提供修正建议。
+
+    原文：
+    {content}
+
+    请按“修正后内容 + 主要修改点”输出。
+  content_optimizer_seo_prompt: |
+    请对以下内容进行 SEO 优化。
+
+    原文：
+    {content}
+
+    目标关键词：{keywords}
+    特殊要求：{requirements}
+
+    要求：自然融入关键词，优化标题与段落结构，直接输出优化后的内容。

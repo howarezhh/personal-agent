@@ -1,0 +1,25 @@
+name: Tool translation
+version: v1
+agent: tool
+scene: translation
+input_variables:
+  - text
+  - source_name
+  - target_name
+output_requirements:
+  - 为翻译工具提供标准提示词
+applicable_models:
+  - gpt-4o-mini
+change_log:
+  - version: v1
+    date: 2026-03-09
+    summary: 外置翻译工具提示词
+prompts:
+  translation_auto_prompt: |
+    请将以下文本翻译成 {target_name}，只返回翻译结果，不要添加解释。
+
+    {text}
+  translation_prompt: |
+    请将以下 {source_name} 文本翻译成 {target_name}，只返回翻译结果，不要添加解释。
+
+    {text}

@@ -1,0 +1,58 @@
+# Docker Compose配置
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: personal_agent_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DATABASE_PASSWORD}
+      MYSQL_DATABASE: ${DATABASE_NAME}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - personal_agent_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: personal_agent_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - personal_agent_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: personal_agent_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_HOST: mysql
+      REDIS_HOST: redis
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    volumes:
+      - ./logs:/app/logs
+      - ./data/uploads:/app/data/uploads
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - personal_agent_network
+
+networks:
+  personal_agent_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
