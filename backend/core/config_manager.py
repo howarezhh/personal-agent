@@ -15,6 +15,15 @@ import yaml
 logger = logging.getLogger(__name__)
 
 
+BASE_CONFIG_FILES = {
+    "model": "model.yaml",
+    "database": "database.yaml",
+    "agent": "agent.yaml",
+    "business": "business.yaml",
+    "tools": "tools.yaml",
+}
+
+
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     merged = dict(base)
     for key, value in override.items():
@@ -39,30 +48,17 @@ class ConfigManager:
 
     def _load_all_configs(self):
         env_name = os.getenv("APP_ENV", os.getenv("ENV", "development"))
-        base_files = {
-            "model": "model.yaml",
-            "database": "database.yaml",
-            "agent": "agent.yaml",
-            "business": "business.yaml",
-            "tools": "tools.yaml",
-        }
-        legacy_files = {
-            "model": "model_config.yaml",
-            "database": "database_config.yaml",
-            "agent": "agent_config.yaml",
-            "business": "business_config.yaml",
-            "tools": "tools_config.yaml",
-        }
 
         env_path = self.config_dir / "env" / f"{env_name}.yaml"
         env_override = self._load_yaml(env_path) if env_path.exists() else {}
 
-        for name in base_files:
-            base_path = self.config_dir / "base" / base_files[name]
-            legacy_path = self.config_dir / legacy_files[name]
-            config_data = self._load_yaml(base_path) if base_path.exists() else {}
-            if not config_data and legacy_path.exists():
-                config_data = self._load_yaml(legacy_path)
+        for name, file_name in BASE_CONFIG_FILES.items():
+            base_path = self.config_dir / "base" / file_name
+            if not base_path.exists():
+                logger.warning("Base config file not found: %s", base_path)
+                config_data = {}
+            else:
+                config_data = self._load_yaml(base_path)
 
             scoped_override = env_override.get(name, {}) if isinstance(env_override, dict) else {}
             self._configs[name] = _deep_merge(config_data, scoped_override) if scoped_override else config_data

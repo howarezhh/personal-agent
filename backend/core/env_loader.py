@@ -88,11 +88,11 @@ def _validate_environment_variables(project_root: Path) -> None:
     """
     try:
         import yaml
-        config_path = project_root / "config" / "database_config.yaml"
+        config_path = project_root / "config" / "base" / "database.yaml"
 
         if not config_path.exists():
-            logger.warning(f"[ENV] Database config file not found at: {config_path}")
-            print(f"[ENV] WARNING: Database config file not found at: {config_path}")
+            logger.warning(f"[ENV] Base database config file not found at: {config_path}")
+            print(f"[ENV] WARNING: Base database config file not found at: {config_path}")
             return
 
         with open(config_path, 'r', encoding='utf-8') as f:

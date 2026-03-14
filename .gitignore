@@ -20,3 +20,10 @@ frontend/dist/
 *.docx
 *.md
 /models
+!scripts/README.md
+scripts/.alogs/
+scripts/logs/
+scripts/data/
+scripts/**/__pycache__/
+scripts/**/*.pyc
+/backend/tests

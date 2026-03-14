@@ -22,26 +22,44 @@ class FakeUploadFile:
 class FakeFileRepository:
     def __init__(self):
         self.file = None
+        self.files_by_id = {}
+        self.deleted_file_ids = []
+
+    def _set_file(self, file):
+        self.file = file
+        self.files_by_id[file.file_id] = file
 
     def create_file(self, file_create: FileCreate):
-        self.file = file_create.to_file()
+        self._set_file(file_create.to_file())
         return self.file
 
     def get_file_by_id(self, file_id: str):
+        return self.files_by_id.get(file_id)
+
+    def delete_file(self, file_id: str):
+        file = self.files_by_id.pop(file_id, None)
+        if file is None:
+            return False
+        self.deleted_file_ids.append(file_id)
         if self.file and self.file.file_id == file_id:
-            return self.file
-        return None
+            self.file = None
+        return True
 
 
 class FakeStorageGateway:
     def __init__(self):
         self.saved = {}
+        self.deleted = []
 
     def build_path(self, upload_dir: str, file_id: str, original_filename: str) -> str:
         return f"{upload_dir}/{file_id}-{original_filename}"
 
     def write_bytes(self, path: str, content: bytes) -> None:
         self.saved[path] = content
+
+    def delete(self, path: str) -> None:
+        self.deleted.append(path)
+        self.saved.pop(path, None)
 
 
 class FakeProcessorAgent:
@@ -51,22 +69,25 @@ class FakeProcessorAgent:
         self.error = error
 
     async def process_file(self, file_id: str):
+        current_file = self.repo.get_file_by_id(file_id)
         if self.success:
-            self.repo.file = replace(
-                self.repo.file,
+            updated_file = replace(
+                current_file,
                 processing_status=ProcessingStatus.COMPLETED,
                 processed_at=datetime.utcnow(),
                 chunk_count=2,
                 summary="summary",
-                metadata={**(self.repo.file.metadata or {}), "chunk_count": 2},
+                metadata={**(current_file.metadata or {}), "chunk_count": 2},
             )
+            self.repo._set_file(updated_file)
             return {"success": True, "chunk_count": 2, "summary": "summary"}
 
-        self.repo.file = replace(
-            self.repo.file,
+        updated_file = replace(
+            current_file,
             processing_status=ProcessingStatus.FAILED,
             error_message=self.error,
         )
+        self.repo._set_file(updated_file)
         return {"success": False, "error": self.error}
 
 
@@ -106,12 +127,18 @@ def test_get_file_type_rejects_legacy_doc_uploads():
 
 
 @pytest.mark.asyncio
-async def test_document_application_service_raises_when_processing_fails():
+async def test_document_application_service_cleans_up_failed_upload(monkeypatch):
     file_repo = FakeFileRepository()
+    storage_gateway = FakeStorageGateway()
+    cleanup_calls = []
+    monkeypatch.setattr(
+        "backend.application.services.document_application_service.delete_file_knowledge_data",
+        lambda **kwargs: cleanup_calls.append(kwargs) or {"chunk_count": 0, "vector_count": 0, "chunk_ids": []},
+    )
     service = DocumentApplicationService(
         file_repo=file_repo,
         knowledge_base_repo=FakeKnowledgeBaseRepository(),
-        storage_gateway=FakeStorageGateway(),
+        storage_gateway=storage_gateway,
         processor_agent=FakeProcessorAgent(file_repo, success=False, error="parse failed"),
     )
 
@@ -123,8 +150,11 @@ async def test_document_application_service_raises_when_processing_fails():
             request_id="req-1",
         )
 
-    assert file_repo.file is not None
-    assert file_repo.file.processing_status is ProcessingStatus.FAILED
+    assert cleanup_calls
+    assert file_repo.file is None
+    assert len(file_repo.deleted_file_ids) == 1
+    assert len(storage_gateway.deleted) == 1
+    assert not storage_gateway.saved
 
 
 @pytest.mark.asyncio
@@ -151,6 +181,56 @@ async def test_document_application_service_returns_processed_document():
     assert result["status"] == "completed"
     assert result["process_result"]["success"] is True
     assert storage_gateway.saved
+
+
+@pytest.mark.asyncio
+async def test_document_application_service_batch_upload_returns_mixed_results(monkeypatch):
+    file_repo = FakeFileRepository()
+    storage_gateway = FakeStorageGateway()
+    monkeypatch.setattr(
+        "backend.application.services.document_application_service.delete_file_knowledge_data",
+        lambda **kwargs: {"chunk_count": 0, "vector_count": 0, "chunk_ids": []},
+    )
+    service = DocumentApplicationService(
+        file_repo=file_repo,
+        knowledge_base_repo=FakeKnowledgeBaseRepository(),
+        storage_gateway=storage_gateway,
+        processor_agent=FakeProcessorAgent(file_repo, success=True),
+    )
+
+    async def fake_upload_document(*, user_id: str, upload_file, knowledge_base_id: str | None, request_id: str | None = None):
+        if upload_file.filename == "broken.txt":
+            raise RuntimeError("parse failed")
+        return {
+            "document_id": f"doc-{upload_file.filename}",
+            "file_name": upload_file.filename,
+            "file_type": "text",
+            "file_size": len(await upload_file.read()),
+            "chunk_count": 1,
+            "upload_time": "2026-03-14T00:00:00",
+            "user_id": user_id,
+            "knowledge_base_id": knowledge_base_id,
+            "knowledge_base_name": "Knowledge Base",
+            "status": "completed",
+        }
+
+    monkeypatch.setattr(service, "upload_document", fake_upload_document)
+
+    result = await service.upload_documents_batch(
+        user_id="user-1",
+        upload_files=[
+            FakeUploadFile("ok.txt", b"hello"),
+            FakeUploadFile("broken.txt", b"bad"),
+        ],
+        knowledge_base_id="kb-1",
+        request_id="req-1",
+    )
+
+    assert result["total"] == 2
+    assert result["success_count"] == 1
+    assert result["failed_count"] == 1
+    assert result["results"][0]["success"] is True
+    assert result["results"][1]["success"] is False
 
 
 @pytest.mark.asyncio

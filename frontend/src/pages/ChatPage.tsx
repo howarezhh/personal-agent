@@ -17,6 +17,7 @@ const ChatPage = () => {
   const { currentConversationId, loadMessages, reset } = useChat();
   const [searchParams, setSearchParams] = useSearchParams();
   const pendingConversationRefreshRef = useRef<string | null>(null);
+  const loadedConversationIdRef = useRef<string | null>(null);
 
   const conversationIdFromUrl = searchParams.get('conversationId');
   const availableConversationIds = useMemo(() => new Set(conversations.map((conversation) => conversation.conversationId)), [conversations]);
@@ -29,6 +30,7 @@ const ChatPage = () => {
     const targetConversationId = conversationIdFromUrl || currentConversationId;
     if (!targetConversationId) {
       pendingConversationRefreshRef.current = null;
+      loadedConversationIdRef.current = null;
       return;
     }
 
@@ -40,6 +42,7 @@ const ChatPage = () => {
       }
 
       pendingConversationRefreshRef.current = null;
+      loadedConversationIdRef.current = null;
       setSearchParams({}, { replace: true });
       reset();
       return;
@@ -50,7 +53,17 @@ const ChatPage = () => {
     if (!conversationIdFromUrl || conversationIdFromUrl !== targetConversationId) {
       setSearchParams({ conversationId: targetConversationId }, { replace: true });
     }
-    void loadMessages(targetConversationId);
+
+    if (loadedConversationIdRef.current === targetConversationId) {
+      return;
+    }
+
+    loadedConversationIdRef.current = targetConversationId;
+    void loadMessages(targetConversationId).catch(() => {
+      if (loadedConversationIdRef.current === targetConversationId) {
+        loadedConversationIdRef.current = null;
+      }
+    });
   }, [availableConversationIds, conversationIdFromUrl, currentConversationId, loadConversations, loadMessages, reset, setSearchParams]);
 
   const handleCreateConversation = async () => {

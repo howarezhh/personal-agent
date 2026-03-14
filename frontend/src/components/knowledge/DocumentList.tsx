@@ -1,9 +1,10 @@
-import { DeleteOutlined, FileTextOutlined } from '@ant-design/icons';
-import { Button, message, Popconfirm, Space, Table, Tag } from 'antd';
+import { DeleteOutlined, FileTextOutlined, SyncOutlined } from '@ant-design/icons';
+import { Button, message, Popconfirm, Progress, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 import { knowledgeService } from '@/services/knowledgeService';
 import type { Document } from '@/types';
+import { getDocumentStageLabel, getDocumentStatusLabel } from '@/utils/knowledgeStatus';
 import { formatDate, formatFileSize } from '@/utils/formatters';
 
 interface DocumentListProps {
@@ -47,7 +48,7 @@ export const DocumentList = ({ documents, onDelete }: DocumentListProps) => {
       dataIndex: 'status',
       key: 'status',
       width: 100,
-      render: (status) => {
+      render: (status, record) => {
         const currentStatus = status || 'completed';
         const colorMap: Record<string, string> = {
           pending: 'default',
@@ -55,7 +56,48 @@ export const DocumentList = ({ documents, onDelete }: DocumentListProps) => {
           completed: 'success',
           failed: 'error',
         };
-        return <Tag color={colorMap[currentStatus] || 'default'}>{currentStatus}</Tag>;
+        return (
+          <Space wrap size={4}>
+            <Tag color={colorMap[currentStatus] || 'default'}>{getDocumentStatusLabel(currentStatus)}</Tag>
+            {record.canRetryVectorization ? (
+              <Tag color="orange" icon={<SyncOutlined />}>
+                待补向量 {record.missingVectorChunkCount ?? 0}
+              </Tag>
+            ) : null}
+          </Space>
+        );
+      },
+    },
+    {
+      title: '处理进度',
+      key: 'progress',
+      width: 240,
+      render: (_, record) => {
+        const currentStatus = record.status || 'completed';
+        const progress = record.processingProgress ?? (currentStatus === 'completed' ? 100 : 0);
+        const stageLabel = getDocumentStageLabel(record.processingStage);
+
+        if (currentStatus === 'completed' && !record.processingStage) {
+          return <Typography.Text type="success">处理完成</Typography.Text>;
+        }
+
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Progress
+              percent={progress}
+              size="small"
+              status={currentStatus === 'failed' ? 'exception' : currentStatus === 'completed' ? 'success' : 'active'}
+            />
+            <Typography.Text type={currentStatus === 'failed' ? 'danger' : 'secondary'}>
+              {currentStatus === 'failed' ? record.errorMessage || '处理失败' : stageLabel || '处理中'}
+            </Typography.Text>
+            {record.chunkCount > 0 ? (
+              <Typography.Text type="secondary">
+                向量分块：{record.vectorizedChunkCount ?? 0}/{record.chunkCount}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        );
       },
     },
     { title: '分块数', dataIndex: 'chunkCount', key: 'chunkCount', width: 100 },

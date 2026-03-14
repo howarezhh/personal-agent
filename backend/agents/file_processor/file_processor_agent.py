@@ -105,6 +105,37 @@ class FileProcessorAgent(BaseAgent):
 
         return None
 
+    def _update_processing_progress(
+        self,
+        file: File,
+        *,
+        stage: str,
+        progress: int,
+        status: ProcessingStatus = ProcessingStatus.PROCESSING,
+        error_message: str | None = None,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        metadata = {
+            **(file.metadata or {}),
+            "processing_stage": stage,
+            "processing_progress": progress,
+        }
+        if extra_metadata:
+            metadata.update(extra_metadata)
+
+        self.file_repo.update_file(
+            file.file_id,
+            FileUpdate(
+                processing_status=status,
+                error_message=error_message,
+                metadata=metadata,
+            )
+        )
+        file.metadata = metadata
+        file.processing_status = status
+        if error_message is not None:
+            file.error_message = error_message
+
     async def process_file(self, file_id: str) -> Dict[str, Any]:
         """
         处理单个文件
@@ -127,10 +158,7 @@ class FileProcessorAgent(BaseAgent):
             self.logger.info(f"Processing file: {file.original_filename} ({file.file_type})")
 
             # 2. 更新状态为处理中
-            self.file_repo.update_file(
-                file_id,
-                FileUpdate(processing_status=ProcessingStatus.PROCESSING)
-            )
+            self._update_processing_progress(file, stage="queued", progress=5)
 
             # 3. 获取解析器
             parser = self._get_parser_for_file(file.file_type)
@@ -140,12 +168,12 @@ class FileProcessorAgent(BaseAgent):
                     file_format=file.file_type,
                     supported_formats=", ".join(self.supported_formats)
                 )
-                self.file_repo.update_file(
-                    file_id,
-                    FileUpdate(
-                        processing_status=ProcessingStatus.FAILED,
-                        error_message=error_msg
-                    )
+                self._update_processing_progress(
+                    file,
+                    stage="failed",
+                    progress=100,
+                    status=ProcessingStatus.FAILED,
+                    error_message=error_msg,
                 )
                 return {
                     "success": False,
@@ -153,17 +181,18 @@ class FileProcessorAgent(BaseAgent):
                 }
 
             # 4. 解析文件
+            self._update_processing_progress(file, stage="parsing", progress=20)
             self.logger.info(f"Parsing file with {parser.__class__.__name__}")
             parse_result = await parser.safe_parse(file.storage_path)
 
             if not parse_result["success"]:
                 error_msg = parse_result.get("error", "解析失败")
-                self.file_repo.update_file(
-                    file_id,
-                    FileUpdate(
-                        processing_status=ProcessingStatus.FAILED,
-                        error_message=error_msg
-                    )
+                self._update_processing_progress(
+                    file,
+                    stage="failed",
+                    progress=100,
+                    status=ProcessingStatus.FAILED,
+                    error_message=error_msg,
                 )
                 return {
                     "success": False,
@@ -173,6 +202,7 @@ class FileProcessorAgent(BaseAgent):
             parsed_content = parse_result["content"]
 
             # 5. 文档分块
+            self._update_processing_progress(file, stage="chunking", progress=45)
             self.logger.info("Chunking document")
             chunks = []
 
@@ -200,6 +230,7 @@ class FileProcessorAgent(BaseAgent):
             self.logger.info(f"Created {len(chunks)} chunks")
 
             # 6. 保存分块到数据库
+            self._update_processing_progress(file, stage="saving_chunks", progress=65)
             self.logger.info("Saving chunks to database")
             file_chunks = []
             for i, chunk in enumerate(chunks):
@@ -234,6 +265,7 @@ class FileProcessorAgent(BaseAgent):
             vector_ids = []
             if self.vector_enabled and file_chunks:
                 try:
+                    self._update_processing_progress(file, stage="vectorizing", progress=80)
                     self.logger.info("开始向量化文本块...")
 
                     # 准备向量化数据
@@ -284,6 +316,7 @@ class FileProcessorAgent(BaseAgent):
                     self.logger.error(f"Error during vectorization: {str(e)}", exc_info=True)
 
             # 8. 生成摘要（可选）
+            self._update_processing_progress(file, stage="summarizing", progress=90)
             summary = await self._generate_summary(
                 parsed_content,
                 chunks,
@@ -302,7 +335,9 @@ class FileProcessorAgent(BaseAgent):
                     metadata={
                         **(file.metadata or {}),
                         **parsed_content.metadata,
-                        "chunk_count": len(chunks)
+                        "chunk_count": len(chunks),
+                        "processing_stage": "completed",
+                        "processing_progress": 100,
                     }
                 )
             )
@@ -322,13 +357,14 @@ class FileProcessorAgent(BaseAgent):
 
             # 更新状态为失败
             try:
-                self.file_repo.update_file(
-                    file_id,
-                    FileUpdate(
-                        processing_status=ProcessingStatus.FAILED,
-                        error_message=str(e)
+                if file:
+                    self._update_processing_progress(
+                        file,
+                        stage="failed",
+                        progress=100,
+                        status=ProcessingStatus.FAILED,
+                        error_message=str(e),
                     )
-                )
             except Exception as update_error:
                 self.logger.error(f"Failed to update file status: {str(update_error)}")
 

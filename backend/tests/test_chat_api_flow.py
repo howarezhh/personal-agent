@@ -258,3 +258,19 @@ async def test_stream_api_returns_same_conversation_metadata_and_done(monkeypatc
         assert conversation_repo.message_count_updates == [("conv-a", 1), ("conv-a", 1)]
     finally:
         await client.aclose()
+
+
+def test_replace_citation_placeholders_uses_source_names():
+    answer = "关于吴方君的信息：[来源1]、【来源2】、[1]"
+    citations = [
+        {"source_name": "教育部文件.pdf"},
+        {"source_name": "江西财经大学管理办法.docx"},
+    ]
+
+    normalized = chat._replace_citation_placeholders(answer, citations)
+
+    assert "[来源1]" not in normalized
+    assert "【来源2】" not in normalized
+    assert "[1]" not in normalized
+    assert "【教育部文件.pdf】" in normalized
+    assert "【江西财经大学管理办法.docx】" in normalized

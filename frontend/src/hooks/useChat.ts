@@ -120,11 +120,12 @@ export const useChat = () => {
 
           switch (event.type) {
             case 'thinking': {
-              const thinkingText = event.message || event.content || 'thinking';
+              const thinkingText = String(event.message || event.content || 'thinking');
               if (!isStreamBootstrapEvent(thinkingText)) {
+                const [title] = thinkingText.split('\n');
                 addThinkingStep({
-                  step: String(thinkingText),
-                  description: String(thinkingText),
+                  step: title || thinkingText,
+                  description: thinkingText,
                   timestamp: event.timestamp,
                 });
               }

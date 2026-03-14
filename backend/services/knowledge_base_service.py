@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from typing import Any, Dict, List, Optional
 
 from backend.core.config_manager import get_config_manager
@@ -106,6 +107,9 @@ def format_file_as_document(file_record: StoredFile) -> Dict[str, Any]:
         "created_at": created_at,
         "updated_at": updated_at,
         "status": file_record.processing_status.value if hasattr(file_record.processing_status, "value") else str(file_record.processing_status),
+        "processing_stage": metadata.get("processing_stage"),
+        "processing_progress": metadata.get("processing_progress"),
+        "error_message": getattr(file_record, "error_message", None),
         "user_id": file_record.user_id,
         "knowledge_base_id": metadata.get("knowledge_base_id"),
         "knowledge_base_name": metadata.get("knowledge_base_name"),
@@ -133,7 +137,32 @@ def build_chunk_vector_metadata(file_record: StoredFile, chunk: FileChunk) -> Di
     if file_metadata.get("knowledge_managed"):
         payload["document_id"] = file_record.file_id
 
-    return payload
+    return _sanitize_vector_metadata(payload)
+
+
+def _sanitize_vector_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """清洗向量数据库 metadata，移除或转换 Chroma 不支持的值。"""
+    sanitized: Dict[str, Any] = {}
+
+    for key, value in metadata.items():
+        if value is None:
+            continue
+
+        if isinstance(value, (str, bool, int, float)):
+            sanitized[key] = value
+            continue
+
+        if hasattr(value, "isoformat"):
+            sanitized[key] = value.isoformat()
+            continue
+
+        if isinstance(value, (dict, list, tuple, set)):
+            sanitized[key] = json.dumps(value, ensure_ascii=False, sort_keys=True)
+            continue
+
+        sanitized[key] = str(value)
+
+    return sanitized
 
 
 def delete_file_knowledge_data(

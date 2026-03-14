@@ -4,6 +4,7 @@
 """
 
 import json
+import re
 import asyncio
 from copy import deepcopy
 from typing import Optional, Any, Dict, TypedDict
@@ -427,12 +428,14 @@ async def _stream_response(
 
         logger.info("[CHAT-STREAM] 工作流执行完成")
 
+        normalized_answer = _replace_citation_placeholders(full_answer, citations)
+
         # 保存助手回复
-        if full_answer:
+        if normalized_answer:
             logger.info("[CHAT-STREAM] 保存助手回复")
             assistant_message = app_service.save_assistant_message(
                 conversation_id=conversation_id,
-                content=full_answer,
+                content=normalized_answer,
                 citations=citations,
                 parent_message_id=user_message_id,
                 metadata={
@@ -538,10 +541,12 @@ async def _non_stream_response(
                 raise Exception(chunk.content)
             execution_id = _extract_execution_id(chunk) or execution_id
 
-        if full_answer:
+        normalized_answer = _replace_citation_placeholders(full_answer, citations)
+
+        if normalized_answer:
             assistant_message = app_service.save_assistant_message(
                 conversation_id=conversation_id,
-                content=full_answer,
+                content=normalized_answer,
                 citations=citations,
                 parent_message_id=user_message_id,
                 metadata={
@@ -556,7 +561,7 @@ async def _non_stream_response(
 
         logger.info("[CHAT-NON-STREAM] 非流式回答生成完成")
         return {
-            "answer": full_answer,
+            "answer": normalized_answer,
             "execution_id": execution_id,
             "assistant_message_id": assistant_message_id,
         }
@@ -643,6 +648,34 @@ def _build_sse_event_payload(chunk: Any) -> Any:
         return {"value": chunk.content}
 
     return chunk.content
+
+
+def _replace_citation_placeholders(answer: str, citations: list[dict[str, Any]]) -> str:
+    if not answer or not citations:
+        return answer
+
+    normalized_answer = answer
+    for index, citation in enumerate(citations, start=1):
+        source_name = (
+            citation.get("source_name")
+            or citation.get("source")
+            or citation.get("sourceName")
+            or f"来源{index}"
+        )
+        patterns = [
+            rf"\[来源{index}\]",
+            rf"\[参考{index}\]",
+            rf"【来源{index}】",
+            rf"【参考{index}】",
+            rf"\[{index}\]",
+            rf"【{index}】",
+            rf"\({index}\)",
+        ]
+        replacement = f"【{source_name}】"
+        for pattern in patterns:
+            normalized_answer = re.sub(pattern, replacement, normalized_answer)
+
+    return normalized_answer
 
 
 def _extract_execution_id(payload: Any) -> Optional[str]:

@@ -1,32 +1,32 @@
-# 智能体配置文件
+﻿# 鏅鸿兘浣撻厤缃枃浠?
 
-# 通用配置
+# 閫氱敤閰嶇疆
 common:
-  max_iterations: 10  # 最大迭代次数
-  timeout: 300  # 超时时间（秒）
-  enable_streaming: true  # 是否启用流式输出
-  save_execution_records: true  # 是否保存执行记录
+  max_iterations: 10  # 鏈€澶ц凯浠ｆ鏁?
+  timeout: 300  # 瓒呮椂鏃堕棿锛堢锛?
+  enable_streaming: true  # 鏄惁鍚敤娴佸紡杈撳嚭
+  save_execution_records: true  # 鏄惁淇濆瓨鎵ц璁板綍
 
-# 路由智能体配置
+# 璺敱鏅鸿兘浣撻厤缃?
 router_agent:
   agent_name: "RouterAgent"
   agent_type: "router"
-  model: "primary"  # 使用主模型
-  temperature: 0.3  # 较低温度，保证决策稳定性
+  model: "primary"  # 浣跨敤涓绘ā鍨?
+  temperature: 0.3  # 杈冧綆娓╁害锛屼繚璇佸喅绛栫ǔ瀹氭€?
   max_tokens: 500
-  prompt_template: "router_system_prompt"  # 提示词模板名称
+  prompt_template: "router_system_prompt"  # 鎻愮ず璇嶆ā鏉垮悕绉?
 
-  # 决策类型
+  # 鍐崇瓥绫诲瀷
   decision_types:
-    - "direct_answer"  # 直接回答
-    - "retrieval"  # 检索知识库
-    - "tool_call"  # 调用工具
-    - "multi_agent"  # 多智能体协作
+    - "direct_answer"  # 鐩存帴鍥炵瓟
+    - "retrieval"  # 妫€绱㈢煡璇嗗簱
+    - "tool_call"  # 璋冪敤宸ュ叿
+    - "multi_agent"  # 澶氭櫤鑳戒綋鍗忎綔
 
-  # 置信度阈值
+  # 缃俊搴﹂槇鍊?
   confidence_threshold: 0.7
 
-# 检索智能体配置
+# 妫€绱㈡櫤鑳戒綋閰嶇疆
 retrieval_agent:
   agent_name: "RetrievalAgent"
   agent_type: "retrieval"
@@ -35,18 +35,18 @@ retrieval_agent:
   max_tokens: 1000
   prompt_template: "retrieval_system_prompt"
 
-  # 检索参数
-  top_k: 5  # 返回前K个结果
-  similarity_threshold: 0.3  # 相似度阈值（L2距离转换后的相似度范围约0-0.5，0.3是合理的阈值）
-  enable_rerank: true  # 是否启用重排序
-  rerank_top_k: 3  # 重排序后返回的结果数
-  enable_summary: false  # 是否生成检索结果摘要（使用LLM，会增加延迟）
+  # 妫€绱㈠弬鏁?
+  top_k: 10  # 杩斿洖鍓岾涓粨鏋?
+  similarity_threshold: 0.3  # 鐩镐技搴﹂槇鍊硷紙L2璺濈杞崲鍚庣殑鐩镐技搴﹁寖鍥寸害0-0.5锛?.3鏄悎鐞嗙殑闃堝€硷級
+  enable_rerank: true  # 鏄惁鍚敤閲嶆帓搴?
+  rerank_top_k: 10  # 閲嶆帓搴忓悗杩斿洖鐨勭粨鏋滄暟
+  enable_summary: false  # 鏄惁鐢熸垚妫€绱㈢粨鏋滄憳瑕侊紙浣跨敤LLM锛屼細澧炲姞寤惰繜锛?
 
-  # 查询重写
+  # 鏌ヨ閲嶅啓
   enable_query_rewrite: true
   query_rewrite_prompt: "query_rewrite_prompt"
 
-# 生成智能体配置
+# 鐢熸垚鏅鸿兘浣撻厤缃?
 generation_agent:
   agent_name: "GenerationAgent"
   agent_type: "generation"
@@ -55,15 +55,15 @@ generation_agent:
   max_tokens: 2000
   prompt_template: "generation_system_prompt"
 
-  # 生成参数
-  enable_citation: true  # 是否引用来源
-  enable_hallucination_check: true  # 是否检查幻觉
-  max_context_length: 4000  # 最大上下文长度
+  # 鐢熸垚鍙傛暟
+  enable_citation: true  # 鏄惁寮曠敤鏉ユ簮
+  enable_hallucination_check: true  # 鏄惁妫€鏌ュ够瑙?
+  max_context_length: 4000  # 鏈€澶т笂涓嬫枃闀垮害
 
-  # 流式输出
+  # 娴佸紡杈撳嚭
   streaming_chunk_size: 10
 
-# 工具调用智能体配置
+# 宸ュ叿璋冪敤鏅鸿兘浣撻厤缃?
 tool_agent:
   agent_name: "ToolAgent"
   agent_type: "tool"
@@ -72,7 +72,7 @@ tool_agent:
   max_tokens: 1000
   prompt_template: "tool_selection_prompt"
 
-  # 工具配置
+  # 宸ュ叿閰嶇疆
   available_tools:
     - "web_search"
     - "calculator"
@@ -88,17 +88,17 @@ tool_agent:
     - "exchange_rate_mcp"
     - "ip_lookup_mcp"
 
-  # 超时和重试配置
-  tool_timeout: 30  # 工具调用超时时间（秒）
-  max_retries: 2  # 最大重试次数（失败后重试）
-  retry_delay: 1.0  # 重试延迟（秒）
-  max_tool_calls: 5  # 最大工具调用次数
+  # 瓒呮椂鍜岄噸璇曢厤缃?
+  tool_timeout: 30  # 宸ュ叿璋冪敤瓒呮椂鏃堕棿锛堢锛?
+  max_retries: 2  # 鏈€澶ч噸璇曟鏁帮紙澶辫触鍚庨噸璇曪級
+  retry_delay: 1.0  # 閲嶈瘯寤惰繜锛堢锛?
+  max_tool_calls: 5  # 鏈€澶у伐鍏疯皟鐢ㄦ鏁?
 
-  # 性能监控
-  enable_performance_monitoring: true  # 是否启用性能监控
-  log_performance_stats: true  # 是否记录性能统计到日志
+  # 鎬ц兘鐩戞帶
+  enable_performance_monitoring: true  # 鏄惁鍚敤鎬ц兘鐩戞帶
+  log_performance_stats: true  # 鏄惁璁板綍鎬ц兘缁熻鍒版棩蹇?
 
-# 文件处理智能体配置
+# 鏂囦欢澶勭悊鏅鸿兘浣撻厤缃?
 file_processor_agent:
   agent_name: "FileProcessorAgent"
   agent_type: "file_processor"
@@ -106,7 +106,7 @@ file_processor_agent:
   temperature: 0.5
   max_tokens: 1500
 
-  # 支持的文件类型
+  # 鏀寔鐨勬枃浠剁被鍨?
   supported_formats:
     - "pdf"
     - "docx"
@@ -115,15 +115,16 @@ file_processor_agent:
     - "md"
     - "csv"
 
-  # 文件大小限制（MB）
+  # 鏂囦欢澶у皬闄愬埗锛圡B锛?
   max_file_size: 50
 
-  # 文本分块参数
+  # 鏂囨湰鍒嗗潡鍙傛暟
   chunk_size: 1000
   chunk_overlap: 100
 
-# 对话历史配置
+# 瀵硅瘽鍘嗗彶閰嶇疆
 conversation_history:
-  max_history_length: 10  # 最多保留的历史消息数
-  include_agent_executions: true  # 是否包含智能体执行记录
+  max_history_length: 10  # 鏈€澶氫繚鐣欑殑鍘嗗彶娑堟伅鏁?
+  include_agent_executions: true  # 鏄惁鍖呭惈鏅鸿兘浣撴墽琛岃褰?
   format: "messages"  # messages/text
+

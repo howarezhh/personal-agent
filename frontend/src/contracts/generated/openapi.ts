@@ -278,6 +278,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/knowledge/upload/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Documents Batch */
+        post: operations["upload_documents_batch_api_v1_knowledge_upload_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/documents/{document_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document Status */
+        get: operations["get_document_status_api_v1_knowledge_documents__document_id__status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/knowledge/documents": {
         parameters: {
             query?: never;
@@ -307,6 +341,74 @@ export interface paths {
         post?: never;
         /** Delete Document */
         delete: operations["delete_document_api_v1_knowledge_documents__document_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/rebuild-vectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebuild Vectors */
+        post: operations["rebuild_vectors_api_v1_knowledge_rebuild_vectors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/rebuild-vectors/full": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebuild Vectors Full */
+        post: operations["rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/rebuild-vectors/full/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Full Rebuild Vectors Task */
+        post: operations["start_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/rebuild-vectors/full/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Full Rebuild Vectors Task */
+        get: operations["get_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -666,6 +768,27 @@ export interface components {
              */
             knowledge_base_id?: string | null;
         };
+        /** BatchUploadItemResponse */
+        BatchUploadItemResponse: {
+            /** File Name */
+            file_name: string;
+            /** Success */
+            success: boolean;
+            document?: components["schemas"]["DocumentInfo"] | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** BatchUploadResponse */
+        BatchUploadResponse: {
+            /** Total */
+            total: number;
+            /** Success Count */
+            success_count: number;
+            /** Failed Count */
+            failed_count: number;
+            /** Results */
+            results: components["schemas"]["BatchUploadItemResponse"][];
+        };
         /** Body_upload_document_api_v1_knowledge_upload_post */
         Body_upload_document_api_v1_knowledge_upload_post: {
             /**
@@ -674,6 +797,19 @@ export interface components {
              * @description 待上传的知识库文档
              */
             file: string;
+            /**
+             * Knowledge Base Id
+             * @description 所属知识库 ID
+             */
+            knowledge_base_id?: string | null;
+        };
+        /** Body_upload_documents_batch_api_v1_knowledge_upload_batch_post */
+        Body_upload_documents_batch_api_v1_knowledge_upload_batch_post: {
+            /**
+             * Files
+             * @description 待上传的知识库文档列表
+             */
+            files: string[];
             /**
              * Knowledge Base Id
              * @description 所属知识库 ID
@@ -694,9 +830,7 @@ export interface components {
              * Data
              * @description 生成结果
              */
-            data?: {
-                [key: string]: unknown;
-            } | null;
+            data?: Record<string, never> | null;
             /**
              * Error
              * @description 错误信息
@@ -917,6 +1051,45 @@ export interface components {
              * @default completed
              */
             status: string;
+            /**
+             * Processing Stage
+             * @description 处理阶段
+             */
+            processing_stage?: string | null;
+            /**
+             * Processing Progress
+             * @description 处理进度百分比
+             */
+            processing_progress?: number | null;
+            /**
+             * Error Message
+             * @description 错误信息
+             */
+            error_message?: string | null;
+            /**
+             * Vectorized Chunk Count
+             * @description 已向量化分块数
+             * @default 0
+             */
+            vectorized_chunk_count: number;
+            /**
+             * Missing Vector Chunk Count
+             * @description 待向量化分块数
+             * @default 0
+             */
+            missing_vector_chunk_count: number;
+            /**
+             * Vectorization Status
+             * @description 向量化状态
+             * @default unknown
+             */
+            vectorization_status: string;
+            /**
+             * Can Retry Vectorization
+             * @description 是否可重试向量化
+             * @default false
+             */
+            can_retry_vectorization: boolean;
         };
         /** DocumentListResponse */
         DocumentListResponse: {
@@ -924,6 +1097,42 @@ export interface components {
             documents: components["schemas"]["DocumentInfo"][];
             /** Total */
             total: number;
+        };
+        /** FullVectorRebuildResponse */
+        FullVectorRebuildResponse: {
+            /** Total Documents */
+            total_documents: number;
+            /** Processed Documents */
+            processed_documents: number;
+            /** Succeeded Documents */
+            succeeded_documents: number;
+            /** Failed Documents */
+            failed_documents: number;
+            /** Total Missing Chunks Before */
+            total_missing_chunks_before: number;
+            /** Total Vectorized Chunks Now */
+            total_vectorized_chunks_now: number;
+            /** Total Missing Chunks After */
+            total_missing_chunks_after: number;
+            /** Details */
+            details: components["schemas"]["VectorRebuildItem"][];
+            /**
+             * Reset Collection
+             * @description ???????????
+             * @default false
+             */
+            reset_collection: boolean;
+            /**
+             * Target Dimension
+             * @description ??????????
+             * @default 512
+             */
+            target_dimension: number;
+            /**
+             * Error
+             * @description ??????????
+             */
+            error?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -980,9 +1189,7 @@ export interface components {
             /** Source */
             source: string;
             /** Metadata */
-            metadata: {
-                [key: string]: unknown;
-            };
+            metadata: Record<string, never>;
         };
         /** KnowledgeSearchResponse */
         KnowledgeSearchResponse: {
@@ -1482,6 +1689,32 @@ export interface components {
             knowledge_base_id?: string | null;
         };
         /**
+         * SuccessResponse[BatchUploadResponse]
+         * @example {
+         *       "code": 200,
+         *       "data": {
+         *         "key": "value"
+         *       },
+         *       "message": "success",
+         *       "timestamp": "2024-01-01T00:00:00+00:00"
+         *     }
+         */
+        SuccessResponse_BatchUploadResponse_: {
+            /**
+             * Code
+             * @default 200
+             */
+            code: number;
+            /**
+             * Message
+             * @default success
+             */
+            message: string;
+            data?: components["schemas"]["BatchUploadResponse"] | null;
+            /** Timestamp */
+            timestamp?: string;
+        };
+        /**
          * SuccessResponse[ConversationResponse]
          * @example {
          *       "code": 200,
@@ -1556,6 +1789,58 @@ export interface components {
              */
             message: string;
             data?: components["schemas"]["DocumentListResponse"] | null;
+            /** Timestamp */
+            timestamp?: string;
+        };
+        /**
+         * SuccessResponse[FullVectorRebuildResponse]
+         * @example {
+         *       "code": 200,
+         *       "data": {
+         *         "key": "value"
+         *       },
+         *       "message": "success",
+         *       "timestamp": "2024-01-01T00:00:00+00:00"
+         *     }
+         */
+        SuccessResponse_FullVectorRebuildResponse_: {
+            /**
+             * Code
+             * @default 200
+             */
+            code: number;
+            /**
+             * Message
+             * @default success
+             */
+            message: string;
+            data?: components["schemas"]["FullVectorRebuildResponse"] | null;
+            /** Timestamp */
+            timestamp?: string;
+        };
+        /**
+         * SuccessResponse[FullVectorRebuildTaskResponse]
+         * @example {
+         *       "code": 200,
+         *       "data": {
+         *         "key": "value"
+         *       },
+         *       "message": "success",
+         *       "timestamp": "2024-01-01T00:00:00+00:00"
+         *     }
+         */
+        SuccessResponse_FullVectorRebuildTaskResponse_: {
+            /**
+             * Code
+             * @default 200
+             */
+            code: number;
+            /**
+             * Message
+             * @default success
+             */
+            message: string;
+            data?: components["schemas"]["FullVectorRebuildTaskResponse"] | null;
             /** Timestamp */
             timestamp?: string;
         };
@@ -1741,6 +2026,32 @@ export interface components {
             /** Timestamp */
             timestamp?: string;
         };
+        /**
+         * SuccessResponse[VectorRebuildResponse]
+         * @example {
+         *       "code": 200,
+         *       "data": {
+         *         "key": "value"
+         *       },
+         *       "message": "success",
+         *       "timestamp": "2024-01-01T00:00:00+00:00"
+         *     }
+         */
+        SuccessResponse_VectorRebuildResponse_: {
+            /**
+             * Code
+             * @default 200
+             */
+            code: number;
+            /**
+             * Message
+             * @default success
+             */
+            message: string;
+            data?: components["schemas"]["VectorRebuildResponse"] | null;
+            /** Timestamp */
+            timestamp?: string;
+        };
         /** TokenResponse */
         TokenResponse: {
             /**
@@ -1810,9 +2121,7 @@ export interface components {
              * Parameters
              * @description 工具参数
              */
-            parameters: {
-                [key: string]: unknown;
-            };
+            parameters: Record<string, never>;
         };
         /**
          * ToolExecuteResponse
@@ -1834,9 +2143,7 @@ export interface components {
              * Data
              * @description 执行结果
              */
-            data?: {
-                [key: string]: unknown;
-            } | null;
+            data?: Record<string, never> | null;
             /**
              * Error
              * @description 错误信息
@@ -1881,9 +2188,7 @@ export interface components {
              * Parameters
              * @description 参数列表
              */
-            parameters: {
-                [key: string]: unknown;
-            }[];
+            parameters: Record<string, never>[];
             /**
              * Timeout
              * @description 超时时间（秒）
@@ -1955,6 +2260,123 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VectorRebuildItem */
+        VectorRebuildItem: {
+            /** Document Id */
+            document_id: string;
+            /** File Name */
+            file_name: string;
+            /** Missing Before */
+            missing_before: number;
+            /** Vectorized Now */
+            vectorized_now: number;
+            /** Missing After */
+            missing_after: number;
+            /** Success */
+            success: boolean;
+            /** Error */
+            error?: string | null;
+        };
+        /** VectorRebuildRequest */
+        VectorRebuildRequest: {
+            /**
+             * Knowledge Base Id
+             * @description 限定重建的知识库 ID
+             */
+            knowledge_base_id?: string | null;
+        };
+        /** VectorRebuildResponse */
+        VectorRebuildResponse: {
+            /** Total Documents */
+            total_documents: number;
+            /** Processed Documents */
+            processed_documents: number;
+            /** Succeeded Documents */
+            succeeded_documents: number;
+            /** Failed Documents */
+            failed_documents: number;
+            /** Total Missing Chunks Before */
+            total_missing_chunks_before: number;
+            /** Total Vectorized Chunks Now */
+            total_vectorized_chunks_now: number;
+            /** Total Missing Chunks After */
+            total_missing_chunks_after: number;
+            /** Details */
+            details: components["schemas"]["VectorRebuildItem"][];
+        };
+        /** FullVectorRebuildTaskResponse */
+        FullVectorRebuildTaskResponse: {
+            /** Total Documents */
+            total_documents: number;
+            /** Processed Documents */
+            processed_documents: number;
+            /** Succeeded Documents */
+            succeeded_documents: number;
+            /** Failed Documents */
+            failed_documents: number;
+            /** Total Missing Chunks Before */
+            total_missing_chunks_before: number;
+            /** Total Vectorized Chunks Now */
+            total_vectorized_chunks_now: number;
+            /** Total Missing Chunks After */
+            total_missing_chunks_after: number;
+            /** Details */
+            details: components["schemas"]["VectorRebuildItem"][];
+            /**
+             * Reset Collection
+             * @description ???????????
+             * @default false
+             */
+            reset_collection: boolean;
+            /**
+             * Target Dimension
+             * @description ??????????
+             * @default 512
+             */
+            target_dimension: number;
+            /**
+             * Error
+             * @description ??????????
+             */
+            error?: string | null;
+            /** Task Id */
+            task_id: string;
+            /**
+             * Status
+             * @description ?????pending/running/succeeded/failed
+             * @default pending
+             */
+            status: string;
+            /**
+             * Scope
+             * @description ????
+             * @default all_knowledge_bases
+             */
+            scope: string;
+            /**
+             * Knowledge Base Id
+             * @description ???????? ID
+             */
+            knowledge_base_id?: string | null;
+            /**
+             * Current Document Id
+             * @description ???????? ID
+             */
+            current_document_id?: string | null;
+            /**
+             * Current File Name
+             * @description ?????????
+             */
+            current_file_name?: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
         };
         /** ErrorDetail */
         ErrorDetail: {
@@ -2036,9 +2458,7 @@ export interface components {
              */
             content: unknown;
             /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
+            metadata?: Record<string, never>;
             /** Timestamp */
             timestamp?: string;
             /**
@@ -3590,6 +4010,160 @@ export interface operations {
             };
         };
     };
+    upload_documents_batch_api_v1_knowledge_upload_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_documents_batch_api_v1_knowledge_upload_batch_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_BatchUploadResponse_"];
+                };
+            };
+            /** @description Unified error response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unified error response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_document_status_api_v1_knowledge_documents__document_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_DocumentInfo_"];
+                };
+            };
+            /** @description Unified error response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unified error response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_documents_api_v1_knowledge_documents_get: {
         parameters: {
             query?: {
@@ -3685,6 +4259,316 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Unified error response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unified error response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rebuild_vectors_api_v1_knowledge_rebuild_vectors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VectorRebuildRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_VectorRebuildResponse_"];
+                };
+            };
+            /** @description Unified error response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unified error response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VectorRebuildRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_FullVectorRebuildResponse_"];
+                };
+            };
+            /** @description Unified error response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unified error response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VectorRebuildRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_FullVectorRebuildTaskResponse_"];
+                };
+            };
+            /** @description Unified error response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unified error response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_FullVectorRebuildTaskResponse_"];
                 };
             };
             /** @description Unified error response */

@@ -15,6 +15,12 @@ class TextChunk:
     index: int
     metadata: Dict[str, Any]
 
+    @property
+    def page_number(self) -> int | None:
+        if not self.metadata:
+            return None
+        return self.metadata.get("page_number")
+
     def to_dict(self) -> dict:
         return {
             "content": self.content,

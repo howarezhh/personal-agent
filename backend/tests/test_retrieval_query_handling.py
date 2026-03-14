@@ -1,3 +1,4 @@
+import inspect
 import logging
 from types import SimpleNamespace
 
@@ -24,6 +25,10 @@ def _build_test_agent(vector_store) -> RetrievalAgent:
     agent.keyword_weight = 0.35
     agent.keyword_retriever = KeywordRetriever()
     return agent
+
+
+def test_retrieval_agent_execute_stream_stays_async_generator_contract():
+    assert inspect.isasyncgenfunction(RetrievalAgent.execute_stream)
 
 
 def test_query_rewriter_filters_placeholder_queries():
@@ -280,3 +285,163 @@ def test_vector_search_filter_preserves_user_isolation_and_ignores_none_values()
 
     assert search_filter == {"user_id": "user-1", "knowledge_base_id": "kb-1"}
 
+
+@pytest.mark.asyncio
+async def test_retrieval_agent_falls_back_to_database_chunks_when_vector_corpus_missing():
+    class FakeVectorStore:
+        collection = None
+
+        @staticmethod
+        def normalize_where_filter(where):
+            return where
+
+        def search(self, query, n_results, where):
+            assert where == {"user_id": "user-1", "knowledge_base_id": "kb-1"}
+            return {
+                "ids": [[]],
+                "documents": [[]],
+                "distances": [[]],
+                "metadatas": [[]],
+            }
+
+    class FakeDBManager:
+        @staticmethod
+        def execute_query(sql, params):
+            assert params == ("user-1",)
+            return [
+                {
+                    "chunk_id": "chunk-1",
+                    "chunk_index": 0,
+                    "content": "毕业论文要求包括选题、格式与答辩。",
+                    "page_number": 1,
+                    "file_id": "file-1",
+                    "user_id": "user-1",
+                    "conversation_id": None,
+                    "original_filename": "requirements.pdf",
+                    "file_type": "pdf",
+                    "file_metadata": '{"knowledge_base_id": "kb-1", "knowledge_managed": true}',
+                }
+            ]
+
+    agent = _build_test_agent(FakeVectorStore())
+    agent.db_manager = FakeDBManager()
+    agent_input = SimpleNamespace(
+        user_id="user-1",
+        metadata={"vector_search_filter": {"knowledge_base_id": "kb-1"}},
+        content='“毕业论文要求”',
+    )
+
+    results = await agent._retrieve_documents(["毕业论文要求"], agent_input)
+
+    assert results
+    assert results[0]["id"] == "chunk-1"
+    assert results[0]["metadata"]["knowledge_base_id"] == "kb-1"
+    assert "exact_phrase" in results[0]["metadata"]["match_sources"]
+
+
+@pytest.mark.asyncio
+async def test_retrieval_agent_loose_text_fallback_handles_chinese_queries():
+    class FakeVectorStore:
+        collection = None
+
+        @staticmethod
+        def normalize_where_filter(where):
+            return where
+
+        def search(self, query, n_results, where):
+            return {
+                "ids": [[]],
+                "documents": [[]],
+                "distances": [[]],
+                "metadatas": [[]],
+            }
+
+    class FakeDBManager:
+        @staticmethod
+        def execute_query(sql, params):
+            return [
+                {
+                    "chunk_id": "chunk-1",
+                    "chunk_index": 0,
+                    "content": "江西财经大学普通本科毕业论文(设计)写作规范。第一章 基本要求。",
+                    "page_number": 1,
+                    "file_id": "file-1",
+                    "user_id": "user-1",
+                    "conversation_id": None,
+                    "original_filename": "requirements.pdf",
+                    "file_type": "pdf",
+                    "file_metadata": '{"knowledge_base_id": "kb-1", "knowledge_managed": true}',
+                }
+            ]
+
+    agent = _build_test_agent(FakeVectorStore())
+    agent.db_manager = FakeDBManager()
+    agent_input = SimpleNamespace(
+        user_id="user-1",
+        metadata={"vector_search_filter": {"knowledge_base_id": "kb-1"}},
+        content="毕业论文要求",
+    )
+
+    results = await agent._retrieve_documents(["毕业论文要求"], agent_input)
+
+    assert results
+    assert results[0]["id"] == "chunk-1"
+    assert "text" in results[0]["metadata"]["match_sources"]
+
+
+
+@pytest.mark.asyncio
+async def test_retrieval_agent_execute_stream_emits_query_details_in_thinking_step():
+    agent = RetrievalAgent.__new__(RetrievalAgent)
+    agent.logger = logging.getLogger("test_retrieval_agent")
+    agent.agent_name = "RetrievalAgent"
+    agent.agent_type = "retrieval"
+    agent.enable_rerank = True
+    agent.rerank_top_k = 3
+    agent.query_rewriter = SimpleNamespace(
+        rewrite_query=lambda content, history: None,
+    )
+
+    async def fake_rewrite_query(content, history):
+        return {"rewritten_queries": ["??? ??", "??? ??????"]}
+
+    class FakeExecutionRepo:
+        @staticmethod
+        def create_execution(_):
+            return SimpleNamespace(execution_id="exec-1")
+
+        @staticmethod
+        def update_execution(*args, **kwargs):
+            return None
+
+    agent.query_rewriter = SimpleNamespace(rewrite_query=fake_rewrite_query)
+    agent.execution_repo = FakeExecutionRepo()
+    agent.reranker = SimpleNamespace(rerank=lambda results, query, top_k: results)
+    agent._retrieve_documents = fake_retrieve_documents = lambda queries, agent_input: None
+
+    async def _fake_retrieve_documents(queries, agent_input):
+        return []
+
+    async def _fake_save_retrieval_results(execution_id, results):
+        return None
+
+    agent._retrieve_documents = _fake_retrieve_documents
+    agent._save_retrieval_results = _fake_save_retrieval_results
+
+    chunks = []
+    agent_input = SimpleNamespace(
+        content="?????",
+        conversation_id="conv-1",
+        message_id="msg-1",
+        metadata={"conversation_history": []},
+    )
+
+    async for chunk in agent.execute_stream(agent_input):
+        chunks.append(chunk)
+        if len(chunks) >= 3:
+            break
+
+    assert chunks[1].chunk_type == "thinking"
+    assert "1. ?????" in chunks[1].content
+    assert "2. ??? ??" in chunks[1].content
+    assert "3. ??? ??????" in chunks[1].content

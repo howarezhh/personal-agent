@@ -6,11 +6,12 @@ import ast
 from pathlib import Path
 
 
-ROOT = Path("backend")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ROOT = PROJECT_ROOT / "backend"
 
 
 def module_name(file_path: Path) -> str:
-    rel = file_path.relative_to(Path("."))
+    rel = file_path.relative_to(PROJECT_ROOT)
     parts = list(rel.with_suffix("").parts)
     if parts[-1] == "__init__":
         parts = parts[:-1]
@@ -39,7 +40,7 @@ def resolve_relative(module: str, imported: str | None, level: int) -> str:
 def build_graph(modules: dict[str, Path]) -> dict[str, set[str]]:
     graph: dict[str, set[str]] = {name: set() for name in modules}
     for name, path in modules.items():
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -97,4 +98,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

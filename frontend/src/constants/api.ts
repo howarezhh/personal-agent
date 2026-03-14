@@ -16,8 +16,12 @@ export const API_PATHS = {
   knowledge: {
     bases: '/api/v1/knowledge/bases',
     upload: '/api/v1/knowledge/upload',
+    uploadBatch: '/api/v1/knowledge/upload/batch',
     documents: '/api/v1/knowledge/documents',
+    documentStatus: '/api/v1/knowledge/documents',
+    rebuildVectors: '/api/v1/knowledge/rebuild-vectors',
+    fullRebuildVectors: '/api/v1/knowledge/rebuild-vectors/full',
+    fullRebuildVectorTasks: '/api/v1/knowledge/rebuild-vectors/full/tasks',
     search: '/api/v1/knowledge/search',
   },
 } as const;
-

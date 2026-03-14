@@ -32,7 +32,7 @@ export const ThinkingSteps = ({ steps, isStreaming = false }: ThinkingStepsProps
         items={steps.map((step, index) => ({
           key: step.timestamp || `step-${index}`,
           title: step.step,
-          description: step.description,
+          description: <div style={{ whiteSpace: 'pre-wrap' }}>{step.description}</div>,
         }))}
       />
     </Card>

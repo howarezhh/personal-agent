@@ -1,0 +1,413 @@
+{
+  "dataset_name": "biyesheji_retrieval_eval_50",
+  "dataset_type": "retrieval",
+  "generated_at": "2026-03-14",
+  "selection_basis": "基于当前业务库 personal_agent 中 active 且 processing_status=completed 的知识库文档抽样。考虑到“毕业设计”知识库主题集中、文档间关联度高，优先选取该知识库生成 50 条检索评估问题。",
+  "knowledge_base": {
+    "knowledge_base_id": "9a364afb-c47e-4c26-8faf-d819151e9662",
+    "knowledge_base_name": "毕业设计"
+  },
+  "source_documents": [
+    {
+      "document_id": "223c97f5-ef3c-4f8b-be32-f236f636d904",
+      "file_name": "7.江西财经大学普通本科毕业论文（设计）写作规范（2023年修订）修改部分已红字标注.pdf",
+      "chunk_count": 7,
+      "topic": "论文写作规范、格式要求、章节结构"
+    },
+    {
+      "document_id": "293d8911-4444-4271-ae76-16adcabdef1e",
+      "file_name": "5-江西财经大学《普通本科毕业论文（设计）管理办法（2022年修订）》江财教务字〔2022〕16号.pdf",
+      "chunk_count": 12,
+      "topic": "校内毕业论文管理、指导教师职责、评分与申诉"
+    },
+    {
+      "document_id": "f4ede839-557f-4648-8ab6-614381a27fda",
+      "file_name": "6-江西财经大学《普通本科“十佳毕业论文 (设计)”评选实施办法》江财教务字〔2014〕19号.pdf",
+      "chunk_count": 9,
+      "topic": "十佳毕业论文评选范围、流程、材料与奖励"
+    },
+    {
+      "document_id": "c9fb80a3-2ae6-415c-b083-48610e6670b5",
+      "file_name": "4-江西省教育厅《江西省本科毕业论文（设计）抽检实施办法 》赣教规字〔2021〕24号.pdf",
+      "chunk_count": 8,
+      "topic": "江西省毕业论文抽检实施细则"
+    },
+    {
+      "document_id": "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd",
+      "file_name": "2-教育部《高等学校预防与处理学术不端行为办法》.pdf",
+      "chunk_count": 12,
+      "topic": "学术不端定义、举报、调查、处理与复核"
+    },
+    {
+      "document_id": "ec38f608-ad5b-45d1-ac80-637ccecbb0fe",
+      "file_name": "3-教育部《本科毕业论文（设计）抽检办法（试行）》教督〔2020〕第5号.pdf",
+      "chunk_count": 6,
+      "topic": "教育部本科毕业论文抽检办法"
+    },
+    {
+      "document_id": "804f5551-cb5f-473e-a2c1-d67b8957e93a",
+      "file_name": "1-教育部《学位论文作假行为处理办法》.pdf",
+      "chunk_count": 4,
+      "topic": "学位论文作假情形及责任追究"
+    }
+  ],
+  "items": [
+    {
+      "query_id": "eval_001",
+      "query": "毕业论文（设计）正文字数一般要求不少于多少字？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904",
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_002",
+      "query": "毕业论文题目一般不宜超过多少个汉字？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_003",
+      "query": "中文摘要和英文摘要通常各需要写多长？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_004",
+      "query": "毕业论文关键词一般写几个比较合适？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_005",
+      "query": "毕业论文前言一般由哪三部分构成？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_006",
+      "query": "毕业设计本论部分通常需要写哪些内容？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_007",
+      "query": "论文里的图表格式有什么要求，比如表格线型和编号？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_008",
+      "query": "参考文献著录格式建议符合哪个国家标准？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_009",
+      "query": "如果从知网导出参考文献，建议选择什么格式？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_010",
+      "query": "毕业论文正文里的数字和英文通常要求用什么字体？",
+      "relevant_document_ids": [
+        "223c97f5-ef3c-4f8b-be32-f236f636d904"
+      ]
+    },
+    {
+      "query_id": "eval_011",
+      "query": "江西财经大学毕业论文（设计）工作实行什么管理模式？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_012",
+      "query": "毕业论文指导教师原则上应具备什么职称？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_013",
+      "query": "每位指导老师原则上最多同时指导多少名学生？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_014",
+      "query": "学生一般需要完成什么课程后，才能开始毕业论文（设计）写作？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_015",
+      "query": "文科类和理工类专业的毕业论文（设计）可以采用哪些不同形式？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_016",
+      "query": "哪些高水平成果可以申请代替毕业论文（设计）？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_017",
+      "query": "毕业论文（设计）总评成绩由哪几部分组成，权重分别是多少？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_018",
+      "query": "毕业论文总评分数如何换算成优秀、良好、中等、及格和不及格？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_019",
+      "query": "院级优秀和校级优秀毕业论文（设计）的评选比例大概是多少？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_020",
+      "query": "毕业论文及过程管理资料一般要保存多久，十佳论文会送到哪里存档？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_021",
+      "query": "江西财经大学每年会评选多少篇“十佳毕业论文（设计）”？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_022",
+      "query": "哪些论文可以参评“十佳毕业论文（设计）”？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_023",
+      "query": "“十佳毕业论文（设计）”评选分为哪三种类型？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_024",
+      "query": "学院申报十佳毕业论文的篇数，如何按毕业生人数分档？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_025",
+      "query": "参评十佳毕业论文时，全文去除本人已发表文献后的重复率要求是多少？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_026",
+      "query": "十佳毕业论文答辩评审总共多长时间，汇报和提问分别多久？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_027",
+      "query": "十佳毕业论文评审结果公示多长时间后才会正式确定？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_028",
+      "query": "学院申报十佳毕业论文时，需要提交哪些材料？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_029",
+      "query": "十佳毕业论文一般在什么时间申报，什么时间进行答辩评审？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_030",
+      "query": "获得十佳毕业论文后，学生和指导教师分别能得到什么奖励？",
+      "relevant_document_ids": [
+        "f4ede839-557f-4648-8ab6-614381a27fda"
+      ]
+    },
+    {
+      "query_id": "eval_031",
+      "query": "本科毕业论文抽检通常多久开展一次？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5",
+        "ec38f608-ad5b-45d1-ac80-637ccecbb0fe"
+      ]
+    },
+    {
+      "query_id": "eval_032",
+      "query": "本科毕业论文抽检比例原则上不低于多少？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5",
+        "ec38f608-ad5b-45d1-ac80-637ccecbb0fe"
+      ]
+    },
+    {
+      "query_id": "eval_033",
+      "query": "教育部本科毕业论文抽检重点会考察哪些方面？",
+      "relevant_document_ids": [
+        "ec38f608-ad5b-45d1-ac80-637ccecbb0fe"
+      ]
+    },
+    {
+      "query_id": "eval_034",
+      "query": "江西省本科毕业论文抽检工作由谁统筹组织并全程监督？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5"
+      ]
+    },
+    {
+      "query_id": "eval_035",
+      "query": "什么情况下会被认定为“存在问题毕业论文”？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5",
+        "ec38f608-ad5b-45d1-ac80-637ccecbb0fe"
+      ]
+    },
+    {
+      "query_id": "eval_036",
+      "query": "哪些学科专业或情形会适度提高本科毕业论文的抽检比例？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5"
+      ]
+    },
+    {
+      "query_id": "eval_037",
+      "query": "本科毕业论文抽检结果会如何反馈、抄送和向社会公开？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5",
+        "ec38f608-ad5b-45d1-ac80-637ccecbb0fe"
+      ]
+    },
+    {
+      "query_id": "eval_038",
+      "query": "如果高校连续两年都有存在问题毕业论文，通常会面临哪些处理？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5",
+        "ec38f608-ad5b-45d1-ac80-637ccecbb0fe"
+      ]
+    },
+    {
+      "query_id": "eval_039",
+      "query": "如果某个本科专业连续三年抽检问题较多，可能产生什么后果？",
+      "relevant_document_ids": [
+        "c9fb80a3-2ae6-415c-b083-48610e6670b5",
+        "ec38f608-ad5b-45d1-ac80-637ccecbb0fe"
+      ]
+    },
+    {
+      "query_id": "eval_040",
+      "query": "如果对本科毕业论文抽检结果有异议，校级或省级抽检申诉一般要在多久内提出？",
+      "relevant_document_ids": [
+        "293d8911-4444-4271-ae76-16adcabdef1e"
+      ]
+    },
+    {
+      "query_id": "eval_041",
+      "query": "什么叫学术不端行为？高校里哪些人会受到这个办法约束？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_042",
+      "query": "高校预防和处理学术不端行为应坚持什么原则？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_043",
+      "query": "学校在预防学术不端方面，需要建立哪些制度或工作机制？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_044",
+      "query": "实名举报学术不端时，一般需要具备哪些条件？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_045",
+      "query": "哪些情形会被认定为学术不端且情节严重？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_046",
+      "query": "学校对学术不端责任人可以作出哪些处理或处分？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_047",
+      "query": "学术不端处理决定书一般需要写明哪些内容？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_048",
+      "query": "当事人如果不服学术不端处理决定，可以在多久内提出异议或复核申请？",
+      "relevant_document_ids": [
+        "e0d5f203-649c-4c04-a1bf-14c1dbb6ffdd"
+      ]
+    },
+    {
+      "query_id": "eval_049",
+      "query": "学位论文作假行为具体包括哪些情形？",
+      "relevant_document_ids": [
+        "804f5551-cb5f-473e-a2c1-d67b8957e93a"
+      ]
+    },
+    {
+      "query_id": "eval_050",
+      "query": "如果学位论文作假被查实，学生、代写者、指导教师和学位授予单位分别可能承担什么后果？",
+      "relevant_document_ids": [
+        "804f5551-cb5f-473e-a2c1-d67b8957e93a"
+      ]
+    }
+  ]
+}

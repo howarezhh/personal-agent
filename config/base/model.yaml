@@ -1,17 +1,15 @@
-# 模型配置文件
-# 用于配置LLM模型、嵌入模型等
+﻿# 模型配置文件
+# 用于配置 LLM、Embedding 等能力
 
-# 主模型配置
 primary_model:
-  provider: "zhipu"  # 智谱AI
+  provider: "zhipu"
   model_name: "glm-4"
-  api_key_env: "ZHIPU_API_KEY"  # 从环境变量读取
+  api_key_env: "ZHIPU_API_KEY"
   temperature: 0.7
   max_tokens: 2000
   top_p: 0.9
-  timeout: 60  # 秒
+  timeout: 60
 
-# 备用模型配置（主模型失败时使用）
 fallback_model:
   provider: "openai"
   model_name: "gpt-4"
@@ -21,22 +19,23 @@ fallback_model:
   top_p: 0.9
   timeout: 60
 
-# 嵌入模型配置（用于向量化）
 embedding_model:
-  provider: "zhipu"
-  model_name: "embedding-2"
-  api_key_env: "ZHIPU_API_KEY"
-  dimension: 1024  # 向量维度
-  batch_size: 100  # 批量处理大小
+  provider: "local"
+  model_name: "BAAI/bge-small-zh-v1.5"
+  local_model_path: "BAAI/bge-small-zh-v1.5"
+  local_files_only: true
+  dimension: 512
+  batch_size: 32
+  device: "cpu"
+  normalize_embeddings: true
+  pooling: "cls"
 
-# 流式输出配置
 streaming:
   enabled: true
-  chunk_size: 10  # 每次返回的字符数
-  delay_ms: 50  # 延迟毫秒数（模拟打字效果）
+  chunk_size: 10
+  delay_ms: 50
 
-# 模型调用重试配置
 retry:
   max_retries: 3
-  retry_delay: 1  # 秒
+  retry_delay: 1
   exponential_backoff: true

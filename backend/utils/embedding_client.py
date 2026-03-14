@@ -1,76 +1,132 @@
-"""
-嵌入模型客户端
-封装智谱AI embedding-2模型，支持批量生成向量
-"""
+﻿"""Embedding client for remote and local embedding providers."""
 
-from typing import List, Optional
+from __future__ import annotations
+
 import time
-from zhipuai import ZhipuAI
+from typing import List, Optional
+
+import torch
+import torch.nn.functional as F
+
+try:
+    from zhipuai import ZhipuAI
+    _ZHIPU_IMPORT_ERROR = None
+except Exception as error:
+    ZhipuAI = None
+    _ZHIPU_IMPORT_ERROR = error
+
+try:
+    from transformers import AutoModel, AutoTokenizer
+    _TRANSFORMERS_IMPORT_ERROR = None
+except Exception as error:
+    AutoModel = None
+    AutoTokenizer = None
+    _TRANSFORMERS_IMPORT_ERROR = error
 
 from backend.core.config_manager import get_config_manager
 from backend.utils.logger import get_logger
 
 
 class EmbeddingClient:
-    """
-    嵌入模型客户端
-
-    功能：
-    1. 封装智谱AI embedding-2模型
-    2. 批量生成向量
-    3. 错误处理和重试
-    4. 从ConfigManager读取配置
-    """
+    """统一封装远程与本地 embedding 能力。"""
 
     def __init__(self):
-        """初始化嵌入模型客户端"""
         self.logger = get_logger("embedding_client")
         self.config_manager = get_config_manager()
 
-        # 加载配置
         self._load_config()
-
-        # 初始化客户端
         self._init_client()
 
-        self.logger.info(f"向量嵌入客户端初始化完成: 模型={self.model_name}")
+        self.logger.info(
+            "向量嵌入客户端初始化完成: provider=%s, model=%s, dimension=%s, device=%s",
+            self.provider,
+            self.model_name,
+            self.dimension,
+            self.device,
+        )
 
     def _load_config(self):
-        """加载嵌入模型配置"""
+        """加载 embedding 配置。"""
         embedding_config = self.config_manager.get_model_config("embedding")
 
-        self.provider = embedding_config.get("provider", "zhipu")
-        self.model_name = embedding_config.get("model_name", "embedding-2")
+        self.provider = str(embedding_config.get("provider", "zhipu") or "zhipu")
+        self.model_name = str(embedding_config.get("model_name", "BAAI/bge-small-zh-v1.5") or "BAAI/bge-small-zh-v1.5")
         self.api_key = embedding_config.get("api_key", "")
-        self.dimension = embedding_config.get("dimension", 1024)
-        self.batch_size = embedding_config.get("batch_size", 100)
+        self.dimension = int(embedding_config.get("dimension", 512) or 0)
+        self.batch_size = int(embedding_config.get("batch_size", 100) or 100)
+        self.device = str(embedding_config.get("device", "cpu") or "cpu")
+        self.normalize_embeddings = bool(embedding_config.get("normalize_embeddings", True))
+        self.local_model_path = str(embedding_config.get("local_model_path") or self.model_name)
+        self.local_files_only = bool(embedding_config.get("local_files_only", True))
+        self.pooling = str(embedding_config.get("pooling", "cls") or "cls").lower()
 
-        # 重试配置
         retry_config = self.config_manager.get("model.retry", {})
-        self.max_retries = retry_config.get("max_retries", 3)
-        self.retry_delay = retry_config.get("retry_delay", 1)
-        self.exponential_backoff = retry_config.get("exponential_backoff", True)
+        self.max_retries = int(retry_config.get("max_retries", 3) or 3)
+        self.retry_delay = int(retry_config.get("retry_delay", 1) or 1)
+        self.exponential_backoff = bool(retry_config.get("exponential_backoff", True))
 
-        if not self.api_key:
+        if self.provider == "zhipu" and not self.api_key:
             raise ValueError("未找到向量嵌入模型接口密钥配置")
 
+        if self.pooling not in {"cls", "mean"}:
+            self.logger.warning("未知 pooling=%s，已回退为 cls", self.pooling)
+            self.pooling = "cls"
+
     def _init_client(self):
-        """初始化API客户端"""
+        """按 provider 初始化 embedding 客户端。"""
         if self.provider == "zhipu":
+            if ZhipuAI is None:
+                raise RuntimeError(
+                    "zhipuai is not available. Install it before using provider='zhipu'."
+                ) from _ZHIPU_IMPORT_ERROR
             self.client = ZhipuAI(api_key=self.api_key)
-        else:
-            raise ValueError(f"不支持的向量嵌入提供商: {self.provider}")
+            return
+
+        if self.provider in {"local", "transformers_local"}:
+            self._init_local_client()
+            return
+
+        raise ValueError(f"不支持的向量嵌入提供商: {self.provider}")
+
+    def _init_local_client(self):
+        if AutoTokenizer is None or AutoModel is None:
+            raise RuntimeError(
+                "transformers is not available. Install dependencies for local embeddings first."
+            ) from _TRANSFORMERS_IMPORT_ERROR
+
+        if self.device.startswith("cuda") and not torch.cuda.is_available():
+            self.logger.warning("配置的 device=%s 不可用，已回退为 cpu", self.device)
+            self.device = "cpu"
+
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.local_model_path,
+                local_files_only=self.local_files_only,
+                trust_remote_code=False,
+            )
+            self.model = AutoModel.from_pretrained(
+                self.local_model_path,
+                local_files_only=self.local_files_only,
+                trust_remote_code=False,
+            )
+        except Exception as error:
+            self.logger.error(
+                "本地 embedding 模型加载失败: model_path=%s, local_files_only=%s, error=%s",
+                self.local_model_path,
+                self.local_files_only,
+                error,
+            )
+            raise
+
+        self.model.to(self.device)
+        self.model.eval()
+        self.client = self.model
+
+        if not self.dimension:
+            self.dimension = int(getattr(self.model.config, "hidden_size", 0) or 0)
 
     def embed_text(self, text: str) -> Optional[List[float]]:
-        """
-        为单个文本生成向量嵌入
-
-        Args:
-            text: 输入文本
-
-        Returns:
-            向量嵌入列表，失败返回None
-        """
+        """为单条文本生成向量。"""
         if not text or not text.strip():
             self.logger.warning("提供的文本为空，无法生成向量嵌入")
             return None
@@ -78,155 +134,127 @@ class EmbeddingClient:
         embeddings = self.embed_texts([text])
         result = embeddings[0] if embeddings else None
 
-        # 添加向量信息日志
         if result:
-            self.logger.debug(f"生成向量嵌入成功: 维度={len(result)}, 范数={sum(x*x for x in result)**0.5:.6f}")
+            self.logger.debug(
+                "生成向量嵌入成功: dimension=%s, norm=%.6f",
+                len(result),
+                sum(x * x for x in result) ** 0.5,
+            )
         else:
             self.logger.warning("向量嵌入生成失败")
 
         return result
 
     def embed_texts(self, texts: List[str]) -> List[Optional[List[float]]]:
-        """
-        批量生成向量嵌入
-
-        Args:
-            texts: 文本列表
-
-        Returns:
-            向量嵌入列表，每个元素对应一个文本的向量
-        """
+        """批量生成向量。"""
         if not texts:
             return []
 
-        # 过滤空文本
-        valid_texts = [(i, text) for i, text in enumerate(texts) if text and text.strip()]
+        valid_texts = [(index, text) for index, text in enumerate(texts) if text and text.strip()]
         if not valid_texts:
             self.logger.warning("所有文本都为空")
             return [None] * len(texts)
 
-        # 分批处理
-        all_embeddings = [None] * len(texts)
+        all_embeddings: List[Optional[List[float]]] = [None] * len(texts)
 
         for batch_start in range(0, len(valid_texts), self.batch_size):
             batch_end = min(batch_start + self.batch_size, len(valid_texts))
             batch = valid_texts[batch_start:batch_end]
-
-            batch_indices = [idx for idx, _ in batch]
+            batch_indices = [index for index, _ in batch]
             batch_texts = [text for _, text in batch]
-
-            # 生成嵌入
             batch_embeddings = self._embed_batch_with_retry(batch_texts)
 
-            # 将结果放回原位置
-            for i, embedding in enumerate(batch_embeddings):
-                original_idx = batch_indices[i]
-                all_embeddings[original_idx] = embedding
+            for index, embedding in enumerate(batch_embeddings):
+                all_embeddings[batch_indices[index]] = embedding
 
-            self.logger.info(f"生成向量嵌入批次 {batch_start // self.batch_size + 1}")
+            self.logger.info(
+                "生成向量嵌入批次完成: batch=%s, size=%s",
+                batch_start // self.batch_size + 1,
+                len(batch_texts),
+            )
 
         return all_embeddings
 
     def _embed_batch_with_retry(self, texts: List[str]) -> List[Optional[List[float]]]:
-        """
-        带重试的批量嵌入生成
-
-        Args:
-            texts: 文本列表
-
-        Returns:
-            向量嵌入列表
-        """
+        """带重试的批量嵌入。"""
         for attempt in range(self.max_retries):
             try:
                 return self._embed_batch(texts)
-
-            except Exception as e:
+            except Exception as error:
                 self.logger.warning(
-                    f"向量嵌入尝试 {attempt + 1}/{self.max_retries} 失败: {e}"
+                    "向量嵌入尝试失败: attempt=%s/%s, error=%s",
+                    attempt + 1,
+                    self.max_retries,
+                    error,
                 )
 
                 if attempt < self.max_retries - 1:
-                    # 计算延迟时间
-                    if self.exponential_backoff:
-                        delay = self.retry_delay * (2 ** attempt)
-                    else:
-                        delay = self.retry_delay
-
-                    self.logger.info(f"等待 {delay} 秒后重试...")
+                    delay = self.retry_delay * (2 ** attempt) if self.exponential_backoff else self.retry_delay
+                    self.logger.info("等待 %s 秒后重试", delay)
                     time.sleep(delay)
                 else:
-                    self.logger.error(f"所有向量嵌入尝试都失败: {e}")
+                    self.logger.error("所有向量嵌入尝试均失败: error=%s", error)
                     return [None] * len(texts)
 
         return [None] * len(texts)
 
     def _embed_batch(self, texts: List[str]) -> List[List[float]]:
-        """
-        实际执行批量嵌入生成
-
-        Args:
-            texts: 文本列表
-
-        Returns:
-            向量嵌入列表
-        """
         if self.provider == "zhipu":
             return self._embed_batch_zhipu(texts)
-        else:
-            raise ValueError(f"不支持的向量嵌入提供商: {self.provider}")
+        if self.provider in {"local", "transformers_local"}:
+            return self._embed_batch_local(texts)
+        raise ValueError(f"不支持的向量嵌入提供商: {self.provider}")
 
     def _embed_batch_zhipu(self, texts: List[str]) -> List[List[float]]:
-        """
-        使用智谱AI生成嵌入
-
-        Args:
-            texts: 文本列表
-
-        Returns:
-            向量嵌入列表
-        """
         try:
-            response = self.client.embeddings.create(
-                model=self.model_name,
-                input=texts
+            response = self.client.embeddings.create(model=self.model_name, input=texts)
+            return [item.embedding for item in response.data]
+        except Exception as error:
+            self.logger.error("智谱向量嵌入接口错误: %s", error)
+            raise
+
+    def _embed_batch_local(self, texts: List[str]) -> List[List[float]]:
+        try:
+            encoded = self.tokenizer(
+                texts,
+                padding=True,
+                truncation=True,
+                max_length=512,
+                return_tensors="pt",
             )
+            encoded = {key: value.to(self.device) for key, value in encoded.items()}
 
-            # 提取嵌入向量
-            embeddings = []
-            for item in response.data:
-                embeddings.append(item.embedding)
+            with torch.no_grad():
+                outputs = self.model(**encoded)
 
-            return embeddings
+            if self.pooling == "mean":
+                attention_mask = encoded["attention_mask"].unsqueeze(-1)
+                masked = outputs.last_hidden_state * attention_mask
+                summed = masked.sum(dim=1)
+                counts = attention_mask.sum(dim=1).clamp(min=1)
+                embeddings = summed / counts
+            else:
+                embeddings = outputs.last_hidden_state[:, 0]
 
-        except Exception as e:
-            self.logger.error(f"智谱向量嵌入接口错误: {e}")
+            if self.normalize_embeddings:
+                embeddings = F.normalize(embeddings, p=2, dim=1)
+
+            return embeddings.cpu().tolist()
+        except Exception as error:
+            self.logger.error("本地向量嵌入模型错误: %s", error)
             raise
 
     def get_dimension(self) -> int:
-        """
-        获取向量维度
-
-        Returns:
-            向量维度
-        """
         return self.dimension
 
     def __repr__(self) -> str:
         return f"EmbeddingClient(provider='{self.provider}', model='{self.model_name}')"
 
 
-# 全局实例（单例模式）
 _embedding_client: Optional[EmbeddingClient] = None
 
 
 def get_embedding_client() -> EmbeddingClient:
-    """
-    获取嵌入模型客户端实例（单例）
-
-    Returns:
-        EmbeddingClient实例
-    """
     global _embedding_client
     if _embedding_client is None:
         _embedding_client = EmbeddingClient()

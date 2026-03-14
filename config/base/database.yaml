@@ -76,7 +76,7 @@ vector_db:
   pgvector:
     # 使用与PostgreSQL相同的连接配置
     table_name: "embeddings"
-    vector_dimension: 1024
+    vector_dimension: 512
 
 # 数据库迁移配置
 migration:

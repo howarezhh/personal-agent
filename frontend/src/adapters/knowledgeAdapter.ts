@@ -22,7 +22,14 @@ export interface Document {
   fileSize: number;
   filePath?: string;
   status?: 'pending' | 'processing' | 'completed' | 'failed';
+  processingStage?: string;
+  processingProgress?: number;
+  errorMessage?: string;
   chunkCount: number;
+  vectorizedChunkCount?: number;
+  missingVectorChunkCount?: number;
+  vectorizationStatus?: string;
+  canRetryVectorization?: boolean;
   uploadTime?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -39,6 +46,13 @@ export interface DocumentUploadResponse {
   chunkCount?: number;
   uploadTime?: string;
   status?: string;
+  processingStage?: string;
+  processingProgress?: number;
+  errorMessage?: string;
+  vectorizedChunkCount?: number;
+  missingVectorChunkCount?: number;
+  vectorizationStatus?: string;
+  canRetryVectorization?: boolean;
 }
 
 const normalizeDocumentStatus = (status: string): Document['status'] => {
@@ -71,7 +85,14 @@ export const adaptDocument = (doc: DocumentContract): Document => ({
   fileSize: doc.file_size,
   filePath: undefined,
   status: normalizeDocumentStatus(doc.status),
+  processingStage: doc.processing_stage ?? undefined,
+  processingProgress: doc.processing_progress ?? undefined,
+  errorMessage: doc.error_message ?? undefined,
   chunkCount: doc.chunk_count,
+  vectorizedChunkCount: doc.vectorized_chunk_count ?? undefined,
+  missingVectorChunkCount: doc.missing_vector_chunk_count ?? undefined,
+  vectorizationStatus: doc.vectorization_status ?? undefined,
+  canRetryVectorization: doc.can_retry_vectorization ?? undefined,
   uploadTime: doc.upload_time ?? undefined,
   createdAt: doc.upload_time ?? undefined,
   updatedAt: doc.upload_time ?? undefined,
@@ -88,4 +109,11 @@ export const adaptDocumentUploadResponse = (doc: DocumentUploadResponseContract)
   chunkCount: doc.chunk_count,
   uploadTime: doc.upload_time ?? undefined,
   status: doc.status,
+  processingStage: doc.processing_stage ?? undefined,
+  processingProgress: doc.processing_progress ?? undefined,
+  errorMessage: doc.error_message ?? undefined,
+  vectorizedChunkCount: doc.vectorized_chunk_count ?? undefined,
+  missingVectorChunkCount: doc.missing_vector_chunk_count ?? undefined,
+  vectorizationStatus: doc.vectorization_status ?? undefined,
+  canRetryVectorization: doc.can_retry_vectorization ?? undefined,
 });

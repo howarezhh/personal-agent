@@ -120,12 +120,37 @@ export const adaptStreamEventMetadata = (metadata?: Record<string, unknown>): St
   return normalized as StreamEventMetadata;
 };
 
+const adaptCitation = (citation: unknown): Citation => {
+  const normalized = citation && typeof citation === 'object'
+    ? (camelizeKeys(citation) as Record<string, unknown>)
+    : {};
+
+  return {
+    source: String(normalized.source ?? normalized.sourceName ?? ''),
+    content: String(normalized.content ?? normalized.contentPreview ?? ''),
+    score: typeof normalized.score === 'number'
+      ? normalized.score
+      : typeof normalized.relevanceScore === 'number'
+        ? normalized.relevanceScore
+        : undefined,
+    metadata: normalized.metadata && typeof normalized.metadata === 'object'
+      ? (normalized.metadata as Record<string, unknown>)
+      : undefined,
+  };
+};
+
 export const adaptDoneEventContent = (content: unknown): DoneEventContent => {
   if (!content || typeof content !== 'object') {
     return {};
   }
 
-  return camelizeKeys(content) as DoneEventContent;
+  const normalized = camelizeKeys(content) as DoneEventContent & { citations?: unknown[] };
+  return {
+    ...normalized,
+    citations: Array.isArray(normalized.citations)
+      ? normalized.citations.map((citation) => adaptCitation(citation))
+      : undefined,
+  };
 };
 
 export const toAskRequestContract = (request: AskRequest): AskRequestContract => ({

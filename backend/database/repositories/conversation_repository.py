@@ -253,6 +253,11 @@ class ConversationRepository(BaseRepository):
             (increment, datetime.utcnow(), conversation_id)
         )
 
+        if affected_rows == 0:
+            logger.warning(
+                f"Conversation message_count update affected no rows: conversation_id={conversation_id}, increment={increment}"
+            )
+
         return affected_rows > 0
 
     def update_conversation_timestamp(self, conversation_id: str) -> bool:
@@ -275,6 +280,11 @@ class ConversationRepository(BaseRepository):
             sql,
             (datetime.utcnow(), conversation_id)
         )
+
+        if affected_rows == 0:
+            logger.warning(
+                f"Conversation timestamp update affected no rows: conversation_id={conversation_id}"
+            )
 
         return affected_rows > 0
 

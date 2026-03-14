@@ -4,6 +4,7 @@
 """
 
 from typing import AsyncGenerator, List, Dict, Any, Optional
+import json
 import uuid
 import time
 import re
@@ -46,10 +47,10 @@ class RetrievalAgent(BaseAgent):
         self.db_manager = get_database_manager()
         self.execution_repo = get_agent_execution_repository()
         self.retrieval_result_repo = get_retrieval_result_repository()
-        self.top_k = self._get_config_value("top_k", 5)
+        self.top_k = self._get_config_value("top_k", 10)
         self.similarity_threshold = self._get_config_value("similarity_threshold", 0.7)
         self.enable_rerank = self._get_config_value("enable_rerank", True)
-        self.rerank_top_k = self._get_config_value("rerank_top_k", 3)
+        self.rerank_top_k = self._get_config_value("rerank_top_k", 10)
         self.enable_summary = self._get_config_value("enable_summary", False)
         self.enable_hybrid_retrieval = self._get_config_value("enable_hybrid_retrieval", True)
         self.keyword_top_k = int(self._get_config_value("keyword_top_k", max(self.top_k * 2, 8)))
@@ -254,7 +255,8 @@ class RetrievalAgent(BaseAgent):
                 f"first_query='{self._safe_preview(rewritten_queries[0]) if rewritten_queries else ''}'"
             )
 
-            yield StreamChunk.create_thinking(f"查询已优化，生成{len(rewritten_queries)}个检索查询")
+            query_details = "\n".join(f"{index}. {query}" for index, query in enumerate(rewritten_queries, start=1))
+            yield StreamChunk.create_thinking(f"查询已优化，生成 {len(rewritten_queries)} 个检索查询：\n{query_details}")
             yield StreamChunk.create_thinking("正在检索知识库...")
             retrieval_results = await self._retrieve_documents(rewritten_queries, agent_input)
 
@@ -398,6 +400,93 @@ class RetrievalAgent(BaseAgent):
             "metadatas": [dict(metadata or {}) for metadata in metadatas],
         }
 
+    @staticmethod
+    def _coerce_metadata_dict(value: Any) -> Dict[str, Any]:
+        if isinstance(value, dict):
+            return dict(value)
+
+        if isinstance(value, str) and value.strip():
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError:
+                return {}
+            if isinstance(parsed, dict):
+                return parsed
+
+        return {}
+
+    @staticmethod
+    def _matches_search_filter(row: Dict[str, Any], file_metadata: Dict[str, Any], search_filter: Dict[str, Any]) -> bool:
+        for key, expected_value in search_filter.items():
+            if expected_value is None:
+                continue
+
+            actual_value = row.get(key)
+            if actual_value is None:
+                actual_value = file_metadata.get(key)
+
+            if actual_value != expected_value:
+                return False
+
+        return True
+
+    def _load_database_fallback_corpus(self, search_filter: Dict[str, Any]) -> Dict[str, Any]:
+        user_id = search_filter.get("user_id")
+        db_manager = getattr(self, "db_manager", None)
+        if not user_id or db_manager is None:
+            return {"ids": [], "documents": [], "metadatas": []}
+
+        try:
+            rows = db_manager.execute_query(
+                """
+                SELECT fc.chunk_id, fc.chunk_index, fc.content, fc.page_number,
+                       fc.file_id, f.user_id, f.conversation_id, f.original_filename,
+                       f.file_type, f.metadata AS file_metadata
+                FROM file_chunks fc
+                INNER JOIN files f ON f.file_id = fc.file_id
+                WHERE f.user_id = %s
+                ORDER BY f.created_at DESC, fc.chunk_index ASC
+                """,
+                (user_id,),
+            )
+        except Exception as exc:
+            self.logger.warning(f"Failed to load database fallback corpus: {exc}")
+            return {"ids": [], "documents": [], "metadatas": []}
+
+        ids: List[str] = []
+        documents: List[str] = []
+        metadatas: List[Dict[str, Any]] = []
+
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+
+            file_metadata = self._coerce_metadata_dict(row.get("file_metadata") or row.get("metadata"))
+            if not self._matches_search_filter(row, file_metadata, search_filter):
+                continue
+
+            chunk_id = row.get("chunk_id")
+            content = row.get("content") or ""
+            if not chunk_id or not content:
+                continue
+
+            metadata = dict(file_metadata)
+            metadata.setdefault("file_id", row.get("file_id"))
+            metadata.setdefault("chunk_index", row.get("chunk_index"))
+            metadata.setdefault("page_number", row.get("page_number"))
+            metadata.setdefault("user_id", row.get("user_id"))
+            metadata.setdefault("conversation_id", row.get("conversation_id"))
+            metadata.setdefault("file_name", row.get("original_filename"))
+            metadata.setdefault("original_filename", row.get("original_filename"))
+            metadata.setdefault("file_type", row.get("file_type"))
+            metadata.setdefault("source", row.get("original_filename"))
+
+            ids.append(str(chunk_id))
+            documents.append(str(content))
+            metadatas.append(metadata)
+
+        return {"ids": ids, "documents": documents, "metadatas": metadatas}
+
     def _build_keyword_index(self, corpus: Dict[str, Any]) -> Dict[str, Any]:
         if not getattr(self, "enable_hybrid_retrieval", True):
             return {}
@@ -530,6 +619,7 @@ class RetrievalAgent(BaseAgent):
         score_field = {
             "vector": "vector_score",
             "keyword": "keyword_score",
+            "text": "keyword_score",
             "exact_phrase": "exact_phrase_score",
         }.get(match_source)
         if score_field:
@@ -669,7 +759,6 @@ class RetrievalAgent(BaseAgent):
         """
         if self.vector_store is None:
             self.logger.warning("???????????????")
-            return []
 
         self.logger.info(
             "[RETRIEVAL] knowledge_base_query_start: "
@@ -680,6 +769,16 @@ class RetrievalAgent(BaseAgent):
         aggregated_results: Dict[str, Dict[str, Any]] = {}
         search_filter = self._build_vector_search_filter(agent_input)
         corpus = self._load_filtered_corpus(search_filter)
+        using_database_fallback_corpus = False
+        if not (corpus.get("ids") or corpus.get("documents")):
+            corpus = self._load_database_fallback_corpus(search_filter)
+            if corpus.get("ids"):
+                using_database_fallback_corpus = True
+                self.logger.info(
+                    "[RETRIEVAL] database_text_fallback_loaded: "
+                    f"count={len(corpus.get('ids', []))}, "
+                    f"sample={self._summarize_payload((corpus.get('metadatas') or [{}])[0])}"
+                )
         exact_phrases = self._extract_exact_phrases(agent_input.content)
 
         exact_phrase_results = self._search_exact_phrases(exact_phrases, corpus)
@@ -712,11 +811,13 @@ class RetrievalAgent(BaseAgent):
                         aggregated_results,
                         result,
                         matched_query=query,
-                        match_source="keyword",
+                        match_source="text" if using_database_fallback_corpus else "keyword",
                     )
 
         if getattr(self, "vector_enabled", False):
-            per_query_top_k = max(self.top_k, min(self.top_k * 2, self.top_k + len(queries) + 2))
+            rerank_limit = int(getattr(self, "rerank_top_k", self.top_k))
+            retrieval_limit = max(int(self.top_k), rerank_limit, 10)
+            per_query_top_k = max(retrieval_limit, min(retrieval_limit * 2, retrieval_limit + len(queries) + 2))
             for query_index, query in enumerate(queries, start=1):
                 try:
                     self.logger.info(
@@ -793,7 +894,9 @@ class RetrievalAgent(BaseAgent):
             self.logger.info("[RETRIEVAL] vector_search_skipped: vector search is disabled")
 
         all_results = self._rank_aggregated_results(aggregated_results)
-        final_results = all_results[: self.top_k * max(1, len(queries))]
+        rerank_limit = int(getattr(self, "rerank_top_k", self.top_k))
+        final_limit = max(int(self.top_k), rerank_limit, 10)
+        final_results = all_results[: final_limit * max(1, len(queries))]
 
         self.logger.info(f"_retrieve_documents ??: ?{len(all_results)}? -> ??{len(final_results)}?")
         self.logger.info(

@@ -6,15 +6,15 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from backend.main import app
 
 
 def main() -> int:
-    target = Path("docs/api/openapi.json")
+    target = PROJECT_ROOT / "docs/api/openapi.json"
     if not target.exists():
         print("docs/api/openapi.json is missing")
         return 1
@@ -23,7 +23,7 @@ def main() -> int:
     actual = app.openapi()
 
     if expected != actual:
-        print("OpenAPI drift detected. Run: python scripts/export_openapi.py")
+        print("OpenAPI drift detected. Run: python scripts/contracts/export_openapi.py")
         return 1
 
     print("OpenAPI schema is in sync")
