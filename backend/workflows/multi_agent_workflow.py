@@ -21,6 +21,7 @@ from backend.agents.base.agent_output import AgentOutput
 from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.stream_chunk import StreamChunk
 from backend.agents.registry import get_agent_registry
+from backend.contracts.errors import ErrorCode
 from backend.utils.logger import get_logger
 from backend.workflows.state_graph import WorkflowAction, WorkflowState, get_state_graph
 
@@ -81,6 +82,112 @@ class MultiAgentWorkflow:
         self.state_graph = get_state_graph()
         self.current_state = WorkflowState.INIT
 
+    def _create_error_chunk(
+        self,
+        error_message: str,
+        *,
+        error_code: str = ErrorCode.WORKFLOW_EXECUTION_ERROR.value,
+        error_type: str = "workflow_error",
+        **metadata: Any,
+    ) -> StreamChunk:
+        return StreamChunk.create_error(
+            error_message,
+            error_code=error_code,
+            error_type=error_type,
+            **metadata,
+        )
+
+    def _augment_step_chunk(
+        self,
+        chunk: StreamChunk,
+        *,
+        step_name: str,
+        step_key: str,
+        agent_type: str,
+    ) -> StreamChunk:
+        metadata = deepcopy(chunk.metadata) if chunk.metadata else {}
+        metadata.setdefault("step_name", step_name)
+        metadata.setdefault("step_key", step_key)
+        metadata.setdefault("agent_type", agent_type)
+        if chunk.chunk_type == CHUNK_RESULT:
+            metadata.setdefault("result_scope", "step")
+        if chunk.chunk_type == CHUNK_ERROR:
+            metadata.setdefault("error_code", ErrorCode.WORKFLOW_EXECUTION_ERROR.value)
+            metadata.setdefault("error_type", "agent_error")
+
+        if metadata == (chunk.metadata or {}):
+            return chunk
+
+        return StreamChunk(
+            chunk_id=chunk.chunk_id,
+            chunk_type=chunk.chunk_type,
+            content=chunk.content,
+            metadata=metadata or None,
+            timestamp=chunk.timestamp,
+        )
+
+    def _build_workflow_summary_result(
+        self,
+        *,
+        status: str,
+        final_step_key: Optional[str],
+        final_step_result: Optional[StepResult],
+        step_count: int,
+    ) -> Dict[str, Any]:
+        final_content = self._extract_result_content(final_step_result)
+        payload: Dict[str, Any] = {
+            "status": status,
+            "final_step_key": final_step_key,
+            "final_content": final_content,
+            "content": final_content,
+            "step_count": step_count,
+        }
+
+        if final_step_result:
+            if final_step_result.get("execution_id"):
+                payload["execution_id"] = final_step_result["execution_id"]
+
+            final_data = final_step_result.get("data")
+            if isinstance(final_data, dict):
+                citations = final_data.get("citations")
+                if isinstance(citations, list):
+                    payload["citations"] = deepcopy(citations)
+
+        return {key: value for key, value in payload.items() if value is not None}
+
+    def _collect_context_handoffs(self, context: Dict[str, StepResult]) -> Dict[str, Any]:
+        latest_retrieval_results = None
+        latest_tool_result = None
+
+        for result in reversed(list(context.values())):
+            if not result.get("success"):
+                continue
+
+            result_data = result.get("data")
+            result_metadata = result.get("metadata") or {}
+
+            if latest_retrieval_results is None:
+                if isinstance(result_data, dict) and result_data.get("retrieval_results"):
+                    latest_retrieval_results = deepcopy(result_data.get("retrieval_results"))
+                elif result_metadata.get("retrieval_results"):
+                    latest_retrieval_results = deepcopy(result_metadata.get("retrieval_results"))
+
+            if latest_tool_result is None:
+                if isinstance(result_data, dict) and result_data.get("tool_result"):
+                    latest_tool_result = deepcopy(result_data.get("tool_result"))
+                elif result_metadata.get("tool_result"):
+                    latest_tool_result = deepcopy(result_metadata.get("tool_result"))
+
+            if latest_retrieval_results is not None and latest_tool_result is not None:
+                break
+
+        handoffs: Dict[str, Any] = {}
+        if latest_retrieval_results is not None:
+            handoffs["retrieval_results"] = latest_retrieval_results
+        if latest_tool_result is not None:
+            handoffs["tool_result"] = latest_tool_result
+        return handoffs
+
     async def execute(
         self,
         agent_input: AgentInput,
@@ -106,7 +213,11 @@ class MultiAgentWorkflow:
             # 可以把很多运行期错误前移到入口阶段。
             if not self._is_valid_workflow_config(workflow_config):
                 self._mark_failed()
-                yield StreamChunk.create_error("工作流配置无效")
+                yield self._create_error_chunk(
+                    "工作流配置无效",
+                    error_code=ErrorCode.WORKFLOW_INVALID_INPUT.value,
+                    error_type="workflow_config_error",
+                )
                 return
 
             steps = workflow_config.get("steps", [])
@@ -126,23 +237,26 @@ class MultiAgentWorkflow:
                 return
 
             self._mark_completed()
-            # 最终结果优先取最后一个成功/失败步骤的统一结果结构，
-            # 这样不要求每个 Agent 都输出同一种字段名。
             final_step_result = execution_state.get("last_step_result")
-            final_content = self._extract_result_content(final_step_result)
             self.logger.info("多Agent协作工作流执行完成")
             yield StreamChunk.create_thinking("多Agent协作工作流执行完成")
-            yield StreamChunk.create_result({
-                "status": "completed",
-                "context": context,
-                "final_step_key": execution_state.get("last_step_key"),
-                "final_content": final_content,
-            })
+            yield StreamChunk.create_result(
+                self._build_workflow_summary_result(
+                    status="completed",
+                    final_step_key=execution_state.get("last_step_key"),
+                    final_step_result=final_step_result,
+                    step_count=len(context),
+                ),
+                result_scope="workflow",
+            )
 
         except Exception as error:
             self._mark_failed()
             self.logger.error(f"多Agent工作流执行失败: {error}", exc_info=True)
-            yield StreamChunk.create_error(f"多Agent工作流执行失败: {error}")
+            yield self._create_error_chunk(
+                f"多Agent工作流执行失败: {error}",
+                error_type="workflow_runtime_error",
+            )
 
     async def _execute_steps(
         self,
@@ -192,7 +306,10 @@ class MultiAgentWorkflow:
                 execution_state["failed"] = True
                 execution_state["last_step_result"] = result
                 self._mark_failed()
-                yield StreamChunk.create_error(result["error"] or "步骤类型无效")
+                yield self._create_error_chunk(
+                    result["error"] or "步骤类型无效",
+                    error_type="workflow_step_type_error",
+                )
                 return
 
             # 使用显式计数器而不是直接依赖 `enumerate`，
@@ -247,17 +364,25 @@ class MultiAgentWorkflow:
                     self.logger.error(f"必需步骤失败: step_key={step_key}, error={reason}")
                     execution_state["failed"] = True
                     self._mark_failed()
-                    yield StreamChunk.create_error(f"步骤 {step_name} 失败: {reason}")
+                    if not step_state.get("error_emitted"):
+                        yield self._create_error_chunk(
+                            f"步骤 {step_name} 失败: {reason}",
+                            error_type="workflow_step_error",
+                            step_key=step_key,
+                            step_name=step_name,
+                            agent_type=agent_type,
+                        )
                     return
 
                 self.logger.warning(f"可选步骤失败，继续执行: step_key={step_key}, error={reason}")
-                yield StreamChunk.create_metadata({
-                    "event": "optional_step_failed",
-                    "step_key": step_key,
-                    "step_name": step_name,
-                    "error": reason,
-                })
-                yield StreamChunk.create_thinking(f"步骤 {step_name} 失败，继续执行后续步骤...")
+                yield StreamChunk.create_thinking(
+                    f"步骤 {step_name} 失败，继续执行后续步骤...",
+                    event="optional_step_failed",
+                    step_key=step_key,
+                    step_name=step_name,
+                    error=reason,
+                    agent_type=agent_type,
+                )
 
     async def _execute_agent_step(
         self,
@@ -352,7 +477,14 @@ class MultiAgentWorkflow:
                     step_key=step_key,
                     error=error,
                 )
-                yield StreamChunk.create_error(error, step_key=step_key, step_name=step_name)
+                step_state["error_emitted"] = True
+                yield self._create_error_chunk(
+                    error,
+                    error_type="workflow_step_error",
+                    step_key=step_key,
+                    step_name=step_name,
+                    agent_type=agent_type,
+                )
                 return
 
             # 在真正调用 Agent 之前，把当前工作流上下文和上一步结果合并到输入中，
@@ -393,8 +525,14 @@ class MultiAgentWorkflow:
                         result_metadata = deepcopy(chunk.metadata) if chunk.metadata else {}
                     elif chunk.chunk_type == CHUNK_ERROR:
                         error_message = str(chunk.content)
+                        step_state["error_emitted"] = True
 
-                    yield chunk
+                    yield self._augment_step_chunk(
+                        chunk,
+                        step_name=step_name,
+                        step_key=step_key,
+                        agent_type=agent_type,
+                    )
 
                 # 即使流中已经收到部分内容，只要最终出现 error chunk，
                 # 仍然把该步骤判定为失败，但会保留已产出的内容和元数据，方便排障。
@@ -427,10 +565,13 @@ class MultiAgentWorkflow:
                         },
                         error=f"步骤 {step_name} 未产出有效结果",
                     )
-                    yield StreamChunk.create_error(
+                    step_state["error_emitted"] = True
+                    yield self._create_error_chunk(
                         f"步骤 {step_name} 未产出有效结果",
+                        error_type="workflow_step_error",
                         step_key=step_key,
                         step_name=step_name,
+                        agent_type=agent_type,
                     )
                     return
 
@@ -475,10 +616,13 @@ class MultiAgentWorkflow:
                 if step_result["success"]:
                     yield StreamChunk.create_result(step_result["data"], step_key=step_key, step_name=step_name)
                 else:
-                    yield StreamChunk.create_error(
+                    step_state["error_emitted"] = True
+                    yield self._create_error_chunk(
                         step_result["error"] or f"步骤 {step_name} 执行失败",
+                        error_type="workflow_step_error",
                         step_key=step_key,
                         step_name=step_name,
+                        agent_type=agent_type,
                     )
                 step_state["result"] = step_result
                 return
@@ -491,7 +635,14 @@ class MultiAgentWorkflow:
                 step_key=step_key,
                 error=error,
             )
-            yield StreamChunk.create_error(error, step_key=step_key, step_name=step_name)
+            step_state["error_emitted"] = True
+            yield self._create_error_chunk(
+                error,
+                error_type="workflow_step_error",
+                step_key=step_key,
+                step_name=step_name,
+                agent_type=agent_type,
+            )
 
         except Exception as error:
             self.logger.error(f"Agent步骤流式执行失败: {error}", exc_info=True)
@@ -502,10 +653,13 @@ class MultiAgentWorkflow:
                 step_key=step_key,
                 error=str(error),
             )
-            yield StreamChunk.create_error(
+            step_state["error_emitted"] = True
+            yield self._create_error_chunk(
                 f"步骤 {step_name} 执行失败: {error}",
+                error_type="workflow_step_error",
                 step_key=step_key,
                 step_name=step_name,
+                agent_type=agent_type,
             )
 
     async def _collect_step_result_from_stream(
@@ -650,6 +804,13 @@ class MultiAgentWorkflow:
             elif previous_metadata.get("tool_result"):
                 metadata["tool_result"] = deepcopy(previous_metadata.get("tool_result"))
 
+        if use_previous_output:
+            handoffs = self._collect_context_handoffs(workflow_context)
+            if handoffs.get("retrieval_results") and "retrieval_results" not in metadata:
+                metadata["retrieval_results"] = handoffs["retrieval_results"]
+            if handoffs.get("tool_result") and "tool_result" not in metadata:
+                metadata["tool_result"] = handoffs["tool_result"]
+
         return AgentInput(
             user_id=agent_input.user_id,
             conversation_id=agent_input.conversation_id,
@@ -737,12 +898,15 @@ class MultiAgentWorkflow:
                 return
 
         self._mark_completed()
-        yield StreamChunk.create_result({
-            "status": "completed",
-            "context": context,
-            "final_step_key": previous_result["step_key"] if previous_result else None,
-            "final_content": self._extract_result_content(previous_result),
-        })
+        yield StreamChunk.create_result(
+            self._build_workflow_summary_result(
+                status="completed",
+                final_step_key=previous_result["step_key"] if previous_result else None,
+                final_step_result=previous_result,
+                step_count=len(context),
+            ),
+            result_scope="workflow",
+        )
 
     async def execute_parallel(
         self,
@@ -811,12 +975,15 @@ class MultiAgentWorkflow:
         else:
             self._mark_completed()
 
-        yield StreamChunk.create_result({
-            "status": "completed" if not has_failure else "partial",
-            "context": context,
-            "final_step_key": last_result["step_key"] if last_result else None,
-            "final_content": self._extract_result_content(last_result),
-        })
+        yield StreamChunk.create_result(
+            self._build_workflow_summary_result(
+                status="completed" if not has_failure else "partial",
+                final_step_key=last_result["step_key"] if last_result else None,
+                final_step_result=last_result,
+                step_count=len(context),
+            ),
+            result_scope="workflow",
+        )
 
     def transition_state(self, action: WorkflowAction) -> bool:
         """按状态图推进当前状态。"""
@@ -975,6 +1142,9 @@ class MultiAgentWorkflow:
             if not isinstance(step, dict):
                 return False
 
+            if "name" in step and not isinstance(step.get("name"), str):
+                return False
+
             step_type = step.get("type", STEP_TYPE_AGENT)
             if step_type == STEP_TYPE_CONDITION:
                 if not isinstance(step.get("condition"), str):
@@ -988,6 +1158,8 @@ class MultiAgentWorkflow:
             if step_type != STEP_TYPE_AGENT:
                 return False
             if not step.get("agent_type"):
+                return False
+            if step.get("agent_type") not in set(get_agent_registry().registered_types()):
                 return False
             if "config" in step and not isinstance(step.get("config"), dict):
                 return False

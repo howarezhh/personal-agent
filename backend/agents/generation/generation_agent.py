@@ -39,6 +39,13 @@ class GenerationAgent(BaseAgent):
                 tool_result = agent_input.metadata.get("tool_result")
                 retrieval_results = agent_input.metadata.get("retrieval_results")
 
+                if tool_result and retrieval_results:
+                    return await self.generate_with_combined_context(
+                        agent_input,
+                        retrieval_results=retrieval_results,
+                        tool_result=tool_result,
+                    )
+
                 if tool_result:
                     return await self.generate_with_tool_result(agent_input, tool_result)
 
@@ -110,6 +117,15 @@ class GenerationAgent(BaseAgent):
             if agent_input.metadata:
                 tool_result = agent_input.metadata.get("tool_result")
                 retrieval_results = agent_input.metadata.get("retrieval_results")
+
+                if tool_result and retrieval_results:
+                    async for chunk in self.generate_with_combined_context_stream(
+                        agent_input,
+                        retrieval_results=retrieval_results,
+                        tool_result=tool_result,
+                    ):
+                        yield chunk
+                    return
 
                 if tool_result:
                     async for chunk in self.generate_with_tool_result_stream(agent_input, tool_result):
@@ -307,6 +323,147 @@ class GenerationAgent(BaseAgent):
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
                 error_message=str(e)
+            )
+
+            yield StreamChunk.create_error(str(e))
+
+    async def generate_with_combined_context(
+        self,
+        agent_input: AgentInput,
+        retrieval_results: list,
+        tool_result: dict,
+    ) -> AgentOutput:
+        try:
+            combined_context = self._format_combined_context(retrieval_results, tool_result)
+            messages = self._build_messages_with_context(
+                user_content=agent_input.content,
+                context=combined_context,
+                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else [],
+            )
+
+            response = await self.llm_client.chat_completion(
+                messages=messages,
+                temperature=self._get_config_value("temperature", 0.7),
+                max_tokens=self._get_config_value("max_tokens", 2000),
+            )
+            citations = self._extract_citations(response, retrieval_results)
+
+            execution_create = AgentExecutionCreate(
+                conversation_id=agent_input.conversation_id,
+                message_id=agent_input.message_id,
+                agent_name=self.agent_name,
+                agent_type=self.agent_type,
+                input_data={
+                    "content": agent_input.content,
+                    "retrieval_results": retrieval_results,
+                    "tool_result": tool_result,
+                },
+            )
+            execution = self.execution_repo.create_execution(execution_create)
+
+            execution_update = AgentExecutionUpdate(
+                output_data={"content": response, "citations": citations},
+                status="success",
+            )
+            self.execution_repo.update_execution(execution.execution_id, execution_update)
+
+            return self._create_output(
+                content=response,
+                status="success",
+                execution_id=execution.execution_id,
+                citations=citations,
+                tool_result=tool_result,
+            )
+
+        except Exception as e:
+            self.logger.error(f"Generation with combined context failed: {str(e)}")
+
+            self.execution_repo.create_execution_with_result(
+                agent_name=self.agent_name,
+                agent_type=self.agent_type,
+                input_data={"content": agent_input.content},
+                output_data={},
+                status="failed",
+                execution_time_ms=0,
+                conversation_id=agent_input.conversation_id,
+                message_id=agent_input.message_id,
+                error_message=str(e),
+            )
+
+            return self._create_output(
+                content="",
+                status="failed",
+                error_message=str(e),
+            )
+
+    async def generate_with_combined_context_stream(
+        self,
+        agent_input: AgentInput,
+        retrieval_results: list,
+        tool_result: dict,
+    ) -> AsyncGenerator[StreamChunk, None]:
+        try:
+            yield StreamChunk.create_thinking("正在综合检索结果和工具结果生成回答...")
+
+            combined_context = self._format_combined_context(retrieval_results, tool_result)
+            messages = self._build_messages_with_context(
+                user_content=agent_input.content,
+                context=combined_context,
+                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else [],
+            )
+
+            full_content = ""
+            async for chunk in self.llm_client.chat_completion_stream(
+                messages=messages,
+                temperature=self._get_config_value("temperature", 0.7),
+                max_tokens=self._get_config_value("max_tokens", 2000),
+            ):
+                full_content += chunk
+                yield StreamChunk.create_content(chunk)
+
+            citations = self._extract_citations(full_content, retrieval_results)
+
+            execution_create = AgentExecutionCreate(
+                conversation_id=agent_input.conversation_id,
+                message_id=agent_input.message_id,
+                agent_name=self.agent_name,
+                agent_type=self.agent_type,
+                input_data={
+                    "content": agent_input.content,
+                    "retrieval_results": retrieval_results,
+                    "tool_result": tool_result,
+                },
+            )
+            execution = self.execution_repo.create_execution(execution_create)
+
+            execution_update = AgentExecutionUpdate(
+                output_data={"content": full_content, "citations": citations},
+                status="success",
+            )
+            self.execution_repo.update_execution(execution.execution_id, execution_update)
+
+            yield StreamChunk.create_result(
+                {
+                    "execution_id": execution.execution_id,
+                    "content_length": len(full_content),
+                    "citations": citations,
+                    "tool_result": tool_result,
+                }
+            )
+
+        except Exception as e:
+            self.logger.error(f"Generation with combined context stream failed: {str(e)}")
+
+            self.execution_repo.create_execution_with_result(
+                agent_name=self.agent_name,
+                agent_type=self.agent_type,
+                input_data={"content": agent_input.content},
+                output_data={},
+                status="failed",
+                execution_time_ms=0,
+                conversation_id=agent_input.conversation_id,
+                message_id=agent_input.message_id,
+                error_message=str(e),
             )
 
             yield StreamChunk.create_error(str(e))
@@ -599,6 +756,17 @@ class GenerationAgent(BaseAgent):
         context += f"工具返回结果：\n{formatted_text}\n"
 
         return context
+
+    def _format_combined_context(self, retrieval_results: list, tool_result: dict) -> str:
+        retrieval_context = self._format_retrieval_context(retrieval_results)
+        tool_context = self._format_tool_result_context(tool_result)
+
+        context_parts = []
+        if tool_context:
+            context_parts.append(f"工具结果：\n{tool_context}")
+        if retrieval_context:
+            context_parts.append(f"检索上下文：\n{retrieval_context}")
+        return "\n\n".join(context_parts)
 
     def _build_messages_with_tool_result(
         self,

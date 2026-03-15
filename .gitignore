@@ -27,3 +27,7 @@ scripts/data/
 scripts/**/__pycache__/
 scripts/**/*.pyc
 /backend/tests
+backend/tests/test_workflow_logic.py
+backend/tests/test_workflow_logic.py
+/backend/tests
+/backend/tests
