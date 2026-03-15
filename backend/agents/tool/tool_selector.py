@@ -1,33 +1,20 @@
-"""
-工具选择器
-负责分析用户问题并选择合适的工具
-"""
 
 import json
 from typing import Dict, List, Optional
 from backend.utils.llm_client import get_llm_client
 from backend.tools.tool_registry import get_tool_registry
+from backend.tools.tool_initializer import ensure_tools_initialized
 from backend.core.prompt_manager import get_prompt_manager
 import logging
 
 
 class ToolSelector:
-    """
-    工具选择器
-
-    功能：
-    1. 分析用户问题
-    2. 从可用工具列表中选择最合适的工具
-    3. 提取工具调用参数
-    """
-
     def __init__(self):
-        """初始化工具选择器"""
         self.logger = logging.getLogger(self.__class__.__name__)
         self.llm_client = get_llm_client()
         self.tool_registry = get_tool_registry()
         if self.tool_registry.get_tool_count() == 0:
-            from backend.tools import tool_initializer  # noqa: F401
+            ensure_tools_initialized(strict=False)
             self.logger.info("工具注册表为空，已触发自动初始化")
         self.prompt_manager = get_prompt_manager()
 
@@ -37,23 +24,6 @@ class ToolSelector:
         available_tools: Optional[List[str]] = None,
         conversation_history: Optional[str] = None
     ) -> Dict:
-        """
-        选择合适的工具
-
-        Args:
-            user_question: 用户问题
-            available_tools: 可用工具列表（工具名称），如果为None则使用所有工具
-            conversation_history: 对话历史文本
-
-        Returns:
-            工具选择结果，格式为:
-            {
-                "tool_name": str,
-                "tool_params": dict,
-                "confidence": float,
-                "reasoning": str
-            }
-        """
         try:
             if self._is_explicit_retrieval_question(user_question):
                 self.logger.info("检测到显式知识库检索问题，工具选择器返回retrieval移交结果")
@@ -123,7 +93,6 @@ class ToolSelector:
             }
 
     def _is_explicit_retrieval_question(self, user_question: str) -> bool:
-        """显式知识库/文档问题不应进入工具调用。"""
         question = (user_question or "").lower()
         retrieval_keywords = [
             "知识库", "知识库里", "知识库中", "文档", "文档里", "文档中",
@@ -144,17 +113,6 @@ class ToolSelector:
         tool_definitions: List[dict],
         conversation_history: str = ""
     ) -> str:
-        """
-        使用配置文件中的提示词模板构建工具选择提示词
-
-        Args:
-            user_question: 用户问题
-            tool_definitions: 工具定义列表
-            conversation_history: 对话历史文本
-
-        Returns:
-            提示词文本
-        """
         # 格式化工具列表
         tools_text = ""
         for i, tool_def in enumerate(tool_definitions, start=1):
@@ -187,16 +145,6 @@ class ToolSelector:
         return prompt
 
     def _build_selection_prompt(self, user_question: str, tool_definitions: List[dict]) -> str:
-        """
-        构建工具选择提示词
-
-        Args:
-            user_question: 用户问题
-            tool_definitions: 工具定义列表
-
-        Returns:
-            提示词文本
-        """
         # 格式化工具列表
         tools_text = ""
         for i, tool_def in enumerate(tool_definitions, start=1):
@@ -243,15 +191,6 @@ class ToolSelector:
         return prompt
 
     def _parse_selection(self, response: str) -> Dict:
-        """
-        解析LLM返回的工具选择结果
-
-        Args:
-            response: LLM返回的文本
-
-        Returns:
-            工具选择结果
-        """
         try:
             # 尝试提取JSON内容（处理LLM可能返回的额外文本）
             import re
@@ -292,23 +231,8 @@ class ToolSelector:
             }
 
     def get_available_tools(self) -> List[str]:
-        """
-        获取所有可用工具名称
-
-        Returns:
-            工具名称列表
-        """
         return self.tool_registry.get_tool_names()
 
     def get_tools_by_category(self, category: str) -> List[str]:
-        """
-        根据分类获取工具名称
-
-        Args:
-            category: 工具分类
-
-        Returns:
-            工具名称列表
-        """
         tools = self.tool_registry.get_tools_by_category(category)
         return [tool.get_name() for tool in tools]

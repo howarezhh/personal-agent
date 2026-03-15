@@ -1,4 +1,3 @@
-"""Chat application service for orchestrating chat use cases."""
 
 from typing import Any, Optional
 

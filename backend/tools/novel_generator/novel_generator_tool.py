@@ -1,7 +1,3 @@
-"""
-小说生成工具
-支持AI自动生成小说内容
-"""
 
 from typing import AsyncGenerator, Dict, Any, Optional, List
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
@@ -12,17 +8,6 @@ import json
 
 
 class NovelGeneratorTool(BaseTool):
-    """
-    小说生成工具
-
-    功能：
-    - 生成小说大纲
-    - 生成章节内容
-    - 生成角色设定
-    - 生成世界观设定
-    - 续写小说内容
-    """
-
     # 小说类型
     NOVEL_GENRES = {
         "fantasy": "玄幻",
@@ -51,7 +36,6 @@ class NovelGeneratorTool(BaseTool):
     }
 
     def __init__(self):
-        """初始化小说生成工具"""
         super().__init__()
         self.config_manager = get_config_manager()
         self.prompt_manager = get_prompt_manager()
@@ -59,11 +43,11 @@ class NovelGeneratorTool(BaseTool):
         self.logger.info("小说生成工具初始化完成")
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="novel_generator",
             description="AI小说生成工具，支持生成小说大纲、章节内容、角色设定、世界观设定等",
             category="creative",
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="action",
@@ -140,16 +124,6 @@ class NovelGeneratorTool(BaseTool):
         )
 
     async def execute(self, action: str, **kwargs) -> Dict[str, Any]:
-        """
-        执行小说生成操作
-
-        Args:
-            action: 操作类型
-            **kwargs: 其他参数
-
-        Returns:
-            生成结果
-        """
         try:
             self.logger.info(f"执行小说生成操作: {action}")
 
@@ -454,21 +428,20 @@ class NovelGeneratorTool(BaseTool):
 
     async def _generate_outline(self, title: Optional[str], theme: Optional[str],
                                genre: Optional[str], style: Optional[str]) -> Dict[str, Any]:
-        """生成小说大纲"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
-            genre_name = self.NOVEL_GENRES.get(genre, "??") if genre else "??"
-            style_name = self.WRITING_STYLES.get(style, "????") if style else "????"
+            genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
+            style_name = self.WRITING_STYLES.get(style, "默认") if style else "默认"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.novel_generator_outline_prompt",
-                title=title or "??",
+                title=title or "未命名小说",
                 genre_name=genre_name,
                 style_name=style_name,
-                theme=theme or "????????????"
+                theme=theme or "请围绕用户主题生成完整故事大纲"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.8)
@@ -510,19 +483,18 @@ class NovelGeneratorTool(BaseTool):
     async def _generate_chapter(self, chapter_number: int, chapter_title: Optional[str],
                                 outline: Optional[str], genre: Optional[str],
                                 style: Optional[str], word_count: int) -> Dict[str, Any]:
-        """生成章节内容"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
-            genre_name = self.NOVEL_GENRES.get(genre, "??") if genre else "??"
-            style_name = self.WRITING_STYLES.get(style, "????") if style else "????"
+            genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
+            style_name = self.WRITING_STYLES.get(style, "默认") if style else "默认"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.novel_generator_chapter_prompt",
                 chapter_number=chapter_number,
-                chapter_title=chapter_title or f"?{chapter_number}?",
+                chapter_title=chapter_title or f"第{chapter_number}章",
                 genre_name=genre_name,
                 style_name=style_name,
                 word_count=word_count,
@@ -555,19 +527,18 @@ class NovelGeneratorTool(BaseTool):
 
     async def _generate_character(self, character_name: Optional[str],
                                   genre: Optional[str], theme: Optional[str]) -> Dict[str, Any]:
-        """生成角色设定"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
-            genre_name = self.NOVEL_GENRES.get(genre, "??") if genre else "??"
+            genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.novel_generator_character_prompt",
-                character_name=character_name or "??",
+                character_name=character_name or "主角",
                 genre_name=genre_name,
-                theme=theme or "?????"
+                theme=theme or "请补充完整的人物设定"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.8)
@@ -604,19 +575,18 @@ class NovelGeneratorTool(BaseTool):
 
     async def _generate_worldview(self, title: Optional[str], theme: Optional[str],
                                   genre: Optional[str]) -> Dict[str, Any]:
-        """生成世界观设定"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
-            genre_name = self.NOVEL_GENRES.get(genre, "??") if genre else "??"
+            genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.novel_generator_worldview_prompt",
-                title=title or "??",
+                title=title or "未命名小说",
                 genre_name=genre_name,
-                theme=theme or "?????"
+                theme=theme or "请补充世界规则、势力与背景"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.8)
@@ -654,7 +624,6 @@ class NovelGeneratorTool(BaseTool):
     async def _continue_writing(self, previous_content: Optional[str],
                                genre: Optional[str], style: Optional[str],
                                word_count: int) -> Dict[str, Any]:
-        """续写小说内容"""
         try:
             if not previous_content:
                 return {
@@ -667,8 +636,8 @@ class NovelGeneratorTool(BaseTool):
 
             llm_manager = get_llm_manager()
 
-            genre_name = self.NOVEL_GENRES.get(genre, "??") if genre else "??"
-            style_name = self.WRITING_STYLES.get(style, "????") if style else "????"
+            genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
+            style_name = self.WRITING_STYLES.get(style, "默认") if style else "默认"
             context = previous_content[-1000:] if len(previous_content) > 1000 else previous_content
 
             prompt = self.prompt_manager.format_prompt(
@@ -702,9 +671,7 @@ class NovelGeneratorTool(BaseTool):
             }
 
     def get_supported_genres(self) -> Dict[str, str]:
-        """获取支持的小说类型"""
         return self.NOVEL_GENRES.copy()
 
     def get_supported_styles(self) -> Dict[str, str]:
-        """获取支持的写作风格"""
         return self.WRITING_STYLES.copy()

@@ -1,7 +1,3 @@
-"""
-时间日期工具
-支持时间查询、日期计算、时区转换等功能
-"""
 
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -11,17 +7,6 @@ import logging
 
 
 class DateTimeTool(BaseTool):
-    """
-    时间日期工具
-
-    功能：
-    - 查询当前时间
-    - 日期计算（加减天数、月数、年数）
-    - 时区转换
-    - 日期格式化
-    - 计算日期差
-    """
-
     # 常用时区
     COMMON_TIMEZONES = {
         "UTC": "UTC",
@@ -36,17 +21,16 @@ class DateTimeTool(BaseTool):
     }
 
     def __init__(self):
-        """初始化时间日期工具"""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.info("时间日期工具初始化完成")
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="datetime",
             description="时间日期工具，支持查询当前时间、日期计算、时区转换、日期格式化等功能",
             category="utility",
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="action",
@@ -122,16 +106,6 @@ class DateTimeTool(BaseTool):
         )
 
     async def execute(self, action: str, **kwargs) -> Dict[str, Any]:
-        """
-        执行时间日期操作
-
-        Args:
-            action: 操作类型
-            **kwargs: 其他参数
-
-        Returns:
-            操作结果
-        """
         try:
             self.logger.info(f"执行时间日期操作: {action}")
 
@@ -166,7 +140,9 @@ class DateTimeTool(BaseTool):
                 return {
                     "success": False,
                     "data": None,
-                    "error": f"不支持的操作类型: {action}"
+                    "error": f"不支持的操作类型: {action}",
+                    "error_code": "TOOL_INVALID_PARAMETER",
+                    "error_type": "parameter_error",
                 }
 
         except Exception as e:
@@ -178,7 +154,6 @@ class DateTimeTool(BaseTool):
             }
 
     async def _get_current_time(self, timezone: str) -> Dict[str, Any]:
-        """获取当前时间"""
         try:
             tz = pytz.timezone(timezone)
             now = datetime.now(tz)
@@ -211,7 +186,6 @@ class DateTimeTool(BaseTool):
             }
 
     async def _calculate_date(self, date_str: Optional[str], days: int, months: int, years: int, timezone: str) -> Dict[str, Any]:
-        """日期计算"""
         try:
             tz = pytz.timezone(timezone)
 
@@ -263,7 +237,6 @@ class DateTimeTool(BaseTool):
             }
 
     async def _convert_timezone(self, date_str: Optional[str], from_tz: str, to_tz: str) -> Dict[str, Any]:
-        """时区转换"""
         try:
             from_timezone = pytz.timezone(from_tz)
             to_timezone = pytz.timezone(to_tz)
@@ -302,7 +275,6 @@ class DateTimeTool(BaseTool):
             }
 
     async def _calculate_date_diff(self, date1_str: Optional[str], date2_str: Optional[str]) -> Dict[str, Any]:
-        """计算日期差"""
         try:
             if not date1_str or not date2_str:
                 return {
@@ -352,7 +324,6 @@ class DateTimeTool(BaseTool):
             }
 
     async def _format_date(self, date_str: Optional[str], format_str: str, timezone: str) -> Dict[str, Any]:
-        """格式化日期"""
         try:
             tz = pytz.timezone(timezone)
 
@@ -387,5 +358,4 @@ class DateTimeTool(BaseTool):
             }
 
     def get_supported_timezones(self) -> Dict[str, str]:
-        """获取支持的时区列表"""
         return self.COMMON_TIMEZONES.copy()

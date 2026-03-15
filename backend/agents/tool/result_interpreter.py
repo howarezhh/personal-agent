@@ -1,7 +1,3 @@
-"""
-结果解释器
-负责解释工具返回的结果，转换为易于理解的文本
-"""
 
 from typing import Dict, Any, Callable
 from backend.core.prompt_manager import get_prompt_manager
@@ -10,23 +6,7 @@ import logging
 
 
 class ResultInterpreter:
-    """
-    结果解释器
-
-    功能：
-    1. 解析工具返回的结果
-    2. 格式化为易于理解的文本
-    3. 提取关键信息
-    4. 使用LLM进行智能解释（可选）
-    """
-
     def __init__(self, enable_llm_interpretation: bool = False):
-        """
-        初始化结果解释器
-
-        Args:
-            enable_llm_interpretation: 是否启用LLM智能解释
-        """
         self.logger = logging.getLogger(self.__class__.__name__)
         self.prompt_manager = get_prompt_manager()
         self.enable_llm_interpretation = enable_llm_interpretation
@@ -50,26 +30,10 @@ class ResultInterpreter:
         }
 
     def register_interpreter(self, tool_name: str, interpreter_func: Callable) -> None:
-        """
-        注册自定义工具解释器
-
-        Args:
-            tool_name: 工具名称
-            interpreter_func: 解释器函数，接收tool_result参数，返回解释结果字典
-        """
         self._interpreters[tool_name] = interpreter_func
         self.logger.info(f"Registered custom interpreter for tool: {tool_name}")
 
     def unregister_interpreter(self, tool_name: str) -> bool:
-        """
-        注销工具解释器
-
-        Args:
-            tool_name: 工具名称
-
-        Returns:
-            是否成功注销
-        """
         if tool_name in self._interpreters:
             del self._interpreters[tool_name]
             self.logger.info(f"Unregistered interpreter for tool: {tool_name}")
@@ -77,22 +41,6 @@ class ResultInterpreter:
         return False
 
     def interpret(self, tool_name: str, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释工具结果
-
-        Args:
-            tool_name: 工具名称
-            tool_result: 工具返回的结果
-
-        Returns:
-            解释后的结果，格式为:
-            {
-                "success": bool,
-                "formatted_text": str,
-                "key_info": dict,
-                "raw_data": Any
-            }
-        """
         try:
             # 检查工具执行是否成功
             if not tool_result.get("success", False):
@@ -100,6 +48,8 @@ class ResultInterpreter:
                     "success": False,
                     "formatted_text": f"工具调用失败：{tool_result.get('error', '未知错误')}",
                     "key_info": {},
+                    "error_code": tool_result.get("error_code"),
+                    "error_type": tool_result.get("error_type"),
                     "raw_data": tool_result
                 }
 
@@ -117,19 +67,12 @@ class ResultInterpreter:
                 "success": False,
                 "formatted_text": f"结果解释失败：{str(e)}",
                 "key_info": {},
+                "error_code": "TOOL_RESULT_INTERPRETATION_ERROR",
+                "error_type": "execution_error",
                 "raw_data": tool_result
             }
 
     def _interpret_calculator(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释计算器结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         expression = data.get("expression", "")
         result = data.get("result", "")
@@ -147,27 +90,9 @@ class ResultInterpreter:
         }
 
     def _interpret_weather(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释天气查询结果（已废弃，使用weather_mcp）
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         return self._interpret_weather_mcp(tool_result)
 
     def _interpret_weather_mcp(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释天气MCP结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         city = data.get("city", "")
         current = data.get("current", {})
@@ -208,15 +133,6 @@ class ResultInterpreter:
         }
 
     def _interpret_news_mcp(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释新闻MCP结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         articles = data.get("articles", [])
         total = data.get("total_results", 0)
@@ -244,15 +160,6 @@ class ResultInterpreter:
         }
 
     def _interpret_wikipedia_mcp(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释维基百科MCP结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         title = data.get("title", "")
         summary = data.get("summary", "")
@@ -277,15 +184,6 @@ class ResultInterpreter:
         }
 
     def _interpret_exchange_rate_mcp(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释汇率MCP结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         base_currency = data.get("base_currency", "")
         target_currency = data.get("target_currency", "")
@@ -312,15 +210,6 @@ class ResultInterpreter:
         }
 
     def _interpret_ip_lookup_mcp(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释IP查询MCP结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         ip = data.get("ip", "")
         country = data.get("country", "")
@@ -350,15 +239,6 @@ class ResultInterpreter:
         }
 
     def _interpret_web_search(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释网络搜索结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         description = data.get("description", "")
         results = data.get("results", [])
@@ -380,15 +260,6 @@ class ResultInterpreter:
         }
 
     def _interpret_database_query(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解释数据库查询结果
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
         description = data.get("description", "")
 
@@ -402,15 +273,6 @@ class ResultInterpreter:
         }
 
     def _interpret_default(self, tool_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        默认解释方法
-
-        Args:
-            tool_result: 工具结果
-
-        Returns:
-            解释后的结果
-        """
         data = tool_result.get("data", {})
 
         # 尝试提取描述文本
@@ -427,30 +289,12 @@ class ResultInterpreter:
         }
 
     def format_for_display(self, interpreted_result: Dict[str, Any]) -> str:
-        """
-        格式化为展示文本
-
-        Args:
-            interpreted_result: 解释后的结果
-
-        Returns:
-            展示文本
-        """
         if not interpreted_result.get("success", False):
             return interpreted_result.get("formatted_text", "工具调用失败")
 
         return interpreted_result.get("formatted_text", "")
 
     def extract_key_info(self, interpreted_result: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        提取关键信息
-
-        Args:
-            interpreted_result: 解释后的结果
-
-        Returns:
-            关键信息字典
-        """
         return interpreted_result.get("key_info", {})
 
     async def interpret_with_llm(
@@ -460,18 +304,6 @@ class ResultInterpreter:
         tool_output: Dict[str, Any],
         user_question: str
     ) -> str:
-        """
-        使用LLM智能解释工具结果
-
-        Args:
-            tool_name: 工具名称
-            tool_input: 工具输入参数
-            tool_output: 工具输出结果
-            user_question: 用户原始问题
-
-        Returns:
-            友好的解释文本
-        """
         if not self.enable_llm_interpretation or not self.llm_client:
             self.logger.warning("LLM interpretation is not enabled")
             return self.interpret(tool_name, tool_output).get("formatted_text", "")
@@ -506,15 +338,6 @@ class ResultInterpreter:
             return self.interpret(tool_name, tool_output).get("formatted_text", "")
 
     def get_error_message(self, error_type: str) -> str:
-        """
-        获取工具错误的友好提示信息
-
-        Args:
-            error_type: 错误类型（timeout/invalid_parameters/tool_unavailable/unknown_error）
-
-        Returns:
-            错误提示信息
-        """
         error_prompt_key = f"tool.tool_error_handling.{error_type}"
         error_message = self.prompt_manager.get_prompt(error_prompt_key)
 

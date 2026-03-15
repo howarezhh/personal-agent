@@ -1,7 +1,3 @@
-"""
-用户数据模型
-对应数据库表: users
-"""
 
 from dataclasses import dataclass, field
 from typing import Optional
@@ -11,13 +7,6 @@ import uuid
 
 @dataclass
 class User:
-    """
-    用户数据模型
-
-    对应数据库表: users
-    存储用户基本信息
-    """
-
     user_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     username: str = ""
     email: str = ""
@@ -31,12 +20,6 @@ class User:
     last_login_at: Optional[datetime] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的用户数据
-        """
         return {
             "user_id": self.user_id,
             "username": self.username,
@@ -52,12 +35,6 @@ class User:
         }
 
     def to_public_dict(self) -> dict:
-        """
-        转换为公开字典格式（不包含敏感信息）
-
-        Returns:
-            公开的用户数据字典
-        """
         return {
             "user_id": self.user_id,
             "username": self.username,
@@ -72,15 +49,6 @@ class User:
 
     @classmethod
     def from_dict(cls, data: dict) -> "User":
-        """
-        从字典创建User对象
-
-        Args:
-            data: 字典数据
-
-        Returns:
-            User对象
-        """
         # 处理datetime字段
         if isinstance(data.get("created_at"), str):
             data["created_at"] = datetime.fromisoformat(data["created_at"].replace("Z", "+00:00"))
@@ -93,16 +61,6 @@ class User:
 
     @classmethod
     def from_db_row(cls, row: tuple, columns: list) -> "User":
-        """
-        从数据库行创建User对象
-
-        Args:
-            row: 数据库查询结果行
-            columns: 列名列表
-
-        Returns:
-            User对象
-        """
         data = dict(zip(columns, row))
         return cls.from_dict(data)
 
@@ -112,22 +70,12 @@ class User:
 
 @dataclass
 class UserCreate:
-    """
-    创建用户的数据模型（用于注册）
-    """
-
     username: str
     email: str
     password: str  # 明文密码，将在服务层进行哈希处理
     full_name: Optional[str] = None
 
     def validate(self) -> tuple[bool, Optional[str]]:
-        """
-        验证用户输入数据
-
-        Returns:
-            (是否有效, 错误信息)
-        """
         # 验证用户名
         if not self.username or len(self.username) < 3:
             return False, "用户名至少需要3个字符"
@@ -157,21 +105,11 @@ class UserCreate:
 
 @dataclass
 class UserUpdate:
-    """
-    更新用户的数据模型
-    """
-
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     email: Optional[str] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式（只包含非None的字段）
-
-        Returns:
-            字典格式的更新数据
-        """
         data = {}
         if self.full_name is not None:
             data["full_name"] = self.full_name
@@ -184,20 +122,10 @@ class UserUpdate:
 
 @dataclass
 class UserLogin:
-    """
-    用户登录的数据模型
-    """
-
     username_or_email: str
     password: str
 
     def validate(self) -> tuple[bool, Optional[str]]:
-        """
-        验证登录输入数据
-
-        Returns:
-            (是否有效, 错误信息)
-        """
         if not self.username_or_email:
             return False, "请输入用户名或邮箱"
         if not self.password:

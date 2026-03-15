@@ -1,8 +1,3 @@
-"""
-监控模块
-
-包含Prometheus指标收集和系统监控功能
-"""
 
 from backend.monitoring.metrics import (
     # 指标记录函数

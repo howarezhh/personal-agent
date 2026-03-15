@@ -1,4 +1,3 @@
-"""Unified SSE contracts."""
 
 from datetime import datetime, timezone
 from typing import Any, Literal, Optional

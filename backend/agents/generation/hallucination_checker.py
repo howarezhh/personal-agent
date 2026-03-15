@@ -1,7 +1,3 @@
-"""
-幻觉检查器
-检查生成的内容是否基于检索结果，避免模型产生幻觉
-"""
 
 from typing import List, Dict, Any, Optional
 from backend.utils.logger import get_logger
@@ -10,18 +6,7 @@ from backend.core.prompt_manager import get_prompt_manager
 
 
 class HallucinationChecker:
-    """
-    幻觉检查器
-
-    功能：
-    1. 检查生成的内容是否基于检索结果
-    2. 识别可能的幻觉内容
-    3. 计算内容与检索结果的一致性分数
-    4. 提供改进建议
-    """
-
     def __init__(self):
-        """初始化幻觉检查器"""
         self.logger = get_logger(self.__class__.__name__)
         self.llm_client = get_llm_client()
         self.prompt_manager = get_prompt_manager()
@@ -36,17 +21,6 @@ class HallucinationChecker:
         retrieval_results: List[Dict[str, Any]],
         user_question: str
     ) -> Dict[str, Any]:
-        """
-        检查生成内容是否存在幻觉
-
-        Args:
-            generated_content: 生成的内容
-            retrieval_results: 检索结果列表
-            user_question: 用户问题
-
-        Returns:
-            检查结果，包含是否存在幻觉、一致性分数、问题点等
-        """
         if not generated_content or not retrieval_results:
             return {
                 "has_hallucination": False,
@@ -89,15 +63,6 @@ class HallucinationChecker:
         generated_content: str,
         retrieval_results: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """
-        基于规则的快速检查
-
-        检查项：
-        1. 是否包含引用标记
-        2. 引用覆盖率
-        3. 内容长度是否合理
-        4. 是否包含明显的幻觉关键词
-        """
         import re
 
         # 检查是否包含引用标记
@@ -143,11 +108,6 @@ class HallucinationChecker:
         retrieval_results: List[Dict[str, Any]],
         user_question: str
     ) -> Dict[str, Any]:
-        """
-        基于LLM的深度检查（使用提示词管理器）
-
-        使用LLM来判断生成内容是否与检索结果一致
-        """
         try:
             # 构建检查上下文
             context = self._format_retrieval_context(retrieval_results)
@@ -194,7 +154,6 @@ class HallucinationChecker:
             }
 
     def _build_fallback_prompt(self, user_question: str, context: str, generated_content: str) -> str:
-        """构建降级提示词"""
         return f"""请检查以下生成的回答是否基于提供的上下文，是否存在幻觉（即编造的、不在上下文中的信息）。
 
 用户问题：
@@ -221,7 +180,6 @@ class HallucinationChecker:
 """
 
     def _parse_llm_response(self, response: str) -> Dict[str, Any]:
-        """解析LLM返回的检查结果"""
         import json
 
         try:
@@ -260,16 +218,6 @@ class HallucinationChecker:
         rule_based_result: Dict[str, Any],
         llm_based_result: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        综合规则检查和LLM检查的结果
-
-        Args:
-            rule_based_result: 规则检查结果
-            llm_based_result: LLM检查结果
-
-        Returns:
-            综合结果
-        """
         # 计算综合一致性分数（规则检查权重0.4，LLM检查权重0.6）
         rule_score = rule_based_result.get("consistency_score", 0.5)
         llm_score = llm_based_result.get("consistency_score", 0.5)
@@ -301,16 +249,6 @@ class HallucinationChecker:
         consistency_score: float,
         has_hallucination: bool
     ) -> str:
-        """
-        根据检查结果生成改进建议
-
-        Args:
-            consistency_score: 一致性分数
-            has_hallucination: 是否存在幻觉
-
-        Returns:
-            改进建议
-        """
         if not has_hallucination and consistency_score >= 0.9:
             return "内容质量良好，与检索结果高度一致"
         elif not has_hallucination and consistency_score >= 0.7:
@@ -321,7 +259,6 @@ class HallucinationChecker:
             return "内容与检索结果一致性较低，强烈建议重新生成"
 
     def _format_retrieval_context(self, retrieval_results: List[Dict[str, Any]]) -> str:
-        """格式化检索结果为上下文字符串"""
         if not retrieval_results:
             return ""
 
@@ -337,15 +274,5 @@ class HallucinationChecker:
         generated_content: str,
         retrieval_results: List[Dict[str, Any]]
     ) -> bool:
-        """
-        快速检查（仅使用规则，不调用LLM）
-
-        Args:
-            generated_content: 生成的内容
-            retrieval_results: 检索结果列表
-
-        Returns:
-            是否通过检查（True表示没有明显幻觉）
-        """
         result = self._rule_based_check(generated_content, retrieval_results)
         return result["consistency_score"] >= self.consistency_threshold

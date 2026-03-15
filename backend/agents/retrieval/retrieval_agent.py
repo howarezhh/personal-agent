@@ -1,7 +1,3 @@
-"""
-检索Agent实现
-继承BaseAgent，实现完整的检索流程：查询重写 → 向量检索 → 重排序
-"""
 
 from typing import AsyncGenerator, List, Dict, Any, Optional
 import json
@@ -26,8 +22,6 @@ from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionU
 
 
 class RetrievalAgent(BaseAgent):
-    """检索Agent"""
-
     def __init__(self):
         super().__init__(agent_name="RetrievalAgent", agent_type="retrieval")
         self.query_rewriter = QueryRewriter()
@@ -36,11 +30,11 @@ class RetrievalAgent(BaseAgent):
             self.vector_store = get_vector_db_client()
             self.vector_enabled = True
             doc_count = self.vector_store.get_collection_count()
-            self.logger.info(f"????????????????????: {doc_count}")
+            self.logger.info(f"向量数据库集合文档数量: {doc_count}")
             if doc_count == 0:
-                self.logger.warning("?? ??????????????????")
+                self.logger.warning("当前向量库为空，请先导入知识文档")
         except Exception as e:
-            self.logger.error(f"?????????????: {str(e)}")
+            self.logger.error(f"初始化向量数据库失败: {str(e)}")
             self.vector_store = None
             self.vector_enabled = False
 
@@ -67,7 +61,7 @@ class RetrievalAgent(BaseAgent):
         self.keyword_retriever = KeywordRetriever()
         self.reranker = Reranker(enable_rerank=self.enable_rerank)
         self.distance_metric = "l2"
-        self.logger.info("??????????")
+        self.logger.info("检索代理初始化完成")
 
     @staticmethod
     def _safe_preview(value: Any, max_length: int = 120) -> str:
@@ -734,7 +728,6 @@ class RetrievalAgent(BaseAgent):
         return ranked_results
 
     def _build_vector_search_filter(self, agent_input: AgentInput) -> Dict[str, Any]:
-        """????????????????????"""
         search_filter: Dict[str, Any] = {"user_id": agent_input.user_id}
 
         if agent_input.metadata:
@@ -748,17 +741,8 @@ class RetrievalAgent(BaseAgent):
         return search_filter
 
     async def _retrieve_documents(self, queries: List[str], agent_input: AgentInput) -> List[Dict[str, Any]]:
-        """
-        ??????
-
-        Args:
-            queries: ????
-
-        Returns:
-            ??????
-        """
         if self.vector_store is None:
-            self.logger.warning("???????????????")
+            self.logger.warning("向量数据库未初始化，将跳过向量检索")
 
         self.logger.info(
             "[RETRIEVAL] knowledge_base_query_start: "
@@ -859,12 +843,12 @@ class RetrievalAgent(BaseAgent):
                         similarity_score = self._convert_distance_to_similarity(distance)
 
                         self.logger.info(
-                            f"???? {doc_id}: ????={distance:.6f}, ???={similarity_score:.6f}, ??={self.similarity_threshold}"
+                            f"文档 {doc_id}: 距离={distance:.6f}, 相似度={similarity_score:.6f}, 阈值={self.similarity_threshold}"
                         )
 
                         if similarity_score < self.similarity_threshold:
                             self.logger.info(
-                                f"???????: {doc_id} (score={similarity_score:.4f} < threshold={self.similarity_threshold})"
+                                f"相似度未达阈值: {doc_id} (score={similarity_score:.4f} < threshold={self.similarity_threshold})"
                             )
                             continue
 
@@ -878,7 +862,7 @@ class RetrievalAgent(BaseAgent):
                         }
 
                         if not result["content"]:
-                            self.logger.warning(f"?? {doc_id} ?????")
+                            self.logger.warning(f"文档 {doc_id} 内容为空")
 
                         self._merge_retrieval_result(
                             aggregated_results,
@@ -888,7 +872,7 @@ class RetrievalAgent(BaseAgent):
                         )
 
                 except Exception as e:
-                    self.logger.error(f"?? '{query}' ??????: {str(e)}")
+                    self.logger.error(f"查询 '{query}' 向量检索失败: {str(e)}")
                     continue
         else:
             self.logger.info("[RETRIEVAL] vector_search_skipped: vector search is disabled")
@@ -898,7 +882,7 @@ class RetrievalAgent(BaseAgent):
         final_limit = max(int(self.top_k), rerank_limit, 10)
         final_results = all_results[: final_limit * max(1, len(queries))]
 
-        self.logger.info(f"_retrieve_documents ??: ?{len(all_results)}? -> ??{len(final_results)}?")
+        self.logger.info(f"_retrieve_documents 完成: 原始{len(all_results)}条 -> 返回{len(final_results)}条")
         self.logger.info(
             "[RETRIEVAL] knowledge_base_query_done: "
             f"deduplicated_total={len(all_results)}, returned={len(final_results)}, "
@@ -908,7 +892,6 @@ class RetrievalAgent(BaseAgent):
         return final_results
 
     async def _save_retrieval_results(self, execution_id: str, results: List[Dict[str, Any]]):
-        """保存检索结果到数据库"""
         try:
             self.logger.info(f"开始保存 {len(results)} 条检索结果")
             for rank, result in enumerate(results, start=1):
@@ -924,15 +907,6 @@ class RetrievalAgent(BaseAgent):
             self.logger.error(f"保存检索结果失败: {e}", exc_info=True)
 
     def _convert_distance_to_similarity(self, distance: float) -> float:
-        """
-        将距离转换为相似度分数（0-1之间）
-
-        Args:
-            distance: 距离值
-
-        Returns:
-            相似度分数（0-1之间，1表示最相似）
-        """
         if self.distance_metric == "cosine":
             # Cosine距离: 范围[0, 2]，0表示完全相同，2表示完全相反
             # 转换为相似度: similarity = 1 - (distance / 2)
@@ -958,16 +932,6 @@ class RetrievalAgent(BaseAgent):
         results: List[Dict[str, Any]],
         user_question: str
     ) -> Optional[Dict[str, Any]]:
-        """
-        生成检索结果摘要
-
-        Args:
-            results: 检索结果列表
-            user_question: 用户问题
-
-        Returns:
-            摘要结果字典，包含summary、key_points、sources
-        """
         if not self.enable_summary or not results:
             return None
 

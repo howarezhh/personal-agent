@@ -1,4 +1,3 @@
-"""Password hashing gateway."""
 
 from __future__ import annotations
 

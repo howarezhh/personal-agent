@@ -1,4 +1,3 @@
-"""Token revocation store with Redis or in-memory fallback."""
 
 from __future__ import annotations
 
@@ -21,8 +20,6 @@ logger = get_logger(__name__)
 
 
 class TokenRevocationStore:
-    """Stores revoked auth sessions and refresh-token identifiers."""
-
     SESSION_PREFIX = "auth:revoked_session:"
     REFRESH_PREFIX = "auth:revoked_refresh:"
 

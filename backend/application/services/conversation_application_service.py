@@ -1,4 +1,3 @@
-"""Conversation application service."""
 
 from backend.infrastructure.persistence import ConversationRepositoryAdapter, MessageRepositoryAdapter
 from backend.models.conversation import ConversationCreate, ConversationUpdate

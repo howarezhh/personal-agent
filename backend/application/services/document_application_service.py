@@ -1,4 +1,3 @@
-"""Document application service."""
 
 from __future__ import annotations
 
@@ -43,8 +42,6 @@ def _clone_full_rebuild_task(task: dict[str, Any]) -> dict[str, Any]:
 
 
 class DocumentApplicationService:
-    """Application-layer orchestration for upload and file-processing use cases."""
-
     def __init__(
         self,
         file_repo=None,
@@ -402,9 +399,9 @@ class DocumentApplicationService:
     ) -> dict[str, Any]:
         file_record = self.file_repo.get_file_by_id(document_id)
         if not file_record or not is_knowledge_managed_file(file_record):
-            raise FileNotFoundError("?????")
+            raise FileNotFoundError("文档不存在")
         if file_record.user_id != user_id:
-            raise PermissionError("??????????")
+            raise PermissionError("无权访问该文档")
 
         stats_before = self._get_vectorization_stats(document_id)
         missing_before = int(stats_before.get("missing_vector_chunk_count", 0) or 0)
@@ -478,7 +475,7 @@ class DocumentApplicationService:
         chunk_ids = [chunk.chunk_id for chunk in chunks]
 
         if not documents:
-            error_message = "????????????????????"
+            error_message = "未找到需要补全向量的文档分块"
             logger.warning(
                 "Vector rebuild skipped because no pending chunks found: request_id=%s document_id=%s",
                 request_id,
@@ -519,7 +516,7 @@ class DocumentApplicationService:
         )
 
         if not valid_data:
-            error_message = getattr(embedding_client, "last_error", None) or "????????????? embedding ????"
+            error_message = getattr(embedding_client, "last_error", None) or "未生成有效的 embedding 向量"
             logger.error(
                 "Vector rebuild failed because no valid embeddings were generated: request_id=%s document_id=%s error=%s",
                 request_id,
@@ -555,7 +552,7 @@ class DocumentApplicationService:
         )
 
         if not success:
-            error_message = getattr(self.vector_store, "last_error", None) or "?????????"
+            error_message = getattr(self.vector_store, "last_error", None) or "向量存储写入失败"
             logger.error(
                 "Vector rebuild write failed: request_id=%s document_id=%s chunk_count=%s error=%s",
                 request_id,
@@ -597,7 +594,7 @@ class DocumentApplicationService:
         stats_after = self._get_vectorization_stats(document_id)
         missing_after = int(stats_after.get("missing_vector_chunk_count", 0) or 0)
         vectorized_now = len(valid_ids)
-        error_message = None if missing_after == 0 else f"?? {missing_after} ?????????"
+        error_message = None if missing_after == 0 else f"仍有 {missing_after} 个分块缺少向量"
         logger.info(
             "Vector rebuild result: request_id=%s document_id=%s missing_before=%s vectorized_now=%s missing_after=%s success=%s",
             request_id,
@@ -739,7 +736,7 @@ class DocumentApplicationService:
         with _full_vector_rebuild_tasks_lock:
             task = _full_vector_rebuild_tasks.get(task_id)
             if task is None:
-                raise FileNotFoundError("???????????")
+                raise FileNotFoundError("全量重建任务不存在")
 
             for key, value in updates.items():
                 if key == "details" and value is not None:
@@ -803,9 +800,9 @@ class DocumentApplicationService:
         with _full_vector_rebuild_tasks_lock:
             task = _full_vector_rebuild_tasks.get(task_id)
             if task is None:
-                raise FileNotFoundError("???????????")
+                raise FileNotFoundError("全量重建任务不存在")
             if task.get("user_id") != user_id:
-                raise PermissionError("?????????????")
+                raise PermissionError("无权访问该重建任务")
             return _clone_full_rebuild_task(task)
 
     def run_full_vector_rebuild_task(
@@ -942,7 +939,7 @@ class DocumentApplicationService:
             })
 
         if not self.vector_store.reset_collection():
-            error_message = getattr(self.vector_store, "last_error", None) or "????????"
+            error_message = getattr(self.vector_store, "last_error", None) or "重置向量集合失败"
             logger.error(
                 "Full vector migration aborted because collection reset failed: request_id=%s error=%s",
                 request_id,

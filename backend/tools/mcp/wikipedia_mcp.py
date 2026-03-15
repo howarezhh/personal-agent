@@ -1,7 +1,3 @@
-"""
-维基百科搜索MCP服务
-使用Wikipedia API提供百科知识查询功能
-"""
 
 from typing import Dict, Any, Optional
 from backend.tools.mcp.base_mcp_tool import MCPTool
@@ -10,30 +6,18 @@ import logging
 
 
 class WikipediaMCP(MCPTool):
-    """
-    维基百科搜索MCP服务
-
-    功能：
-    - 搜索维基百科条目
-    - 获取条目摘要
-    - 支持中文和英文
-
-    使用Wikipedia API，完全免费，无需API密钥
-    """
-
     def __init__(self):
-        """初始化维基百科搜索MCP"""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="wikipedia_mcp",
             description="搜索维基百科，获取百科知识",
             category="mcp",
             version="1.0.0",
             timeout=10,
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="query",
@@ -51,20 +35,20 @@ class WikipediaMCP(MCPTool):
                 ),
                 ToolParameter(
                     name="limit",
-                    type="number",
+                    type="integer",
                     description="返回结果数量（1-10），默认为3",
                     required=False,
-                    default=3
+                    default=3,
+                    minimum=1,
+                    maximum=10,
                 )
             ]
         )
 
     def get_api_endpoint(self) -> str:
-        """获取API端点"""
         return "https://zh.wikipedia.org/w/api.php"
 
     def get_api_key(self) -> Optional[str]:
-        """获取API密钥（Wikipedia不需要密钥）"""
         return None
 
     async def execute(
@@ -74,18 +58,6 @@ class WikipediaMCP(MCPTool):
         limit: int = 3,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        执行维基百科搜索
-
-        Args:
-            query: 搜索关键词
-            language: 语言（zh/en）
-            limit: 返回数量
-            **kwargs: 其他参数
-
-        Returns:
-            搜索结果
-        """
         try:
             # 限制返回数量
             limit = max(1, min(10, limit))

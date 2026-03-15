@@ -1,4 +1,3 @@
-"""Workflow application service."""
 
 from typing import AsyncGenerator
 

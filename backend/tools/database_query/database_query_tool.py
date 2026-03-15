@@ -1,37 +1,13 @@
-"""
-数据库查询工具
-查询企业内部数据库（需要安全控制）
-"""
 
 from typing import Dict, Any
-from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
+from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter, ToolExecutionError
 from backend.database.database_manager import DatabaseManager
 
 
 class DatabaseQueryTool(BaseTool):
-    """
-    数据库查询工具
-
-    功能：
-    - 查询企业内部数据库
-    - 支持预定义的安全查询模板
-
-    注意：
-    - 为了安全，不支持任意SQL查询
-    - 只支持预定义的查询模板
-    - 需要配置数据库连接信息
-    """
-
     def __init__(self):
-        """初始化数据库查询工具"""
         super().__init__()
-        # 初始化数据库管理器
-        try:
-            self.db_manager = DatabaseManager()
-            self.logger.info("数据库管理器初始化成功")
-        except Exception as e:
-            self.logger.warning(f"数据库管理器初始化失败: {str(e)}")
-            self.db_manager = None
+        self.db_manager = None
 
         # 预定义的安全查询模板
         self.query_templates = {
@@ -78,11 +54,11 @@ class DatabaseQueryTool(BaseTool):
         }
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="database_query",
             description="查询企业内部数据库，支持预定义的安全查询模板，包括用户、会话、消息、智能体执行、工具调用、文件、内容生成等多种查询",
             category="data",
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="query_type",
@@ -122,16 +98,6 @@ class DatabaseQueryTool(BaseTool):
         )
 
     async def execute(self, query_type: str, params: dict = None, **kwargs) -> Dict[str, Any]:
-        """
-        执行数据库查询
-
-        Args:
-            query_type: 查询类型
-            params: 查询参数
-
-        Returns:
-            查询结果
-        """
         try:
             self.logger.info(f"开始数据库查询: 类型={query_type}, 参数={params}")
 
@@ -141,17 +107,13 @@ class DatabaseQueryTool(BaseTool):
                 return {
                     "success": False,
                     "data": None,
-                    "error": f"不支持的查询类型：{query_type}"
+                    "error": f"不支持的查询类型：{query_type}",
+                    "error_code": "TOOL_INVALID_PARAMETER",
+                    "error_type": "parameter_error",
                 }
 
             # 检查数据库管理器是否可用
-            if not self.db_manager:
-                self.logger.error("数据库管理器未初始化")
-                return {
-                    "success": False,
-                    "data": None,
-                    "error": "数据库管理器未初始化"
-                }
+            self._ensure_db_manager()
 
             # 获取查询模板
             query_template = self.query_templates[query_type]
@@ -169,24 +131,19 @@ class DatabaseQueryTool(BaseTool):
 
         except Exception as e:
             self.logger.error(f"数据库查询失败: {str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "data": None,
-                "error": f"数据库查询失败：{str(e)}"
-            }
+            raise ToolExecutionError(f"数据库查询失败：{str(e)}") from e
+
+    def _ensure_db_manager(self) -> None:
+        if self.db_manager is not None:
+            return
+        try:
+            self.db_manager = DatabaseManager()
+            self.logger.info("数据库管理器初始化成功")
+        except Exception as e:
+            self.logger.error(f"数据库管理器初始化失败: {str(e)}", exc_info=True)
+            raise ToolExecutionError("数据库管理器未初始化") from e
 
     async def _execute_query(self, query_type: str, query_template: str, params: dict = None) -> dict:
-        """
-        执行具体的查询
-
-        Args:
-            query_type: 查询类型
-            query_template: SQL查询模板
-            params: 查询参数
-
-        Returns:
-            查询结果
-        """
         try:
             # 准备查询参数
             query_params = self._prepare_query_params(query_type, params)
@@ -205,23 +162,9 @@ class DatabaseQueryTool(BaseTool):
 
         except Exception as e:
             self.logger.error(f"执行查询 {query_type} 失败: {str(e)}", exc_info=True)
-            return {
-                "query_type": query_type,
-                "error": str(e),
-                "description": "查询执行失败"
-            }
+            raise ToolExecutionError(f"执行查询 {query_type} 失败") from e
 
     def _prepare_query_params(self, query_type: str, params: dict = None) -> tuple:
-        """
-        准备查询参数
-
-        Args:
-            query_type: 查询类型
-            params: 原始参数
-
-        Returns:
-            查询参数元组
-        """
         if not params:
             params = {}
 
@@ -289,17 +232,6 @@ class DatabaseQueryTool(BaseTool):
         return tuple(param_values)
 
     def _format_query_result(self, query_type: str, result: list, params: dict = None) -> dict:
-        """
-        格式化查询结果
-
-        Args:
-            query_type: 查询类型
-            result: 原始查询结果
-            params: 查询参数
-
-        Returns:
-            格式化后的结果
-        """
         if not params:
             params = {}
 

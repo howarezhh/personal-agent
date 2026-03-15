@@ -1,4 +1,3 @@
-"""Knowledge-base application service."""
 
 from __future__ import annotations
 
@@ -15,8 +14,6 @@ DEFAULT_KNOWLEDGE_BASE_DESCRIPTION = "系统自动创建的默认知识库"
 
 
 class KnowledgeBaseApplicationService:
-    """Application-layer orchestration for knowledge-base use cases."""
-
     def __init__(self, knowledge_repo=None, document_service=None, embedding_gateway=None, vector_store=None):
         self.knowledge_repo = knowledge_repo or KnowledgeBaseRepositoryAdapter()
         self.document_service = document_service

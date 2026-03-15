@@ -1,7 +1,3 @@
-"""
-路由智能体
-负责分析用户问题类型并决定下一步行动
-"""
 import time
 import json
 from typing import AsyncGenerator
@@ -16,19 +12,7 @@ from backend.agents.router.decision_maker import DecisionMaker
 
 
 class RouterAgent(BaseAgent):
-    """
-    路由智能体
-
-    功能：
-    1. 分析用户问题类型
-    2. 决定下一步行动（direct_answer/retrieval/tool_call/multi_agent）
-    3. 返回路由决策（JSON格式）
-
-    第一阶段：只实现direct_answer类型
-    """
-
     def __init__(self):
-        """初始化路由智能体"""
         super().__init__(
             agent_name="router_agent",
             agent_type="router"
@@ -52,15 +36,6 @@ class RouterAgent(BaseAgent):
         self.logger.info("Router agent initialized")
 
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
-        """
-        执行路由分析（非流式）
-
-        Args:
-            agent_input: 智能体输入
-
-        Returns:
-            智能体输出，包含路由决策
-        """
         start_time = time.time()
 
         try:
@@ -201,15 +176,6 @@ class RouterAgent(BaseAgent):
             )
 
     async def execute_stream(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
-        """
-        执行路由分析（流式）
-
-        Args:
-            agent_input: 智能体输入
-
-        Yields:
-            流式数据块
-        """
         try:
             # 发送思考状态
             yield StreamChunk.create_thinking("正在分析问题类型...")
@@ -229,15 +195,6 @@ class RouterAgent(BaseAgent):
             yield StreamChunk.create_error(str(e))
 
     def _parse_decision(self, response: str) -> dict:
-        """
-        解析LLM返回的路由决策
-
-        Args:
-            response: LLM返回的文本
-
-        Returns:
-            路由决策字典
-        """
         try:
             # 尝试解析JSON
             # 查找JSON代码块
@@ -290,16 +247,6 @@ class RouterAgent(BaseAgent):
             }
 
     def _build_messages(self, user_content: str, conversation_history: list) -> list:
-        """
-        构建LLM消息列表
-
-        Args:
-            user_content: 用户问题
-            conversation_history: 对话历史
-
-        Returns:
-            消息列表
-        """
         messages = []
 
         # 添加系统提示词
@@ -395,15 +342,6 @@ class RouterAgent(BaseAgent):
         return messages
 
     def _format_conversation_history(self, conversation_history: list) -> str:
-        """
-        格式化对话历史
-
-        Args:
-            conversation_history: 对话历史列表
-
-        Returns:
-            格式化后的历史文本
-        """
         if not conversation_history:
             no_history = self._get_prompt("no_history_placeholder")
             return no_history if no_history else "（这是新对话的第一条消息）"
@@ -429,15 +367,6 @@ class RouterAgent(BaseAgent):
         return "\n".join(formatted_lines)
 
     def get_decision_type(self, agent_output: AgentOutput) -> str:
-        """
-        从输出中获取决策类型
-
-        Args:
-            agent_output: 智能体输出
-
-        Returns:
-            决策类型（direct_answer/retrieval/tool_call/multi_agent）
-        """
         if agent_output.metadata and "decision" in agent_output.metadata:
             return agent_output.metadata["decision"].get("action", "direct_answer")
         return "direct_answer"

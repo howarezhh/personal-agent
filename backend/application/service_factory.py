@@ -1,4 +1,3 @@
-"""Application service factories to keep API routes infrastructure-agnostic."""
 
 from __future__ import annotations
 

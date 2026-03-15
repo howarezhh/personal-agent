@@ -1,4 +1,3 @@
-"""Creative writing agent orchestrating writing tools."""
 
 from __future__ import annotations
 
@@ -15,8 +14,6 @@ from backend.tools.tool_registry import get_tool
 
 
 class CreativeWritingAgent(BaseAgent):
-    """Creative writing agent with unified BaseAgent contract."""
-
     def __init__(self):
         super().__init__(agent_name="creative_writing_agent", agent_type="generation")
         self.llm_manager = get_llm_manager()
@@ -63,7 +60,7 @@ class CreativeWritingAgent(BaseAgent):
 
             tool = get_tool(tool_name)
             if not tool:
-                return {"success": False, "error": f"?????: {tool_name}"}
+                return {"success": False, "error": f"未找到工具: {tool_name}"}
 
             result = await tool.safe_execute(action=action, **parameters)
             response = await self._generate_response(user_input, result)
@@ -101,7 +98,7 @@ class CreativeWritingAgent(BaseAgent):
 
     async def _generate_response(self, user_input: str, tool_result: Dict[str, Any]) -> str:
         if not tool_result.get("success"):
-            return f"????????{tool_result.get('error', '????')}"
+            return f"工具执行失败：{tool_result.get('error', '未知错误')}"
 
         data = tool_result.get("data", {})
         prompt = self.prompt_manager.format_prompt(
@@ -115,18 +112,18 @@ class CreativeWritingAgent(BaseAgent):
     def get_supported_tools(self) -> Dict[str, Dict[str, Any]]:
         return {
             "novel_generator": {
-                "name": "??????",
+                "name": "小说生成器",
                 "actions": ["outline", "chapter", "character", "worldview", "continue"],
-                "description": "??????????????????",
+                "description": "用于生成小说大纲、章节、角色与世界观等内容",
             },
             "script_generator": {
-                "name": "??????",
+                "name": "剧本生成器",
                 "actions": ["outline", "scene", "dialogue", "storyboard", "complete"],
-                "description": "?????????????????",
+                "description": "用于生成剧本大纲、场景、对白与分镜等内容",
             },
             "content_optimizer": {
-                "name": "??????",
+                "name": "内容优化器",
                 "actions": ["polish", "rewrite", "expand", "summarize", "style_transfer", "grammar_check", "seo_optimize"],
-                "description": "????????????????",
+                "description": "用于润色、改写、扩写、总结等内容优化任务",
             },
         }

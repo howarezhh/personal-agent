@@ -1,7 +1,3 @@
-"""
-CSRF保护中间件
-实现跨站请求伪造保护
-"""
 
 import secrets
 import hmac
@@ -16,12 +12,6 @@ logger = get_logger(__name__)
 
 
 class CSRFProtection:
-    """
-    CSRF保护类
-
-    使用双重提交Cookie模式实现CSRF保护
-    """
-
     def __init__(
         self,
         secret_key: str,
@@ -30,16 +20,6 @@ class CSRFProtection:
         cookie_name: str = "csrf_token",
         safe_methods: tuple = ("GET", "HEAD", "OPTIONS", "TRACE")
     ):
-        """
-        初始化CSRF保护
-
-        Args:
-            secret_key: 密钥
-            token_name: Token名称
-            header_name: HTTP头名称
-            cookie_name: Cookie名称
-            safe_methods: 安全的HTTP方法（不需要CSRF保护）
-        """
         self.secret_key = secret_key
         self.token_name = token_name
         self.header_name = header_name
@@ -49,15 +29,6 @@ class CSRFProtection:
         logger.info("CSRF protection initialized")
 
     def generate_token(self, session_id: Optional[str] = None) -> str:
-        """
-        生成CSRF Token
-
-        Args:
-            session_id: 会话ID（可选）
-
-        Returns:
-            CSRF Token
-        """
         # 生成随机token
         random_token = secrets.token_urlsafe(32)
 
@@ -77,16 +48,6 @@ class CSRFProtection:
         token: str,
         session_id: Optional[str] = None
     ) -> bool:
-        """
-        验证CSRF Token
-
-        Args:
-            token: CSRF Token
-            session_id: 会话ID（可选）
-
-        Returns:
-            是否有效
-        """
         if not token:
             return False
 
@@ -108,32 +69,9 @@ class CSRFProtection:
         return len(token) >= 32
 
     def is_safe_method(self, method: str) -> bool:
-        """
-        检查是否为安全方法
-
-        Args:
-            method: HTTP方法
-
-        Returns:
-            是否为安全方法
-        """
         return method.upper() in self.safe_methods
 
     def get_token_from_request(self, request: Request) -> Optional[str]:
-        """
-        从请求中获取CSRF Token
-
-        优先级：HTTP头 > Cookie
-
-        注意：不从表单数据获取，因为request.form()是异步方法，
-        且现代API通常使用JSON格式而非表单提交
-
-        Args:
-            request: FastAPI请求对象
-
-        Returns:
-            CSRF Token或None
-        """
         # 1. 从HTTP头获取
         token = request.headers.get(self.header_name)
         if token:
@@ -152,15 +90,6 @@ _csrf_protection: Optional[CSRFProtection] = None
 
 
 def get_csrf_protection() -> CSRFProtection:
-    """
-    获取CSRF保护单例
-
-    Returns:
-        CSRFProtection实例
-
-    Raises:
-        ValueError: 如果未配置CSRF密钥
-    """
     global _csrf_protection
 
     if _csrf_protection is None:
@@ -194,16 +123,6 @@ async def csrf_protect_middleware(
     request: Request,
     call_next: Callable
 ):
-    """
-    CSRF保护中间件
-
-    Args:
-        request: FastAPI请求对象
-        call_next: 下一个中间件或路由处理器
-
-    Returns:
-        响应对象
-    """
     csrf_protection = get_csrf_protection()
 
     # 安全方法不需要CSRF保护
@@ -238,33 +157,11 @@ async def csrf_protect_middleware(
 
 
 def csrf_exempt(func):
-    """
-    CSRF豁免装饰器
-
-    用于标记不需要CSRF保护的路由
-
-    Args:
-        func: 路由处理函数
-
-    Returns:
-        装饰后的函数
-    """
     func._csrf_exempt = True
     return func
 
 
 def require_csrf(func):
-    """
-    强制CSRF保护装饰器
-
-    用于标记需要CSRF保护的路由（即使是GET请求）
-
-    Args:
-        func: 路由处理函数
-
-    Returns:
-        装饰后的函数
-    """
     async def wrapper(request: Request, *args, **kwargs):
         csrf_protection = get_csrf_protection()
 
@@ -293,15 +190,6 @@ def require_csrf(func):
 
 
 def generate_csrf_token(request: Request) -> str:
-    """
-    生成CSRF Token的辅助函数
-
-    Args:
-        request: FastAPI请求对象
-
-    Returns:
-        CSRF Token
-    """
     csrf_protection = get_csrf_protection()
 
     # 获取会话ID（如果有）

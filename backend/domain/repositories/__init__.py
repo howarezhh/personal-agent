@@ -1,4 +1,3 @@
-"""Repository ports for the domain layer."""
 
 from backend.domain.repositories.conversation_repository import ConversationRepositoryPort
 from backend.domain.repositories.file_repository import FileRepositoryPort

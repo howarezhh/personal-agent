@@ -1,4 +1,3 @@
-"""Shared parser interfaces and post-processing helpers."""
 
 from __future__ import annotations
 

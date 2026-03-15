@@ -1,7 +1,3 @@
-"""
-自定义中间件
-提供请求处理、日志记录、性能监控等功能
-"""
 
 import time
 import uuid
@@ -15,22 +11,7 @@ logger = get_logger(__name__)
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """
-    请求ID中间件
-    为每个请求生成唯一的请求ID，便于追踪和调试
-    """
-
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        处理请求
-
-        Args:
-            request: HTTP请求
-            call_next: 下一个中间件
-
-        Returns:
-            HTTP响应
-        """
         # 生成请求ID
         request_id = str(uuid.uuid4())
 
@@ -47,33 +28,11 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class PerformanceMonitorMiddleware(BaseHTTPMiddleware):
-    """
-    性能监控中间件
-    记录每个请求的处理时间
-    """
-
     def __init__(self, app, slow_request_threshold: float = 1.0):
-        """
-        初始化性能监控中间件
-
-        Args:
-            app: FastAPI应用
-            slow_request_threshold: 慢请求阈值（秒），超过此时间的请求会被记录为警告
-        """
         super().__init__(app)
         self.slow_request_threshold = slow_request_threshold
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        处理请求并监控性能
-
-        Args:
-            request: HTTP请求
-            call_next: 下一个中间件
-
-        Returns:
-            HTTP响应
-        """
         # 记录开始时间
         start_time = time.time()
 
@@ -102,20 +61,7 @@ class PerformanceMonitorMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    速率限制中间件
-    防止API被滥用（简单实现，生产环境建议使用Redis）
-    """
-
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
-        """
-        初始化速率限制中间件
-
-        Args:
-            app: FastAPI应用
-            max_requests: 时间窗口内的最大请求数
-            window_seconds: 时间窗口大小（秒）
-        """
         super().__init__(app)
         self.max_requests = max_requests
         self.window_seconds = window_seconds
@@ -123,16 +69,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.request_counts = {}
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        处理请求并检查速率限制
-
-        Args:
-            request: HTTP请求
-            call_next: 下一个中间件
-
-        Returns:
-            HTTP响应
-        """
         # 获取客户端IP
         client_ip = request.client.host if request.client else "unknown"
 
@@ -184,12 +120,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
     def _cleanup_expired_records(self, current_time: float):
-        """
-        清理过期的速率限制记录
-
-        Args:
-            current_time: 当前时间戳
-        """
         expired_ips = [
             ip for ip, (_, first_time) in self.request_counts.items()
             if current_time - first_time >= self.window_seconds
@@ -200,22 +130,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """
-    安全头中间件
-    添加安全相关的HTTP响应头
-    """
-
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """
-        处理请求并添加安全头
-
-        Args:
-            request: HTTP请求
-            call_next: 下一个中间件
-
-        Returns:
-            HTTP响应
-        """
         response = await call_next(request)
 
         # 添加安全头
@@ -229,13 +144,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 # 便捷函数：添加所有自定义中间件到应用
 def add_custom_middlewares(app, config: dict = None):
-    """
-    添加所有自定义中间件到FastAPI应用
-
-    Args:
-        app: FastAPI应用实例
-        config: 中间件配置字典
-    """
     config = config or {}
 
     # 添加请求ID中间件

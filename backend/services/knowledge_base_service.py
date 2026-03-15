@@ -1,4 +1,3 @@
-"""知识库文件管理与向量元数据公共逻辑。"""
 
 from __future__ import annotations
 
@@ -66,7 +65,6 @@ MAX_FILE_SIZE = 50 * 1024 * 1024
 
 
 def get_file_type(filename: str) -> FileType:
-    """根据文件名推断内部文件类型。"""
     ext = os.path.splitext(filename)[1].lower()
     return FILE_TYPE_MAP.get(ext, FileType.OTHER)
 
@@ -76,7 +74,6 @@ def get_upload_dir(
     conversation_id: Optional[str] = None,
     knowledge_base_id: Optional[str] = None,
 ) -> str:
-    """获取文件上传目录。"""
     config_manager = get_config_manager()
     base_dir = config_manager.get("business.file_upload.upload_directory", "uploads")
 
@@ -92,7 +89,6 @@ def get_upload_dir(
 
 
 def format_file_as_document(file_record: StoredFile) -> Dict[str, Any]:
-    """将文件记录映射为知识库文档结构。"""
     metadata = file_record.metadata or {}
     created_at = file_record.created_at.isoformat() if file_record.created_at else None
     updated_at = file_record.updated_at.isoformat() if file_record.updated_at else None
@@ -118,7 +114,6 @@ def format_file_as_document(file_record: StoredFile) -> Dict[str, Any]:
 
 
 def build_chunk_vector_metadata(file_record: StoredFile, chunk: FileChunk) -> Dict[str, Any]:
-    """构建统一的向量检索元数据。"""
     file_metadata = dict(file_record.metadata or {})
     payload: Dict[str, Any] = {
         "file_id": file_record.file_id,
@@ -141,7 +136,6 @@ def build_chunk_vector_metadata(file_record: StoredFile, chunk: FileChunk) -> Di
 
 
 def _sanitize_vector_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """清洗向量数据库 metadata，移除或转换 Chroma 不支持的值。"""
     sanitized: Dict[str, Any] = {}
 
     for key, value in metadata.items():
@@ -172,7 +166,6 @@ def delete_file_knowledge_data(
     vector_store=None,
     log=None,
 ) -> Dict[str, Any]:
-    """删除文件关联的向量数据和文本分块。"""
     active_logger = log or logger
     active_chunk_repo = chunk_repo or get_file_chunk_repository()
     chunks = active_chunk_repo.get_chunks_by_file_id(file_id, limit=None)
@@ -202,6 +195,5 @@ def delete_file_knowledge_data(
 
 
 def is_knowledge_managed_file(file_record: StoredFile) -> bool:
-    """判断文件是否属于知识库管理页。"""
     metadata = file_record.metadata or {}
     return bool(metadata.get("knowledge_managed"))

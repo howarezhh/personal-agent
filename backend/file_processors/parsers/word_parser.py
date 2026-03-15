@@ -1,36 +1,13 @@
-"""
-Word文件解析器
-使用python-docx提取Word文档内容
-"""
 
 from typing import List
 from backend.file_processors.parsers.base_parser import BaseParser, ParsedContent
 
 
 class WordParser(BaseParser):
-    """
-    Word文件解析器
-
-    功能：
-    - 提取文本内容
-    - 提取表格数据
-    - 保留段落结构
-    """
-
     def __init__(self):
-        """初始化Word解析器"""
         super().__init__()
 
     async def parse(self, file_path: str) -> ParsedContent:
-        """
-        解析Word文件
-
-        Args:
-            file_path: Word文件路径
-
-        Returns:
-            解析后的内容
-        """
         try:
             from docx import Document
         except ImportError:
@@ -104,17 +81,7 @@ class WordParser(BaseParser):
             raise
 
     def supports(self, file_extension: str) -> bool:
-        """
-        检查是否支持该文件类型
-
-        注意：python-docx只支持.docx格式，不支持旧的.doc格式
-        """
         return file_extension.lower() in ['.docx']
 
     def get_supported_extensions(self) -> List[str]:
-        """
-        获取支持的文件扩展名列表
-
-        注意：只支持.docx格式
-        """
         return ['.docx']

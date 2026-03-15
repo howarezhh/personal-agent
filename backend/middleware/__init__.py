@@ -1,12 +1,3 @@
-"""
-中间件模块
-
-包含各种FastAPI中间件：
-- 速率限制
-- CSRF保护
-- 认证
-- 日志
-"""
 
 from backend.middleware.rate_limiter import (
     RateLimiter,

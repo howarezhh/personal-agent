@@ -1,4 +1,3 @@
-"""Vector-store gateway adapter."""
 
 from backend.utils.vector_db_client import get_vector_db_client
 

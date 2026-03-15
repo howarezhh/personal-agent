@@ -1,7 +1,3 @@
-"""
-汇率查询MCP服务
-使用ExchangeRate-API提供实时汇率查询功能
-"""
 
 from typing import Dict, Any, Optional
 from backend.tools.mcp.base_mcp_tool import MCPTool
@@ -10,19 +6,7 @@ import logging
 
 
 class ExchangeRateMCP(MCPTool):
-    """
-    汇率查询MCP服务
-
-    功能：
-    - 查询实时汇率
-    - 货币转换计算
-    - 支持150+种货币
-
-    使用ExchangeRate-API，完全免费，无需API密钥
-    """
-
     def __init__(self):
-        """初始化汇率查询MCP"""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         # 常用货币代码
@@ -40,13 +24,13 @@ class ExchangeRateMCP(MCPTool):
         }
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="exchange_rate_mcp",
             description="查询实时汇率和货币转换",
             category="mcp",
             version="1.0.0",
             timeout=10,
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="from_currency",
@@ -71,11 +55,9 @@ class ExchangeRateMCP(MCPTool):
         )
 
     def get_api_endpoint(self) -> str:
-        """获取API端点"""
         return "https://open.er-api.com/v6/latest"
 
     def get_api_key(self) -> Optional[str]:
-        """获取API密钥（ExchangeRate-API不需要密钥）"""
         return None
 
     async def execute(
@@ -85,18 +67,6 @@ class ExchangeRateMCP(MCPTool):
         amount: float = 1,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        执行汇率查询
-
-        Args:
-            from_currency: 源货币代码
-            to_currency: 目标货币代码
-            amount: 转换金额
-            **kwargs: 其他参数
-
-        Returns:
-            汇率信息
-        """
         try:
             # 转换为大写
             from_currency = from_currency.upper()

@@ -1,4 +1,3 @@
-"""Infrastructure persistence adapters."""
 
 from backend.infrastructure.persistence.conversation_repository_adapter import ConversationRepositoryAdapter
 from backend.infrastructure.persistence.file_repository_adapter import FileRepositoryAdapter

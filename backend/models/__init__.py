@@ -1,17 +1,3 @@
-"""
-数据模型模块
-
-包含所有数据模型定义：
-- User: 用户模型
-- Conversation: 会话模型
-- ConversationState: 会话状态模型
-- Message: 消息模型
-- AgentExecution: 智能体执行记录模型
-- ToolCall: 工具调用模型
-- RetrievalResult: 检索结果模型
-- File: 文件模型
-- FileChunk: 文件分块模型
-"""
 
 # User models
 from backend.models.user import (

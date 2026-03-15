@@ -1,7 +1,3 @@
-"""
-内容生成API
-提供小说生成、脚本生成、内容优化等接口
-"""
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -28,7 +24,6 @@ router = APIRouter(
 # ==================== 辅助函数 ====================
 
 def resolve_current_user_id(current_user: User | Dict[str, Any]) -> str:
-    """Resolve the authenticated user id from dependency output."""
     user_id = current_user.get("user_id") if isinstance(current_user, dict) else getattr(current_user, "user_id", None)
 
     if not user_id:
@@ -68,7 +63,6 @@ def _extract_result_preview(data: Optional[Dict[str, Any]]) -> str:
 
 
 def _execute_db_write(query: str, params: tuple[Any, ...]) -> None:
-    """Execute a write statement across supported DB manager interfaces."""
     db_manager = get_database_manager()
 
     if hasattr(db_manager, "execute_update"):
@@ -212,20 +206,6 @@ async def save_content_generation(
     tool_name: str,
     conversation_id: Optional[str] = None
 ) -> tuple[str, int]:
-    """
-    保存内容生成记录到数据库（pending状态）
-
-    Args:
-        user_id: 用户ID
-        content_type: 内容类型（novel/script/optimization）
-        action: 操作类型（outline/chapter/scene等）
-        input_params: 输入参数
-        tool_name: 工具名称
-        conversation_id: 会话ID（可选）
-
-    Returns:
-        (generation_id, start_time_ms): 生成记录ID和开始时间戳
-    """
     generation_id = str(uuid.uuid4())
     start_time = int(time.time() * 1000)
 
@@ -258,14 +238,6 @@ async def update_content_generation(
     start_time_ms: int,
     result: dict
 ):
-    """
-    更新内容生成记录（completed或failed状态）
-
-    Args:
-        generation_id: 生成记录ID
-        start_time_ms: 开始时间戳（毫秒）
-        result: 执行结果
-    """
     execution_time = int(time.time() * 1000) - start_time_ms
 
     try:
@@ -310,7 +282,6 @@ async def update_content_generation(
 # ==================== 请求模型 ====================
 
 class NovelOutlineRequest(BaseModel):
-    """小说大纲生成请求"""
     title: Optional[str] = Field(None, description="小说标题")
     theme: Optional[str] = Field(None, description="小说主题")
     genre: Optional[str] = Field(None, description="小说类型")
@@ -318,7 +289,6 @@ class NovelOutlineRequest(BaseModel):
 
 
 class NovelChapterRequest(BaseModel):
-    """小说章节生成请求"""
     chapter_number: int = Field(..., description="章节编号")
     chapter_title: Optional[str] = Field(None, description="章节标题")
     outline: Optional[str] = Field(None, description="小说大纲")
@@ -328,21 +298,18 @@ class NovelChapterRequest(BaseModel):
 
 
 class NovelCharacterRequest(BaseModel):
-    """角色设定生成请求"""
     character_name: Optional[str] = Field(None, description="角色名称")
     genre: Optional[str] = Field(None, description="小说类型")
     theme: Optional[str] = Field(None, description="故事主题")
 
 
 class NovelWorldviewRequest(BaseModel):
-    """世界观设定生成请求"""
     title: Optional[str] = Field(None, description="小说标题")
     theme: Optional[str] = Field(None, description="故事主题")
     genre: Optional[str] = Field(None, description="小说类型")
 
 
 class NovelContinueRequest(BaseModel):
-    """小说续写请求"""
     previous_content: str = Field(..., description="前文内容")
     genre: Optional[str] = Field(None, description="小说类型")
     style: Optional[str] = Field(None, description="写作风格")
@@ -350,7 +317,6 @@ class NovelContinueRequest(BaseModel):
 
 
 class ScriptOutlineRequest(BaseModel):
-    """脚本大纲生成请求"""
     script_type: str = Field(..., description="脚本类型")
     title: Optional[str] = Field(None, description="脚本标题")
     theme: Optional[str] = Field(None, description="脚本主题")
@@ -360,7 +326,6 @@ class ScriptOutlineRequest(BaseModel):
 
 
 class ScriptSceneRequest(BaseModel):
-    """场景脚本生成请求"""
     script_type: str = Field(..., description="脚本类型")
     scene_number: int = Field(1, description="场景编号")
     scene_description: Optional[str] = Field(None, description="场景描述")
@@ -370,7 +335,6 @@ class ScriptSceneRequest(BaseModel):
 
 
 class ScriptDialogueRequest(BaseModel):
-    """对白生成请求"""
     script_type: str = Field(..., description="脚本类型")
     characters: Optional[str] = Field(None, description="角色列表")
     scene_description: Optional[str] = Field(None, description="场景描述")
@@ -378,14 +342,12 @@ class ScriptDialogueRequest(BaseModel):
 
 
 class ScriptStoryboardRequest(BaseModel):
-    """分镜脚本生成请求"""
     script_type: str = Field(..., description="脚本类型")
     scene_description: Optional[str] = Field(None, description="场景描述")
     style: Optional[str] = Field(None, description="脚本风格")
 
 
 class ScriptCompleteRequest(BaseModel):
-    """完整脚本生成请求"""
     script_type: str = Field(..., description="脚本类型")
     title: Optional[str] = Field(None, description="脚本标题")
     theme: Optional[str] = Field(None, description="脚本主题")
@@ -395,7 +357,6 @@ class ScriptCompleteRequest(BaseModel):
 
 
 class ContentOptimizeRequest(BaseModel):
-    """内容优化请求"""
     action: str = Field(..., description="操作类型")
     content: str = Field(..., description="要优化的内容")
     target_style: Optional[str] = Field(None, description="目标风格")
@@ -407,7 +368,6 @@ class ContentOptimizeRequest(BaseModel):
 # ==================== 响应模型 ====================
 
 class ContentGenerationResponse(BaseModel):
-    """内容生成响应"""
     success: bool = Field(..., description="是否成功")
     data: Optional[Dict[str, Any]] = Field(None, description="生成结果")
     error: Optional[str] = Field(None, description="错误信息")
@@ -427,7 +387,6 @@ async def generate_novel_outline(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成小说大纲"""
     generation_id = None
     start_time = None
 
@@ -510,7 +469,6 @@ async def generate_novel_chapter(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成小说章节"""
     generation_id = None
     start_time = None
 
@@ -595,7 +553,6 @@ async def generate_novel_character(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成角色设定"""
     generation_id = None
     start_time = None
 
@@ -672,7 +629,6 @@ async def generate_novel_worldview(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成世界观设定"""
     generation_id = None
     start_time = None
 
@@ -749,7 +705,6 @@ async def continue_novel(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """续写小说"""
     generation_id = None
     start_time = None
 
@@ -830,7 +785,6 @@ async def generate_script_outline(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成脚本大纲"""
     generation_id = None
     start_time = None
 
@@ -913,7 +867,6 @@ async def generate_script_scene(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成场景脚本"""
     generation_id = None
     start_time = None
 
@@ -996,7 +949,6 @@ async def generate_script_dialogue(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成对白"""
     generation_id = None
     start_time = None
 
@@ -1075,7 +1027,6 @@ async def generate_script_storyboard(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成分镜脚本"""
     generation_id = None
     start_time = None
 
@@ -1152,7 +1103,6 @@ async def generate_complete_script(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """生成完整脚本"""
     generation_id = None
     start_time = None
 
@@ -1237,7 +1187,6 @@ async def optimize_content(
     stream: bool = False,
     current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
-    """优化内容"""
     generation_id = None
     start_time = None
 

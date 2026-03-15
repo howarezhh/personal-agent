@@ -1,7 +1,3 @@
-"""
-API速率限制中间件
-使用Redis实现分布式速率限制
-"""
 
 import time
 from typing import Optional, Callable, TYPE_CHECKING
@@ -23,26 +19,12 @@ logger = get_logger(__name__)
 
 
 class RateLimiter:
-    """
-    速率限制器
-
-    使用滑动窗口算法实现速率限制
-    """
-
     def __init__(
         self,
         redis_client: Optional[any] = None,  # 改为any以避免类型检查问题
         default_limit: int = 100,
         default_window: int = 60
     ):
-        """
-        初始化速率限制器
-
-        Args:
-            redis_client: Redis客户端（如果为None，则使用内存存储）
-            default_limit: 默认请求限制数
-            default_window: 默认时间窗口（秒）
-        """
         self.redis_client = redis_client
         self.default_limit = default_limit
         self.default_window = default_window
@@ -55,7 +37,6 @@ class RateLimiter:
             logger.warning("Rate limiter initialized with memory backend (not suitable for production)")
 
     def _get_key(self, identifier: str, endpoint: str) -> str:
-        """生成Redis键"""
         return f"rate_limit:{identifier}:{endpoint}"
 
     def _check_rate_limit_redis(
@@ -65,18 +46,6 @@ class RateLimiter:
         limit: int,
         window: int
     ) -> tuple[bool, int, int]:
-        """
-        使用Redis检查速率限制
-
-        Args:
-            identifier: 标识符（用户ID或IP地址）
-            endpoint: 端点路径
-            limit: 请求限制数
-            window: 时间窗口（秒）
-
-        Returns:
-            (是否允许, 剩余请求数, 重置时间戳)
-        """
         key = self._get_key(identifier, endpoint)
         current_time = int(time.time())
         window_start = current_time - window
@@ -128,18 +97,6 @@ class RateLimiter:
         limit: int,
         window: int
     ) -> tuple[bool, int, int]:
-        """
-        使用内存检查速率限制
-
-        Args:
-            identifier: 标识符（用户ID或IP地址）
-            endpoint: 端点路径
-            limit: 请求限制数
-            window: 时间窗口（秒）
-
-        Returns:
-            (是否允许, 剩余请求数, 重置时间戳)
-        """
         key = f"{identifier}:{endpoint}"
         current_time = int(time.time())
         window_start = current_time - window
@@ -175,18 +132,6 @@ class RateLimiter:
         limit: Optional[int] = None,
         window: Optional[int] = None
     ) -> tuple[bool, int, int]:
-        """
-        检查速率限制
-
-        Args:
-            identifier: 标识符（用户ID或IP地址）
-            endpoint: 端点路径
-            limit: 请求限制数（None使用默认值）
-            window: 时间窗口（秒，None使用默认值）
-
-        Returns:
-            (是否允许, 剩余请求数, 重置时间戳)
-        """
         limit = limit or self.default_limit
         window = window or self.default_window
 
@@ -201,12 +146,6 @@ _rate_limiter: Optional[RateLimiter] = None
 
 
 def get_rate_limiter() -> RateLimiter:
-    """
-    获取速率限制器单例
-
-    Returns:
-        RateLimiter实例
-    """
     global _rate_limiter
 
     if _rate_limiter is None:
@@ -254,18 +193,6 @@ async def rate_limit_middleware(
     limit: Optional[int] = None,
     window: Optional[int] = None
 ):
-    """
-    速率限制中间件
-
-    Args:
-        request: FastAPI请求对象
-        call_next: 下一个中间件或路由处理器
-        limit: 请求限制数（None使用默认值）
-        window: 时间窗口（秒，None使用默认值）
-
-    Returns:
-        响应对象
-    """
     # 获取标识符（优先使用用户ID，否则使用IP地址）
     identifier = None
 
@@ -321,16 +248,6 @@ async def rate_limit_middleware(
 
 
 def rate_limit(limit: int = 100, window: int = 60):
-    """
-    速率限制装饰器
-
-    Args:
-        limit: 请求限制数
-        window: 时间窗口（秒）
-
-    Returns:
-        装饰器函数
-    """
     def decorator(func):
         async def wrapper(request: Request, *args, **kwargs):
             # 获取标识符

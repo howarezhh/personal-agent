@@ -1,7 +1,3 @@
-"""
-Prometheus指标收集器
-用于收集和暴露应用程序指标
-"""
 
 from prometheus_client import Counter, Histogram, Gauge, Info, generate_latest, CONTENT_TYPE_LATEST
 from fastapi import Request, Response
@@ -144,15 +140,6 @@ active_conversations = Gauge(
 # ============================================
 
 def record_http_request(method: str, endpoint: str, status: int, duration: float):
-    """
-    记录HTTP请求指标
-
-    Args:
-        method: HTTP方法
-        endpoint: 端点路径
-        status: 状态码
-        duration: 请求时长（秒）
-    """
     http_requests_total.labels(method=method, endpoint=endpoint, status=status).inc()
     http_request_duration_seconds.labels(method=method, endpoint=endpoint).observe(duration)
     logger.debug(f"记录HTTP请求指标: {method} {endpoint} - 状态码:{status}, 耗时:{duration:.3f}秒")
@@ -164,15 +151,6 @@ def record_agent_execution(
     status: str,
     duration: float
 ):
-    """
-    记录Agent执行指标
-
-    Args:
-        agent_name: Agent名称
-        agent_type: Agent类型
-        status: 执行状态
-        duration: 执行时长（秒）
-    """
     agent_executions_total.labels(
         agent_name=agent_name,
         agent_type=agent_type,
@@ -192,16 +170,6 @@ def record_llm_call(
     prompt_tokens: int = 0,
     completion_tokens: int = 0
 ):
-    """
-    记录LLM调用指标
-
-    Args:
-        model: 模型名称
-        provider: 提供商
-        status: 调用状态
-        prompt_tokens: 提示词Token数
-        completion_tokens: 完成Token数
-    """
     llm_calls_total.labels(model=model, provider=provider, status=status).inc()
 
     if prompt_tokens > 0:
@@ -228,15 +196,6 @@ def record_database_query(
     status: str,
     duration: float
 ):
-    """
-    记录数据库查询指标
-
-    Args:
-        operation: 操作类型（SELECT/INSERT/UPDATE/DELETE）
-        table: 表名
-        status: 执行状态
-        duration: 执行时长（秒）
-    """
     database_queries_total.labels(
         operation=operation,
         table=table,
@@ -250,74 +209,32 @@ def record_database_query(
 
 
 def record_vector_db_operation(operation: str, status: str):
-    """
-    记录向量数据库操作指标
-
-    Args:
-        operation: 操作类型（add/search/delete）
-        status: 执行状态
-    """
     vector_db_operations_total.labels(operation=operation, status=status).inc()
     logger.debug(f"记录向量数据库操作指标: {operation} - 状态:{status}")
 
 
 def record_file_processing(file_type: str, status: str, duration: float):
-    """
-    记录文件处理指标
-
-    Args:
-        file_type: 文件类型
-        status: 处理状态
-        duration: 处理时长（秒）
-    """
     file_processing_total.labels(file_type=file_type, status=status).inc()
     file_processing_duration_seconds.labels(file_type=file_type).observe(duration)
     logger.debug(f"记录文件处理指标: {file_type} - 状态:{status}, 耗时:{duration:.3f}秒")
 
 
 def record_cache_hit(cache_type: str):
-    """
-    记录缓存命中
-
-    Args:
-        cache_type: 缓存类型
-    """
     cache_hits_total.labels(cache_type=cache_type).inc()
     logger.debug(f"记录缓存命中: {cache_type}")
 
 
 def record_cache_miss(cache_type: str):
-    """
-    记录缓存未命中
-
-    Args:
-        cache_type: 缓存类型
-    """
     cache_misses_total.labels(cache_type=cache_type).inc()
     logger.debug(f"记录缓存未命中: {cache_type}")
 
 
 def record_error(error_type: str, component: str):
-    """
-    记录错误
-
-    Args:
-        error_type: 错误类型
-        component: 组件名称
-    """
     errors_total.labels(error_type=error_type, component=component).inc()
     logger.warning(f"记录错误: {component}组件发生{error_type}错误")
 
 
 def set_system_info(version: str, environment: str, python_version: str):
-    """
-    设置系统信息
-
-    Args:
-        version: 应用版本
-        environment: 运行环境
-        python_version: Python版本
-    """
     system_info.info({
         'version': version,
         'environment': environment,
@@ -327,23 +244,11 @@ def set_system_info(version: str, environment: str, python_version: str):
 
 
 def set_active_users(count: int):
-    """
-    设置活跃用户数
-
-    Args:
-        count: 用户数
-    """
     active_users.set(count)
     logger.debug(f"更新活跃用户数: {count}")
 
 
 def set_active_conversations(count: int):
-    """
-    设置活跃会话数
-
-    Args:
-        count: 会话数
-    """
     active_conversations.set(count)
     logger.debug(f"更新活跃会话数: {count}")
 
@@ -353,16 +258,6 @@ def set_active_conversations(count: int):
 # ============================================
 
 async def metrics_middleware(request: Request, call_next: Callable):
-    """
-    Prometheus指标收集中间件
-
-    Args:
-        request: FastAPI请求对象
-        call_next: 下一个中间件或路由处理器
-
-    Returns:
-        响应对象
-    """
     method = request.method
     endpoint = request.url.path
 
@@ -394,12 +289,6 @@ async def metrics_middleware(request: Request, call_next: Callable):
 # ============================================
 
 async def metrics_endpoint():
-    """
-    Prometheus指标端点
-
-    Returns:
-        指标数据
-    """
     return Response(
         content=generate_latest(),
         media_type=CONTENT_TYPE_LATEST

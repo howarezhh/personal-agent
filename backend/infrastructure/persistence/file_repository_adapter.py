@@ -1,4 +1,3 @@
-"""File repository adapter."""
 
 from backend.database.repositories.file_repository import get_file_repository
 

@@ -1,4 +1,3 @@
-"""Conversation repository adapter."""
 
 from backend.database.repositories.conversation_repository import get_conversation_repository
 

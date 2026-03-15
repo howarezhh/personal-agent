@@ -1,7 +1,3 @@
-"""
-内容优化工具
-支持文本润色、改写、扩写、缩写等内容优化功能
-"""
 
 from typing import AsyncGenerator, Dict, Any, Optional
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
@@ -11,19 +7,6 @@ import logging
 
 
 class ContentOptimizerTool(BaseTool):
-    """
-    内容优化工具
-
-    功能：
-    - 文本润色
-    - 文本改写
-    - 文本扩写
-    - 文本缩写
-    - 风格转换
-    - 语法纠错
-    - SEO优化
-    """
-
     # 优化类型
     OPTIMIZATION_TYPES = {
         "polish": "润色",
@@ -48,7 +31,6 @@ class ContentOptimizerTool(BaseTool):
     }
 
     def __init__(self):
-        """初始化内容优化工具"""
         super().__init__()
         self.config_manager = get_config_manager()
         self.prompt_manager = get_prompt_manager()
@@ -56,11 +38,11 @@ class ContentOptimizerTool(BaseTool):
         self.logger.info("内容优化工具初始化完成")
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="content_optimizer",
             description="内容优化工具，支持文本润色、改写、扩写、缩写、风格转换、语法纠错、SEO优化等功能",
             category="utility",
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="action",
@@ -105,17 +87,6 @@ class ContentOptimizerTool(BaseTool):
         )
 
     async def execute(self, action: str, content: str, **kwargs) -> Dict[str, Any]:
-        """
-        执行内容优化操作
-
-        Args:
-            action: 操作类型
-            content: 要优化的内容
-            **kwargs: 其他参数
-
-        Returns:
-            优化结果
-        """
         try:
             self.logger.info(f"执行内容优化操作: {action}, 内容长度: {len(content)}")
 
@@ -408,7 +379,6 @@ class ContentOptimizerTool(BaseTool):
         }
 
     async def _polish_content(self, content: str, requirements: Optional[str]) -> Dict[str, Any]:
-        """润色内容"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
@@ -417,7 +387,7 @@ class ContentOptimizerTool(BaseTool):
             prompt = self.prompt_manager.format_prompt(
                 "tool.content_optimizer_polish_prompt",
                 content=content,
-                requirements=requirements or "?"
+                requirements=requirements or "无额外要求"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.7)
@@ -444,7 +414,6 @@ class ContentOptimizerTool(BaseTool):
             }
 
     async def _rewrite_content(self, content: str, requirements: Optional[str]) -> Dict[str, Any]:
-        """改写内容"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
@@ -453,7 +422,7 @@ class ContentOptimizerTool(BaseTool):
             prompt = self.prompt_manager.format_prompt(
                 "tool.content_optimizer_rewrite_prompt",
                 content=content,
-                requirements=requirements or "?"
+                requirements=requirements or "保持核心信息不变"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.8)
@@ -481,7 +450,6 @@ class ContentOptimizerTool(BaseTool):
 
     async def _expand_content(self, content: str, target_length: Optional[int],
                              requirements: Optional[str]) -> Dict[str, Any]:
-        """扩写内容"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
@@ -491,8 +459,8 @@ class ContentOptimizerTool(BaseTool):
             prompt = self.prompt_manager.format_prompt(
                 "tool.content_optimizer_expand_prompt",
                 content=content,
-                target_length=target_length or "???",
-                requirements=requirements or "?"
+                target_length=target_length or "自动扩写",
+                requirements=requirements or "补足必要细节"
             )
             response = await llm_manager.generate(prompt, temperature=0.7, max_tokens=max_tokens)
 
@@ -520,7 +488,6 @@ class ContentOptimizerTool(BaseTool):
 
     async def _summarize_content(self, content: str, target_length: Optional[int],
                                 requirements: Optional[str]) -> Dict[str, Any]:
-        """缩写内容"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
@@ -529,8 +496,8 @@ class ContentOptimizerTool(BaseTool):
             prompt = self.prompt_manager.format_prompt(
                 "tool.content_optimizer_summarize_prompt",
                 content=content,
-                target_length=target_length or "???",
-                requirements=requirements or "?"
+                target_length=target_length or "自动摘要",
+                requirements=requirements or "保留关键信息"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.5)
@@ -560,18 +527,17 @@ class ContentOptimizerTool(BaseTool):
 
     async def _transfer_style(self, content: str, target_style: Optional[str],
                              requirements: Optional[str]) -> Dict[str, Any]:
-        """风格转换"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
-            style_name = self.WRITING_STYLES.get(target_style, "??") if target_style else "??"
+            style_name = self.WRITING_STYLES.get(target_style, "默认") if target_style else "默认"
             prompt = self.prompt_manager.format_prompt(
                 "tool.content_optimizer_style_transfer_prompt",
                 content=content,
                 style_name=style_name,
-                requirements=requirements or "?"
+                requirements=requirements or "保持原意不变"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.7)
@@ -599,7 +565,6 @@ class ContentOptimizerTool(BaseTool):
             }
 
     async def _check_grammar(self, content: str) -> Dict[str, Any]:
-        """语法纠错"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
@@ -633,7 +598,6 @@ class ContentOptimizerTool(BaseTool):
 
     async def _optimize_seo(self, content: str, keywords: Optional[str],
                            requirements: Optional[str]) -> Dict[str, Any]:
-        """SEO优化"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
@@ -642,8 +606,8 @@ class ContentOptimizerTool(BaseTool):
             prompt = self.prompt_manager.format_prompt(
                 "tool.content_optimizer_seo_prompt",
                 content=content,
-                keywords=keywords or "???",
-                requirements=requirements or "?"
+                keywords=keywords or "无关键词",
+                requirements=requirements or "提升搜索友好度"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.7)
@@ -671,9 +635,7 @@ class ContentOptimizerTool(BaseTool):
             }
 
     def get_supported_optimizations(self) -> Dict[str, str]:
-        """获取支持的优化类型"""
         return self.OPTIMIZATION_TYPES.copy()
 
     def get_supported_styles(self) -> Dict[str, str]:
-        """获取支持的写作风格"""
         return self.WRITING_STYLES.copy()

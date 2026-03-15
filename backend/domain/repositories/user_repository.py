@@ -1,4 +1,3 @@
-"""User repository protocol."""
 
 from typing import Protocol, runtime_checkable
 

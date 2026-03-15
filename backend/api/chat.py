@@ -1,9 +1,4 @@
-"""
-瀵硅瘽API鎺ュ彛
-鎻愪緵鐢ㄦ埛鎻愰棶鍜屾祦寮忚緭鍑哄姛鑳?
-"""
-
-import json
+﻿import json
 import re
 import asyncio
 from copy import deepcopy
@@ -35,26 +30,24 @@ class NonStreamChatResult(TypedDict, total=False):
 def get_chat_application_service() -> ChatApplicationService:
     return build_chat_application_service()
 
-# 鍒涘缓璺敱鍣?
+# 创建路由器
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
 
 class AskRequest(BaseModel):
-    """鐢ㄦ埛鎻愰棶璇锋眰"""
-    question: str = Field(..., min_length=1, max_length=5000, description="鐢ㄦ埛闂")
-    conversation_id: Optional[str] = Field(None, description="浼氳瘽ID锛堝彲閫夛紝涓嶆彁渚涘垯鍒涘缓鏂颁細璇濓級")
-    stream: bool = Field(default=True, description="鏄惁浣跨敤娴佸紡杈撳嚭")
+    question: str = Field(..., min_length=1, max_length=5000, description="用户问题")
+    conversation_id: Optional[str] = Field(None, description="会话ID（可选，不提供则创建新会话）")
+    stream: bool = Field(default=True, description="是否使用流式输出")
     enable_knowledge_base: bool = Field(default=False, description="是否启用知识库增强")
     knowledge_base_id: Optional[str] = Field(default=None, description="Selected knowledge base ID")
 
 
 class PauseRequest(BaseModel):
-    """鏆傚仠娴佸紡瀵硅瘽璇锋眰"""
-    stream_id: str = Field(..., min_length=1, description="娴佸紡浼氳瘽ID")
+    stream_id: str = Field(..., min_length=1, description="流式会话ID")
 
 class PauseStreamResponse(BaseModel):
-    stream_id: str = Field(..., description="???? ID")
-    paused: bool = Field(..., description="?????")
+    stream_id: str = Field(..., description="流式会话 ID")
+    paused: bool = Field(..., description="是否已暂停")
 
 
 active_streams: Dict[str, Dict[str, Any]] = {}
@@ -62,7 +55,6 @@ active_streams_lock = asyncio.Lock()
 
 
 def _get_chat_history_limit() -> int:
-    """读取会话历史上限配置，避免硬编码。"""
     config_manager = get_config_manager()
     history_config = config_manager.get("conversation_history", {}) or {}
     raw_limit = history_config.get("max_history_length", 10)
@@ -73,7 +65,6 @@ def _get_chat_history_limit() -> int:
 
 
 class AskResponse(BaseModel):
-    """用户提问响应（非流式）"""
     conversation_id: str = Field(..., description="会话ID")
     message_id: str = Field(..., description="消息ID")
     answer: str = Field(..., description="助手回答")
@@ -84,7 +75,6 @@ async def pause_stream(
     request: PauseRequest,
     user_id: str = Depends(get_current_user_id)
 ):
-    """暂停正在执行的流式对话。"""
     logger.info(f"[CHAT-PAUSE] 收到暂停请求: user_id={user_id}, stream_id={request.stream_id}")
 
     task = None
@@ -119,7 +109,6 @@ async def pause_stream(
 
 
 def _summarize_payload(payload: Any) -> str:
-    """用于日志中的数据结构摘要，避免输出过长内容。"""
     if payload is None:
         return "None"
 
@@ -145,34 +134,12 @@ async def ask(
     user_id: str = Depends(get_current_user_id),
     http_request: Optional[Request] = None,
 ):
-    """
-    鐢ㄦ埛鎻愰棶鎺ュ彛锛堜娇鐢ㄥ伐浣滄祦鎵ц鍣級
-
-    瀹屾暣澶勭悊娴佺▼锛?
-    1. 楠岃瘉鐢ㄦ埛韬唤锛堜娇鐢╣et_current_user_id渚濊禆锛?
-    2. 鍒涘缓鎴栬幏鍙栦細璇?
-    3. 淇濆瓨鐢ㄦ埛娑堟伅鍒版暟鎹簱
-    4. 浣跨敤WorkflowExecutor鎵ц宸ヤ綔娴?
-    5. 娴佸紡杩斿洖鐢熸垚鍐呭锛堜娇鐢⊿treamingResponse锛?
-    6. 淇濆瓨鍔╂墜鍥炲鍒版暟鎹簱
-    7. 淇濆瓨鏅鸿兘浣撴墽琛岃褰?
-
-    Args:
-        request: 鎻愰棶璇锋眰
-        user_id: 褰撳墠鐢ㄦ埛ID锛堜粠token鑾峰彇锛?
-
-    Returns:
-        娴佸紡鍝嶅簲鎴栨櫘閫氬搷搴?
-
-    Raises:
-        HTTPException: 处理失败
-    """
     try:
         logger.info(f"[CHAT] 收到用户提问: user_id={user_id}, question={request.question[:50]}...")
         logger.info(f"[CHAT] request params: conversation_id={request.conversation_id}, stream={request.stream}, enable_knowledge_base={request.enable_knowledge_base}, knowledge_base_id={request.knowledge_base_id}")
         app_service = get_chat_application_service()
 
-        # 1. 鍒涘缓鎴栬幏鍙栦細璇?
+        # 1. 创建或获取会话
         conversation, conversation_id = app_service.ensure_conversation(
             user_id=user_id,
             conversation_id=request.conversation_id,
@@ -181,7 +148,7 @@ async def ask(
         if not conversation:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在或访问被拒绝")
 
-        # 2. 鑾峰彇瀵硅瘽鍘嗗彶锛堝湪淇濆瓨鐢ㄦ埛娑堟伅涔嬪墠鑾峰彇锛岄伩鍏嶅寘鍚綋鍓嶆秷鎭級
+        # 2. 获取对话历史（在保存用户消息之前获取，避免包含当前消息）
         logger.debug("[CHAT] 获取对话历史")
         if request.knowledge_base_id:
             knowledge_base = app_service.ensure_knowledge_base(user_id=user_id, knowledge_base_id=request.knowledge_base_id)
@@ -195,7 +162,7 @@ async def ask(
         conversation_history, history_list = app_service.get_history(conversation_id=conversation_id, limit=_get_chat_history_limit())
         logger.debug(f"[CHAT] 获取到{len(conversation_history)}条历史消息")
 
-        # 3. 淇濆瓨鐢ㄦ埛娑堟伅鍒版暟鎹簱
+        # 3. 保存用户消息到数据库
         logger.info("[CHAT] 保存用户消息")
         request_id = getattr(getattr(http_request, "state", None), "request_id", None)
         user_message = app_service.save_user_message(
@@ -209,10 +176,10 @@ async def ask(
         )
         logger.info(f"[CHAT] 用户消息保存成功: message_id={user_message.message_id}")
 
-        # 4. 鏍规嵁鏄惁娴佸紡杩斿洖涓嶅悓鍝嶅簲
+        # 4. 根据是否流式返回不同响应
         if request.stream:
             logger.info("[CHAT] 使用流式响应")
-            # 娴佸紡鍝嶅簲
+            # 流式响应
             stream_id = f"{conversation_id}:{user_message.message_id}:{uuid4().hex[:8]}"
             logger.info(f"[CHAT] stream_id={stream_id}")
             return StreamingResponse(
@@ -231,7 +198,7 @@ async def ask(
             )
         else:
             logger.info("[CHAT] 使用非流式响应")
-            # 闈炴祦寮忓搷搴?
+            # 非流式响应
             result = await _non_stream_response(
                 request_id=request_id,
                 user_id=user_id,
@@ -282,19 +249,6 @@ async def _stream_response(
     enable_knowledge_base: bool = False,
     knowledge_base_id: Optional[str] = None
 ):
-    """
-    娴佸紡鍝嶅簲鐢熸垚鍣紙浣跨敤宸ヤ綔娴佹墽琛屽櫒锛?
-
-    Args:
-        user_id: 鐢ㄦ埛ID
-        conversation_id: 浼氳瘽ID
-        user_message_id: 鐢ㄦ埛娑堟伅ID
-        question: 鐢ㄦ埛闂
-        conversation_history: 瀵硅瘽鍘嗗彶
-
-    Yields:
-        SSE鏍煎紡鐨勬暟鎹潡
-    """
     current_task = asyncio.current_task()
     async with active_streams_lock:
         active_streams[stream_id] = {
@@ -345,7 +299,7 @@ async def _stream_response(
         )
         logger.debug("[CHAT-STREAM] 智能体输入构建完成")
 
-        # 浣跨敤宸ヤ綔娴佹墽琛屽櫒
+        # 使用工作流执行器
         logger.info("[CHAT-STREAM] 创建工作流执行器")
         logger.info("[CHAT-STREAM] 工作流执行器创建成功")
 
@@ -354,7 +308,7 @@ async def _stream_response(
         execution_id = None
         assistant_message_id = None
 
-        # 鎵ц宸ヤ綔娴?
+        # 执行工作流
         logger.info("[CHAT-STREAM] 开始执行工作流")
         async for chunk in app_service.workflow_service.execute_stream(agent_input):
             if chunk.chunk_type in ("tool_call", "result", "error"):
@@ -448,7 +402,7 @@ async def _stream_response(
             )
             assistant_message_id = assistant_message.message_id
             logger.info(f"[CHAT-STREAM] 助手消息保存成功: message_id={assistant_message.message_id}")
-            logger.debug("[CHAT-STREAM] 浼氳瘽鏃堕棿鎴冲凡鏇存柊")
+            logger.debug("[CHAT-STREAM] 会话时间戳已更新")
 
         logger.info("[CHAT-STREAM] 发送完成信号")
         done_payload = {
@@ -509,7 +463,6 @@ async def _non_stream_response(
     knowledge_base_id: Optional[str] = None,
     request_id: Optional[str] = None
 ) -> NonStreamChatResult:
-    """生成非流式回答并持久化助手消息。"""
     try:
         logger.info("[CHAT-NON-STREAM] 开始生成非流式回答")
         logger.info(f"[CHAT-NON-STREAM] 知识库开关: {enable_knowledge_base}")
@@ -584,16 +537,6 @@ def _format_sse_data(
     message: Optional[str] = None,
     error_code: Optional[str] = None,
 ) -> str:
-    """
-    鏍煎紡鍖朣SE鏁版嵁
-
-    Args:
-        event_type: 浜嬩欢绫诲瀷
-        data: 鏁版嵁鍐呭
-
-    Returns:
-        鏍煎紡鍖栧悗鐨凷SE瀛楃涓?
-    """
     event_metadata = deepcopy(metadata) if metadata else {}
     if error_code:
         event_metadata.setdefault("error_code", error_code)
@@ -623,7 +566,6 @@ def _format_sse_data(
 
 
 def _build_sse_event_payload(chunk: Any) -> Any:
-    """灏哠treamChunk 杞崲涓哄墠绔洿绋冲畾鐨勪簨浠惰浇鑽枫€?"""
     if chunk.chunk_type == "tool_call":
         payload = deepcopy(chunk.metadata) if chunk.metadata else {}
         if chunk.content and "message" not in payload:

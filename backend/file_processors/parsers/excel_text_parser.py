@@ -1,4 +1,3 @@
-"""Excel and plain-text parsers."""
 
 from __future__ import annotations
 
@@ -9,8 +8,6 @@ from backend.file_processors.parsers.base_parser import BaseParser, ParsedConten
 
 
 class ExcelParser(BaseParser):
-    """Parse Excel files into row-oriented retrieval text."""
-
     async def parse(self, file_path: str) -> ParsedContent:
         try:
             import pandas as pd
@@ -80,8 +77,6 @@ class ExcelParser(BaseParser):
 
 
 class TextParser(BaseParser):
-    """Parse text-like files with conservative cleaning for structured formats."""
-
     async def parse(self, file_path: str) -> ParsedContent:
         try:
             encodings = ["utf-8", "gbk", "gb2312", "latin-1"]

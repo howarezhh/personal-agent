@@ -1,4 +1,3 @@
-"""Message repository adapter."""
 
 from backend.database.repositories.message_repository import get_message_repository
 

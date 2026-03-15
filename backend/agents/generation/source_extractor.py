@@ -1,7 +1,3 @@
-﻿"""
-来源提取器。
-从生成的回答中提取引用来源信息。
-"""
 
 from __future__ import annotations
 
@@ -13,8 +9,6 @@ from backend.utils.logger import get_logger
 
 
 class SourceExtractor:
-    """从回答文本中提取引用索引并映射到检索结果。"""
-
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
         self.citation_patterns = [

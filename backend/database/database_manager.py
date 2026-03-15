@@ -74,7 +74,7 @@ class DatabaseManager:
         with self.pool.connection() as conn:
             yield conn
 
-    @contextmanager
+    @contextmanager # 装饰器：将下面的生成器函数转为上下文管理器
     def transaction(self):
         """
         事务上下文管理器
@@ -91,14 +91,22 @@ class DatabaseManager:
         """
         conn = self.pool.get_connection()
         try:
+            # 2. 暂停执行，将conn返回给with块中的变量（as conn）
+            # 此时开始执行with块内的业务代码（比如insert/update）
             yield conn
+
+            # 3. with块代码执行成功后，执行这里（无异常则提交事务）
             conn.commit()
             logger.debug("Transaction committed")
+
         except Exception as e:
+            # 4. with块代码抛出异常时，执行这里（回滚事务）
             conn.rollback()
             logger.error(f"Transaction rolled back: {e}")
-            raise
+            raise  # 重新抛出异常，让调用方感知
+
         finally:
+            # 5. 无论是否异常，最终都会归还连接（关键：避免连接泄露）
             self.pool.return_connection(conn)
 
     def execute_query(

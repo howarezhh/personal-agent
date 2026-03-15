@@ -1,4 +1,3 @@
-"""Retrieval result reranking utilities."""
 
 from __future__ import annotations
 

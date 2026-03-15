@@ -1,4 +1,3 @@
-"""User repository adapter."""
 
 from backend.database.repositories.user_repository import get_user_repository
 

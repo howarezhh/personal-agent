@@ -1,4 +1,3 @@
-"""Application services exports."""
 
 from backend.application.services.auth_application_service import AuthApplicationService
 from backend.application.services.chat_application_service import ChatApplicationService

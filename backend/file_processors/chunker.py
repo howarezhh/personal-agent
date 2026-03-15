@@ -1,7 +1,3 @@
-"""
-文档分块器
-将长文本分割为适合向量化的chunks
-"""
 
 from typing import List, Dict, Any
 from dataclasses import dataclass
@@ -10,7 +6,6 @@ import logging
 
 @dataclass
 class TextChunk:
-    """文本块"""
     content: str
     index: int
     metadata: Dict[str, Any]
@@ -30,29 +25,12 @@ class TextChunk:
 
 
 class DocumentChunker:
-    """
-    文档分块器
-
-    功能：
-    - 将长文本分割为chunks
-    - 支持overlap保留上下文
-    - 保留元数据
-    """
-
     def __init__(
         self,
         chunk_size: int = 800,
         chunk_overlap: int = 100,
         separator: str = "\n\n"
     ):
-        """
-        初始化分块器
-
-        Args:
-            chunk_size: 每个chunk的字符数
-            chunk_overlap: chunk之间的重叠字符数
-            separator: 分隔符
-        """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.separator = separator
@@ -63,16 +41,6 @@ class DocumentChunker:
         text: str,
         metadata: Dict[str, Any] = None
     ) -> List[TextChunk]:
-        """
-        分割文本
-
-        Args:
-            text: 要分割的文本
-            metadata: 元数据
-
-        Returns:
-            文本块列表
-        """
         if not text:
             return []
 
@@ -141,17 +109,6 @@ class DocumentChunker:
         start_index: int,
         metadata: Dict[str, Any]
     ) -> List[TextChunk]:
-        """
-        分割超长文本
-
-        Args:
-            text: 超长文本
-            start_index: 起始索引
-            metadata: 元数据
-
-        Returns:
-            文本块列表
-        """
         chunks = []
         start = 0
         chunk_index = start_index
@@ -192,16 +149,6 @@ class DocumentChunker:
         pages: List[Dict[str, Any]],
         base_metadata: Dict[str, Any] = None
     ) -> List[TextChunk]:
-        """
-        分割带页码的文档
-
-        Args:
-            pages: 页面列表，每页包含 {"page_number": int, "text": str}
-            base_metadata: 基础元数据
-
-        Returns:
-            文本块列表
-        """
         if base_metadata is None:
             base_metadata = {}
 

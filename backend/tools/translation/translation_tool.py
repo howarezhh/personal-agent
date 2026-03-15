@@ -1,10 +1,6 @@
-"""
-翻译工具
-支持多语言翻译功能
-"""
 
 from typing import Dict, Any, Optional
-from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
+from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter, ToolExecutionError
 from backend.core.config_manager import get_config_manager
 from backend.core.prompt_manager import get_prompt_manager
 import logging
@@ -12,15 +8,6 @@ import httpx
 
 
 class TranslationTool(BaseTool):
-    """
-    翻译工具
-
-    功能：
-    - 支持多语言互译
-    - 自动检测源语言
-    - 支持常见语言对
-    """
-
     # 支持的语言列表
     SUPPORTED_LANGUAGES = {
         "zh": "中文",
@@ -40,7 +27,6 @@ class TranslationTool(BaseTool):
     }
 
     def __init__(self):
-        """初始化翻译工具"""
         super().__init__()
         self.config_manager = get_config_manager()
         self.prompt_manager = get_prompt_manager()
@@ -48,17 +34,19 @@ class TranslationTool(BaseTool):
         self.logger.info("翻译工具初始化完成")
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="translation",
             description="多语言翻译工具，支持中文、英语、日语、韩语、法语、德语等多种语言互译",
             category="language",
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="text",
                     type="string",
                     description="要翻译的文本内容",
-                    required=True
+                    required=True,
+                    min_length=1,
+                    max_length=5000,
                 ),
                 ToolParameter(
                     name="source_lang",
@@ -80,17 +68,6 @@ class TranslationTool(BaseTool):
         )
 
     async def execute(self, text: str, target_lang: str, source_lang: str = "auto", **kwargs) -> Dict[str, Any]:
-        """
-        执行翻译
-
-        Args:
-            text: 要翻译的文本
-            target_lang: 目标语言代码
-            source_lang: 源语言代码（默认自动检测）
-
-        Returns:
-            翻译结果
-        """
         try:
             self.logger.info(f"开始翻译: {source_lang} -> {target_lang}, 文本长度: {len(text)}")
 
@@ -99,14 +76,18 @@ class TranslationTool(BaseTool):
                 return {
                     "success": False,
                     "data": None,
-                    "error": f"不支持的目标语言: {target_lang}"
+                    "error": f"不支持的目标语言: {target_lang}",
+                    "error_code": "TOOL_INVALID_PARAMETER",
+                    "error_type": "parameter_error",
                 }
 
             if source_lang not in self.SUPPORTED_LANGUAGES:
                 return {
                     "success": False,
                     "data": None,
-                    "error": f"不支持的源语言: {source_lang}"
+                    "error": f"不支持的源语言: {source_lang}",
+                    "error_code": "TOOL_INVALID_PARAMETER",
+                    "error_type": "parameter_error",
                 }
 
             # 如果源语言和目标语言相同，直接返回
@@ -150,24 +131,9 @@ class TranslationTool(BaseTool):
 
         except Exception as e:
             self.logger.error(f"翻译失败: {str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "data": None,
-                "error": f"翻译失败: {str(e)}"
-            }
+            raise ToolExecutionError(f"翻译失败: {str(e)}") from e
 
     async def _translate_with_llm(self, text: str, source_lang: str, target_lang: str) -> str:
-        """
-        使用LLM进行翻译
-
-        Args:
-            text: 要翻译的文本
-            source_lang: 源语言
-            target_lang: 目标语言
-
-        Returns:
-            翻译后的文本
-        """
         from backend.core.llm_manager import get_llm_manager
 
         llm_manager = get_llm_manager()
@@ -186,15 +152,6 @@ class TranslationTool(BaseTool):
         return response.strip()
 
     async def _detect_language(self, text: str) -> str:
-        """
-        检测文本语言
-
-        Args:
-            text: 要检测的文本
-
-        Returns:
-            语言代码
-        """
         # 简单的语言检测逻辑
         # 检查是否包含中文字符
         if any('\u4e00' <= char <= '\u9fff' for char in text):
@@ -218,10 +175,4 @@ class TranslationTool(BaseTool):
         return "en"
 
     def get_supported_languages(self) -> Dict[str, str]:
-        """
-        获取支持的语言列表
-
-        Returns:
-            语言代码和名称的字典
-        """
         return self.SUPPORTED_LANGUAGES.copy()

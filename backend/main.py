@@ -2,6 +2,7 @@
 FastAPI主应用
 企业级多Agent知识库助手系统的主入口
 """
+import sys
 
 # 必须在所有其他导入之前加载环境变量
 from backend.core.env_loader import load_environment
@@ -95,10 +96,16 @@ async def lifespan(app: FastAPI):
         logger.info(f"API端口: {api_config.get('port', 8000)}")
         logger.info(f"调试模式: {api_config.get('debug', False)}")
 
-        # 5. 初始化所有工具（包括本地工具和MCP工具）
-        # 工具会在tool_initializer模块导入时自动初始化
-        from backend.tools import tool_initializer
-        logger.info("所有工具初始化成功（本地工具和MCP工具）")
+        # 5. 显式初始化所有工具（包括本地工具和MCP工具）
+        from backend.tools.tool_initializer import initialize_tools
+
+        tool_report = initialize_tools(strict=False)
+        logger.info(
+            "所有工具初始化完成：本地工具=%s，MCP工具=%s，失败=%s",
+            tool_report.get("local_count", 0),
+            tool_report.get("mcp_count", 0),
+            len(tool_report.get("failures", [])),
+        )
 
         logger.info("=" * 80)
         logger.info("个人智能体系统启动成功")

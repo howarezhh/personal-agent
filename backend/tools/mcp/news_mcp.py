@@ -1,7 +1,3 @@
-"""
-新闻查询MCP服务
-使用NewsAPI提供新闻查询功能
-"""
 
 from typing import Dict, Any, Optional
 from backend.tools.mcp.base_mcp_tool import MCPTool
@@ -11,33 +7,20 @@ import logging
 
 
 class NewsMCP(MCPTool):
-    """
-    新闻查询MCP服务
-
-    功能：
-    - 查询最新新闻
-    - 按关键词搜索新闻
-    - 按类别查询新闻
-
-    使用NewsAPI（需要免费API密钥）
-    注册地址: https://newsapi.org/
-    """
-
     def __init__(self):
-        """初始化新闻查询MCP"""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         config = get_tool_config()
         self.api_key = config.get('news_mcp', 'api_key', '')
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="news_mcp",
             description="查询最新新闻，支持关键词搜索和分类查询",
             category="mcp",
             version="1.0.0",
             timeout=10,
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="query",
@@ -61,20 +44,20 @@ class NewsMCP(MCPTool):
                 ),
                 ToolParameter(
                     name="page_size",
-                    type="number",
+                    type="integer",
                     description="返回新闻数量（1-100），默认为10",
                     required=False,
-                    default=10
+                    default=10,
+                    minimum=1,
+                    maximum=100,
                 )
             ]
         )
 
     def get_api_endpoint(self) -> str:
-        """获取API端点"""
         return "https://newsapi.org/v2/top-headlines"
 
     def get_api_key(self) -> Optional[str]:
-        """获取API密钥"""
         return self.api_key
 
     async def execute(
@@ -85,19 +68,6 @@ class NewsMCP(MCPTool):
         page_size: int = 10,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        执行新闻查询
-
-        Args:
-            query: 搜索关键词
-            category: 新闻类别
-            country: 国家代码
-            page_size: 返回数量
-            **kwargs: 其他参数
-
-        Returns:
-            新闻列表
-        """
         try:
             # 检查API密钥
             if not self.api_key:
@@ -146,15 +116,6 @@ class NewsMCP(MCPTool):
             }
 
     def _parse_news_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        解析新闻数据
-
-        Args:
-            data: API返回的原始数据
-
-        Returns:
-            格式化的新闻信息
-        """
         result = {
             "total_results": data.get("totalResults", 0),
             "articles": []

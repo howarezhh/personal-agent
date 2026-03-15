@@ -1,4 +1,3 @@
-"""Local file storage gateway."""
 
 from __future__ import annotations
 

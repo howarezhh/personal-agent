@@ -1,7 +1,3 @@
-"""
-工具智能体
-负责工具调用的完整流程
-"""
 
 import time
 import asyncio
@@ -17,24 +13,11 @@ from backend.tools.tool_registry import get_tool_registry
 from backend.database.repositories.agent_execution_repository import get_agent_execution_repository
 from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionUpdate
 from backend.core.config_manager import get_config_manager
+from backend.tools.tool_initializer import ensure_tools_initialized
 
 
 class ToolAgent(BaseAgent):
-    """
-    工具智能体
-
-    功能：
-    1. 分析用户问题，选择合适的工具
-    2. 构造工具调用参数
-    3. 执行工具调用
-    4. 解释工具返回结果
-    5. 处理工具调用失败
-    6. 支持重试机制和超时控制
-    7. 性能监控和统计
-    """
-
     def __init__(self):
-        """初始化工具智能体"""
         super().__init__(
             agent_name="tool_agent",
             agent_type="tool"
@@ -45,7 +28,7 @@ class ToolAgent(BaseAgent):
         self.result_interpreter = ResultInterpreter()
         self.tool_registry = get_tool_registry()
         if self.tool_registry.get_tool_count() == 0:
-            from backend.tools import tool_initializer  # noqa: F401
+            ensure_tools_initialized(strict=False)
             self.logger.info("工具注册表为空，已触发自动初始化")
         self.execution_repo = get_agent_execution_repository()
         self.config_manager = get_config_manager()
@@ -95,7 +78,6 @@ class ToolAgent(BaseAgent):
         return f"{type(payload).__name__}({self._safe_preview(payload)})"
 
     def _resolve_available_tools(self, agent_input: AgentInput) -> Optional[list[str]]:
-        """解析当前请求允许使用的工具列表。"""
         candidate_tools = None
 
         if hasattr(agent_input, "available_tools") and getattr(agent_input, "available_tools"):
@@ -125,15 +107,6 @@ class ToolAgent(BaseAgent):
         return valid_tools
 
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
-        """
-        执行工具调用（非流式）
-
-        Args:
-            agent_input: 智能体输入
-
-        Returns:
-            智能体输出，包含工具调用结果
-        """
         try:
             # 1. 选择工具
             self.logger.info(f"Selecting tool for question: {agent_input.content}")
@@ -267,14 +240,6 @@ class ToolAgent(BaseAgent):
             )
 
     async def execute_stream(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
-        """
-        ??????????
-
-        Args:
-            agent_input: ?????
-        Yields:
-            ?????
-        """
         try:
             history_list = []
             if hasattr(agent_input, "conversation_history") and agent_input.conversation_history:
@@ -438,15 +403,6 @@ class ToolAgent(BaseAgent):
             yield StreamChunk.create_error(str(e))
 
     def _format_conversation_history(self, history: list) -> str:
-        """
-        格式化对话历史为文本
-
-        Args:
-            history: 对话历史列表
-
-        Returns:
-            格式化后的对话历史文本
-        """
         if not history:
             return ""
 
@@ -464,17 +420,6 @@ class ToolAgent(BaseAgent):
         tool_name: str,
         tool_params: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        带重试和超时的工具执行
-
-        Args:
-            tool: 工具实例
-            tool_name: 工具名称
-            tool_params: 工具参数
-
-        Returns:
-            工具执行结果
-        """
         last_error = None
 
         for attempt in range(self.max_retries + 1):
@@ -540,7 +485,10 @@ class ToolAgent(BaseAgent):
         failed_result = {
             "success": False,
             "error": last_error or "工具执行失败",
-            "data": {}
+            "error_code": "TOOL_EXECUTION_ERROR",
+            "error_type": "execution_error",
+            "data": {},
+            "metadata": {"tool_name": tool_name},
         }
         self.logger.error(
             "[TOOL] execute_all_attempts_failed: "
@@ -549,13 +497,6 @@ class ToolAgent(BaseAgent):
         return failed_result
 
     def _update_performance_stats(self, success: bool, execution_time_ms: int) -> None:
-        """
-        更新性能统计
-
-        Args:
-            success: 是否成功
-            execution_time_ms: 执行时间（毫秒）
-        """
         self._performance_stats["total_calls"] += 1
         self._performance_stats["total_execution_time_ms"] += execution_time_ms
 
@@ -586,12 +527,6 @@ class ToolAgent(BaseAgent):
         )
 
     def _get_current_performance_stats(self) -> Dict[str, Any]:
-        """
-        获取当前性能统计快照
-
-        Returns:
-            性能统计字典
-        """
         total_calls = self._performance_stats["total_calls"]
         if total_calls == 0:
             return {
@@ -615,16 +550,9 @@ class ToolAgent(BaseAgent):
         }
 
     def get_performance_stats(self) -> Dict[str, Any]:
-        """
-        获取性能统计信息（公共接口）
-
-        Returns:
-            性能统计字典
-        """
         return self._get_current_performance_stats()
 
     def reset_performance_stats(self) -> None:
-        """重置性能统计"""
         self._performance_stats = {
             "total_calls": 0,
             "successful_calls": 0,
@@ -640,17 +568,6 @@ class ToolAgent(BaseAgent):
         tool_params: Dict[str, Any],
         agent_input: AgentInput
     ) -> AgentOutput:
-        """
-        调用指定的工具（用于路由Agent指定工具的情况）
-
-        Args:
-            tool_name: 工具名称
-            tool_params: 工具参数
-            agent_input: 智能体输入
-
-        Returns:
-            智能体输出
-        """
         try:
             # 获取工具实例
             tool = self.tool_registry.get_tool(tool_name)

@@ -1,6 +1,14 @@
-"""
-多Agent协作工作流。
-负责协调多个Agent按顺序或并行执行，并在步骤之间传递上下文。
+"""多 Agent 协作工作流。
+
+该模块负责把多个 Agent 组织成可编排的执行链路，支持：
+1. 顺序执行；
+2. 并行执行；
+3. 条件分支；
+4. 预定义模板和自定义配置；
+5. 在步骤之间安全传递上下文、上一步结果和阶段性元数据。
+
+这个模块的核心价值，不只是“调用多个 Agent”，而是把多 Agent 协作过程收敛为统一的
+步骤结果结构与状态推进机制，降低链路复杂度。
 """
 
 import ast
@@ -28,6 +36,14 @@ STEP_TYPE_CONDITION = "condition"
 
 
 class WorkflowStep(TypedDict, total=False):
+    """工作流步骤定义。
+
+    约定：
+    - `type=agent` 表示执行某个具体 Agent；
+    - `type=condition` 表示执行条件判断，并进入 true/false 分支；
+    - `config` 用于控制是否传递上一步输出、是否为必需步骤等。
+    """
+
     name: str
     type: str
     agent_type: str
@@ -38,6 +54,12 @@ class WorkflowStep(TypedDict, total=False):
 
 
 class StepResult(TypedDict):
+    """统一的步骤执行结果。
+
+    所有 Agent、所有执行模式（普通 / 流式 / 顺序 / 并行）最终都会收敛到这个结构，
+    这样上层代码只需要理解一种结果协议。
+    """
+
     success: bool
     agent_type: str
     step_name: str
@@ -53,7 +75,9 @@ class MultiAgentWorkflow:
     """多Agent协作工作流。"""
 
     def __init__(self):
+        # 独立 logger 便于在复杂多步骤链路中快速定位是哪一个工作流实例输出的日志。
         self.logger = get_logger(self.__class__.__name__)
+        # 共享状态图单例，确保所有工作流实例遵循同一套状态机规则。
         self.state_graph = get_state_graph()
         self.current_state = WorkflowState.INIT
 
@@ -63,6 +87,8 @@ class MultiAgentWorkflow:
         workflow_config: Dict[str, Any]
     ) -> AsyncGenerator[StreamChunk, None]:
         """执行多Agent协作工作流。"""
+        # `execution_state` 保存本次执行过程中的运行时状态，
+        # 与 `context` 中持久化的步骤产物分离，避免两类职责混在一起。
         execution_state: Dict[str, Any] = {
             "step_counter": 0,
             "last_step_key": None,
@@ -73,8 +99,11 @@ class MultiAgentWorkflow:
 
         try:
             self.current_state = WorkflowState.INIT
+            # 先显式回到 INIT，再通过状态图进入首个运行态，保证重复调用时状态可重入。
             self._transition_or_set(WorkflowAction.START, WorkflowState.ROUTING)
 
+            # 工作流配置是多 Agent 编排的契约入口，先校验结构再执行，
+            # 可以把很多运行期错误前移到入口阶段。
             if not self._is_valid_workflow_config(workflow_config):
                 self._mark_failed()
                 yield StreamChunk.create_error("工作流配置无效")
@@ -84,6 +113,7 @@ class MultiAgentWorkflow:
             self.logger.info(f"开始执行多Agent协作工作流，共{len(steps)}个步骤")
             yield StreamChunk.create_thinking("开始执行多Agent协作工作流...")
 
+            # 统一由 `_execute_steps` 处理顺序步骤、条件分支、失败中断等控制流。
             async for chunk in self._execute_steps(
                 agent_input=agent_input,
                 steps=steps,
@@ -96,6 +126,8 @@ class MultiAgentWorkflow:
                 return
 
             self._mark_completed()
+            # 最终结果优先取最后一个成功/失败步骤的统一结果结构，
+            # 这样不要求每个 Agent 都输出同一种字段名。
             final_step_result = execution_state.get("last_step_result")
             final_content = self._extract_result_content(final_step_result)
             self.logger.info("多Agent协作工作流执行完成")
@@ -124,6 +156,7 @@ class MultiAgentWorkflow:
             step_type = step.get("type", STEP_TYPE_AGENT)
 
             if step_type == STEP_TYPE_CONDITION:
+                # 条件步骤本身不产出 Agent 结果，而是像一个“控制节点”一样决定后续要执行哪组步骤。
                 condition = step.get("condition", "")
                 branch_name = "true_branch" if self._evaluate_condition(condition, context) else "false_branch"
                 selected_steps = step.get(branch_name, []) or []
@@ -133,6 +166,8 @@ class MultiAgentWorkflow:
                 )
                 yield StreamChunk.create_thinking(f"条件分支判定完成，执行 {branch_name}...")
 
+                # 这里递归调用 `_execute_steps`，从而复用相同的步骤执行逻辑，
+                # 不需要为分支步骤单独维护另一套执行器。
                 async for chunk in self._execute_steps(
                     agent_input=agent_input,
                     steps=selected_steps,
@@ -146,6 +181,7 @@ class MultiAgentWorkflow:
                 continue
 
             if step_type != STEP_TYPE_AGENT:
+                # 任何未知步骤类型都视为配置错误，直接终止，避免进入不可预测状态。
                 result = self._build_step_result(
                     success=False,
                     agent_type=step.get("agent_type", ""),
@@ -159,6 +195,8 @@ class MultiAgentWorkflow:
                 yield StreamChunk.create_error(result["error"] or "步骤类型无效")
                 return
 
+            # 使用显式计数器而不是直接依赖 `enumerate`，
+            # 是因为条件分支递归执行时仍然需要共享一套连续步骤编号。
             execution_state["step_counter"] += 1
             step_index = execution_state["step_counter"]
             step_name = step.get("name", f"步骤{step_index}")
@@ -172,6 +210,8 @@ class MultiAgentWorkflow:
             )
             yield StreamChunk.create_thinking(f"执行{step_name}...")
 
+            # `step_state` 作为可变容器传入流式执行函数，
+            # 这样既能边产出 chunk，又能在结束时把归一化结果“带出来”。
             step_state: Dict[str, StepResult] = {}
             async for chunk in self._execute_agent_step_stream(
                 agent_input=agent_input,
@@ -201,6 +241,8 @@ class MultiAgentWorkflow:
 
             if not step_result["success"]:
                 reason = step_result["error"] or "未知错误"
+                # `required=False` 的步骤允许失败后继续执行，常用于可选增强步骤；
+                # `required=True` 则视为主链路节点，失败即终止整个工作流。
                 if step_config.get("required", True):
                     self.logger.error(f"必需步骤失败: step_key={step_key}, error={reason}")
                     execution_state["failed"] = True
@@ -242,6 +284,8 @@ class MultiAgentWorkflow:
                     error=f"未知的Agent类型: {agent_type}",
                 )
 
+            # 在真正调用 Agent 之前，把当前工作流上下文和上一步结果合并到输入中，
+            # 保证每个 Agent 都能感知自己所处的协作阶段。
             updated_input = self._update_input_with_context(
                 agent_input=agent_input,
                 context=context,
@@ -311,6 +355,8 @@ class MultiAgentWorkflow:
                 yield StreamChunk.create_error(error, step_key=step_key, step_name=step_name)
                 return
 
+            # 在真正调用 Agent 之前，把当前工作流上下文和上一步结果合并到输入中，
+            # 保证每个 Agent 都能感知自己所处的协作阶段。
             updated_input = self._update_input_with_context(
                 agent_input=agent_input,
                 context=context,
@@ -319,7 +365,10 @@ class MultiAgentWorkflow:
             )
             self._advance_state_for_agent(agent_type)
 
+            # 优先走 `execute_stream`，因为它不仅能给出最终结果，
+            # 还能保留 thinking/content/tool_call 等中间事件，便于前端实时展示。
             if callable(getattr(agent, "execute_stream", None)):
+                # 下面这些累积变量用于把流式 chunk 重新归并成统一的 StepResult。
                 content_parts: List[str] = []
                 tool_calls: List[Any] = []
                 metadata_payloads: List[Dict[str, Any]] = []
@@ -347,6 +396,8 @@ class MultiAgentWorkflow:
 
                     yield chunk
 
+                # 即使流中已经收到部分内容，只要最终出现 error chunk，
+                # 仍然把该步骤判定为失败，但会保留已产出的内容和元数据，方便排障。
                 if error_message:
                     step_state["result"] = self._build_step_result(
                         success=False,
@@ -383,6 +434,8 @@ class MultiAgentWorkflow:
                     )
                     return
 
+                # 某些 Agent 可能只在 result payload 里返回最终文本，而不发送 content chunk，
+                # 因此这里要做一次补偿提取，避免误判为空结果。
                 normalized_content = "".join(content_parts)
                 if not normalized_content:
                     normalized_content = self._extract_content_from_payload(result_payload)
@@ -464,6 +517,9 @@ class MultiAgentWorkflow:
         step_key: str,
     ) -> StepResult:
         """消费 execute_stream，统一归一化结果。"""
+        # 这个方法用于“非流式调用场景下消费流式 Agent”，
+        # 逻辑与 `_execute_agent_step_stream` 类似，但这里不向外 yield chunk，
+        # 而是直接汇总成一个最终 StepResult 返回。
         content_parts: List[str] = []
         tool_calls: List[Any] = []
         metadata_payloads: List[Dict[str, Any]] = []
@@ -562,6 +618,7 @@ class MultiAgentWorkflow:
         previous_result: Optional[StepResult] = None,
     ) -> AgentInput:
         """根据上下文更新 AgentInput。"""
+        # 统一深拷贝输入上下文，避免下游 Agent 改写上游上下文对象。
         metadata = deepcopy(agent_input.metadata) if agent_input.metadata else {}
         conversation_history = deepcopy(agent_input.conversation_history)
         workflow_context = deepcopy(context)
@@ -569,12 +626,16 @@ class MultiAgentWorkflow:
         if conversation_history and "conversation_history" not in metadata:
             metadata["conversation_history"] = deepcopy(conversation_history)
 
+        # 把完整 workflow_context 和当前 step_config 一并注入 metadata，
+        # 这样下游 Agent 可以按需读取工作流上下文，而不必直接依赖执行器内部状态。
         metadata["workflow_context"] = workflow_context
         metadata["step_config"] = deepcopy(step_config)
 
         use_previous_output = bool(step_config.get("use_previous_output", False))
 
         if previous_result and previous_result.get("success") and use_previous_output:
+            # 只有显式开启 `use_previous_output` 时才向下游传递上一步结果，
+            # 避免所有步骤无差别继承上下文，导致提示词和输入变得不可控。
             metadata["previous_output"] = deepcopy(previous_result)
 
             previous_data = previous_result.get("data")
@@ -609,11 +670,17 @@ class MultiAgentWorkflow:
         normalized_payload = deepcopy(payload) if payload is not None else {}
 
         if isinstance(normalized_payload, dict):
+            # 优先从 metadata 和 payload 中提取 execution_id，
+            # 这样无论不同 Agent 把执行 ID 放在哪一层，都能统一抽出来。
             execution_id = normalized_metadata.get("execution_id") or normalized_payload.get("execution_id")
 
+            # Router 的产物在下游通常约定为 `decision` 字段；
+            # 如果原始输出没有显式包一层，这里自动补齐，统一消费协议。
             if agent_type == "router" and "decision" not in normalized_payload:
                 normalized_payload = {"decision": normalized_payload}
 
+            # 对 Retrieval / Tool 这类关键结果，除了保留在 data 中，
+            # 还同步镜像到 metadata，方便后续步骤按统一入口读取。
             if agent_type == "retrieval" and "retrieval_results" in normalized_payload:
                 normalized_metadata.setdefault(
                     "retrieval_results",
@@ -639,6 +706,8 @@ class MultiAgentWorkflow:
         self.current_state = WorkflowState.INIT
         self._transition_or_set(WorkflowAction.START, WorkflowState.ROUTING)
 
+        # 顺序执行模式下，`previous_result` 会沿链路向后传递，
+        # 用于典型的“检索 -> 生成”或“初稿 -> 优化”串联场景。
         context: Dict[str, StepResult] = {}
         previous_result: Optional[StepResult] = None
 
@@ -687,6 +756,7 @@ class MultiAgentWorkflow:
         self.logger.info(f"开始并行执行{len(agent_list)}个Agent")
         yield StreamChunk.create_thinking(f"开始并行执行{len(agent_list)}个Agent...")
 
+        # 并行模式不共享 `previous_result`，而是把每个任务看作独立步骤同时执行。
         task_specs = []
         context: Dict[str, StepResult] = {}
         for index, agent_type in enumerate(agent_list, start=1):
@@ -695,6 +765,8 @@ class MultiAgentWorkflow:
             task_specs.append((
                 step_key,
                 agent_type,
+                # 这里显式创建 Task，再统一 gather，
+                # 这样所有并行步骤都会被调度，即使个别步骤失败也不会阻断其它任务启动。
                 asyncio.create_task(
                     self._execute_agent_step(
                         agent_input=agent_input,
@@ -708,6 +780,8 @@ class MultiAgentWorkflow:
                 ),
             ))
 
+        # `return_exceptions=True` 很关键：它保证 gather 在某个任务异常时仍然收集其它任务结果，
+        # 从而让工作流能够输出“部分成功/部分失败”的完整上下文。
         results = await asyncio.gather(*(task for _, _, task in task_specs), return_exceptions=True)
 
         has_failure = False
@@ -769,6 +843,8 @@ class MultiAgentWorkflow:
 
     def _transition_or_set(self, action: WorkflowAction, fallback_state: WorkflowState) -> None:
         """优先按状态图转换，失败时回退到显式状态。"""
+        # 绝大多数情况下优先遵循状态图；
+        # 只有在状态图没有对应边时，才回退到显式设置状态，增强容错性。
         if not self.transition_state(action):
             self.current_state = fallback_state
 
@@ -853,6 +929,7 @@ class MultiAgentWorkflow:
         context: Dict[str, StepResult],
     ) -> str:
         """生成唯一且可读的上下文键。"""
+        # 这里既追求可读性，也保证唯一性：优先使用业务语义化名称，冲突时再追加编号。
         normalized = base_name.strip() or f"step_{step_index}"
         if normalized not in context:
             return normalized
@@ -884,8 +961,13 @@ class MultiAgentWorkflow:
         steps = workflow_config.get("steps")
         return self._are_valid_steps(steps)
 
+    def is_valid_workflow_config(self, workflow_config: Any) -> bool:
+        """对外暴露工作流配置校验，避免外部依赖私有方法。"""
+        return self._is_valid_workflow_config(workflow_config)
+
     def _are_valid_steps(self, steps: Any) -> bool:
         """递归校验步骤列表。"""
+        # 主步骤列表必须是非空列表；否则工作流没有任何可执行内容。
         if not isinstance(steps, list) or not steps:
             return False
 
@@ -924,6 +1006,7 @@ class MultiAgentWorkflow:
             return False
 
         try:
+            # 这里只允许表达式模式，不允许语句级代码，从源头限制条件表达式能力边界。
             tree = ast.parse(condition, mode="eval")
             env = {
                 "context": context,
@@ -933,6 +1016,7 @@ class MultiAgentWorkflow:
                 "False": False,
                 "None": None,
             }
+            # `env` 只暴露白名单变量，不让条件表达式直接访问任意 Python 全局对象。
             result = self._safe_eval_ast(tree.body, env)
             return bool(result)
         except Exception as error:
@@ -968,6 +1052,8 @@ class MultiAgentWorkflow:
             return getattr(value, node.attr)
 
         if isinstance(node, ast.Call):
+            # 出于安全考虑，这里只允许字典对象的 `get` 调用，
+            # 不允许任意函数调用或方法调用。
             if isinstance(node.func, ast.Attribute) and node.func.attr == "get":
                 target = self._safe_eval_ast(node.func.value, env)
                 if not isinstance(target, dict):
@@ -998,6 +1084,7 @@ class MultiAgentWorkflow:
             return not self._safe_eval_ast(node.operand, env)
 
         if isinstance(node, ast.Compare):
+            # 这里按 Python 链式比较的语义逐段计算，例如 a == b == c。
             left = self._safe_eval_ast(node.left, env)
             result = True
             for operator, comparator in zip(node.ops, node.comparators):
@@ -1034,6 +1121,7 @@ class WorkflowBuilder:
         agent_type: str,
         config: Optional[Dict[str, Any]] = None
     ) -> "WorkflowBuilder":
+        # 构建器在这里做 deepcopy，避免外部传入的配置对象在 build 之后被继续修改。
         self.steps.append({
             "name": name,
             "type": STEP_TYPE_AGENT,
@@ -1060,6 +1148,8 @@ class WorkflowBuilder:
         return {"steps": deepcopy(self.steps)}
 
 
+# 预置模板用于覆盖最常见的工作流编排场景；
+# 所有模板最终仍然会走统一的配置校验和执行路径。
 WORKFLOW_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "retrieval_then_tool": {
         "name": "先检索后工具调用",

@@ -1,4 +1,3 @@
-"""Gateway ports for external concerns."""
 
 from backend.domain.gateways.embedding_gateway import EmbeddingGatewayPort
 from backend.domain.gateways.file_storage_gateway import FileStorageGatewayPort

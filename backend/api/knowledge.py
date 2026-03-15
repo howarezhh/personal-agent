@@ -1,4 +1,3 @@
-"""Knowledge-base API routes."""
 
 from __future__ import annotations
 
@@ -66,18 +65,18 @@ class VectorRebuildResponse(BaseModel):
 
 
 class FullVectorRebuildResponse(VectorRebuildResponse):
-    reset_collection: bool = Field(default=False, description="???????????")
-    target_dimension: int = Field(default=512, description="??????????")
-    error: Optional[str] = Field(default=None, description="??????????")
+    reset_collection: bool = Field(default=False, description="是否重置集合")
+    target_dimension: int = Field(default=512, description="目标向量维度")
+    error: Optional[str] = Field(default=None, description="错误信息")
 
 
 class FullVectorRebuildTaskResponse(FullVectorRebuildResponse):
     task_id: str
-    status: str = Field(default="pending", description="?????pending/running/succeeded/failed")
-    scope: str = Field(default="all_knowledge_bases", description="????")
-    knowledge_base_id: Optional[str] = Field(default=None, description="???????? ID")
-    current_document_id: Optional[str] = Field(default=None, description="???????? ID")
-    current_file_name: Optional[str] = Field(default=None, description="?????????")
+    status: str = Field(default="pending", description="任务状态：pending/running/succeeded/failed")
+    scope: str = Field(default="all_knowledge_bases", description="任务作用范围")
+    knowledge_base_id: Optional[str] = Field(default=None, description="当前知识库 ID")
+    current_document_id: Optional[str] = Field(default=None, description="当前文档 ID")
+    current_file_name: Optional[str] = Field(default=None, description="当前文件名")
     created_at: str
     updated_at: Optional[str] = None
     started_at: Optional[str] = None
@@ -535,7 +534,7 @@ async def start_full_rebuild_vectors_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except Exception as error:
         logger.error("Start full rebuild task failed: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="????????????") from error
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="启动全量重建任务失败") from error
 
 
 @router.get("/rebuild-vectors/full/tasks/{task_id}", response_model=SuccessResponse[FullVectorRebuildTaskResponse])
@@ -564,7 +563,7 @@ async def get_full_rebuild_vectors_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except Exception as error:
         logger.error("Get full rebuild task status failed: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="??????????????") from error
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取全量重建任务状态失败") from error
 
 
 @router.post("/rebuild-vectors/full", response_model=SuccessResponse[FullVectorRebuildResponse])
@@ -608,7 +607,7 @@ async def rebuild_vectors_full(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except Exception as error:
         logger.error("Full rebuild vectors failed: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="????????") from error
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="全量重建向量失败") from error
 
 
 @router.post("/search", response_model=SuccessResponse[KnowledgeSearchResponse])

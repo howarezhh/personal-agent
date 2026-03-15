@@ -1,2 +1,1 @@
-"""Centralized backend contracts exports."""
 

@@ -1,4 +1,3 @@
-"""Agent registry for extensible agent resolution."""
 
 from typing import Callable, Optional
 

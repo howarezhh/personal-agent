@@ -1,4 +1,3 @@
-"""Auth application service."""
 
 from __future__ import annotations
 
@@ -12,8 +11,6 @@ from backend.models.user import User, UserCreate, UserLogin
 
 
 class AuthApplicationService:
-    """Application-layer orchestration for authentication use cases."""
-
     def __init__(self, user_repo=None, token_gateway=None, password_gateway=None, token_revocation_store=None):
         self.user_repo = user_repo or UserRepositoryAdapter()
         self.token_gateway = token_gateway or JWTTokenGateway()

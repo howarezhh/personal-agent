@@ -1,7 +1,3 @@
-"""
-脚本生成工具
-支持AI自动生成各类脚本（影视剧本、短视频脚本、广告脚本等）
-"""
 
 from typing import AsyncGenerator, Dict, Any, Optional
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
@@ -12,17 +8,6 @@ import json
 
 
 class ScriptGeneratorTool(BaseTool):
-    """
-    脚本生成工具
-
-    功能：
-    - 生成影视剧本
-    - 生成短视频脚本
-    - 生成广告脚本
-    - 生成舞台剧脚本
-    - 生成分镜脚本
-    """
-
     # 脚本类型
     SCRIPT_TYPES = {
         "movie": "电影剧本",
@@ -48,7 +33,6 @@ class ScriptGeneratorTool(BaseTool):
     }
 
     def __init__(self):
-        """初始化脚本生成工具"""
         super().__init__()
         self.config_manager = get_config_manager()
         self.prompt_manager = get_prompt_manager()
@@ -56,11 +40,11 @@ class ScriptGeneratorTool(BaseTool):
         self.logger.info("脚本生成工具初始化完成")
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="script_generator",
             description="AI脚本生成工具，支持生成影视剧本、短视频脚本、广告脚本等各类脚本",
             category="creative",
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="action",
@@ -136,17 +120,6 @@ class ScriptGeneratorTool(BaseTool):
         )
 
     async def execute(self, action: str, script_type: str, **kwargs) -> Dict[str, Any]:
-        """
-        执行脚本生成操作
-
-        Args:
-            action: 操作类型
-            script_type: 脚本类型
-            **kwargs: 其他参数
-
-        Returns:
-            生成结果
-        """
         try:
             self.logger.info(f"执行脚本生成操作: {action}, 类型: {script_type}")
 
@@ -467,23 +440,22 @@ class ScriptGeneratorTool(BaseTool):
     async def _generate_outline(self, script_type: str, title: Optional[str],
                                theme: Optional[str], style: Optional[str],
                                duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
-        """生成脚本大纲"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
-            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+            style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.script_generator_outline_prompt",
-                title=title or "??",
+                title=title or "未命名脚本",
                 type_name=type_name,
                 style_name=style_name,
-                duration=duration or "???",
-                target_audience=target_audience or "??",
-                theme=theme or "????????????"
+                duration=duration or "未指定",
+                target_audience=target_audience or "泛受众",
+                theme=theme or "请生成完整脚本大纲"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.8)
@@ -524,23 +496,22 @@ class ScriptGeneratorTool(BaseTool):
     async def _generate_scene(self, script_type: str, scene_number: int,
                              scene_description: Optional[str], characters: Optional[str],
                              style: Optional[str], outline: Optional[str]) -> Dict[str, Any]:
-        """生成场景脚本"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
-            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+            style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.script_generator_scene_prompt",
                 type_name=type_name,
                 scene_number=scene_number,
-                scene_description=scene_description or "?????????",
-                characters=characters or "??????",
+                scene_description=scene_description or "请根据项目目标生成场景",
+                characters=characters or "未指定角色",
                 style_name=style_name,
-                outline_text=outline or "?"
+                outline_text=outline or "请保持剧情连贯"
             )
 
             response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=3000)
@@ -567,20 +538,19 @@ class ScriptGeneratorTool(BaseTool):
 
     async def _generate_dialogue(self, script_type: str, characters: Optional[str],
                                 scene_description: Optional[str], style: Optional[str]) -> Dict[str, Any]:
-        """生成对白"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
-            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+            style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.script_generator_dialogue_prompt",
                 type_name=type_name,
-                scene_description=scene_description or "??????",
-                characters=characters or "??????",
+                scene_description=scene_description or "请生成符合剧情的对白",
+                characters=characters or "未指定角色",
                 style_name=style_name
             )
 
@@ -607,19 +577,18 @@ class ScriptGeneratorTool(BaseTool):
 
     async def _generate_storyboard(self, script_type: str, scene_description: Optional[str],
                                   style: Optional[str]) -> Dict[str, Any]:
-        """生成分镜脚本"""
         try:
             from backend.core.llm_manager import get_llm_manager
 
             llm_manager = get_llm_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
-            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+            style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.script_generator_storyboard_prompt",
                 type_name=type_name,
-                scene_description=scene_description or "?????",
+                scene_description=scene_description or "请生成分镜描述",
                 style_name=style_name
             )
 
@@ -659,7 +628,6 @@ class ScriptGeneratorTool(BaseTool):
     async def _generate_complete_script(self, script_type: str, title: Optional[str],
                                        theme: Optional[str], style: Optional[str],
                                        duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
-        """生成完整脚本"""
         try:
             # 先生成大纲
             outline_result = await self._generate_outline(
@@ -674,15 +642,15 @@ class ScriptGeneratorTool(BaseTool):
             llm_manager = get_llm_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
-            style_name = self.SCRIPT_STYLES.get(style, "??") if style else "??"
+            style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
             outline_str = json.dumps(outline_result["data"]["outline"], ensure_ascii=False, indent=2)
 
             prompt = self.prompt_manager.format_prompt(
                 "tool.script_generator_complete_prompt",
-                title=title or "??",
+                title=title or "未命名脚本",
                 type_name=type_name,
                 style_name=style_name,
-                duration=duration or "???",
+                duration=duration or "未指定",
                 outline_json=outline_str
             )
 
@@ -711,9 +679,7 @@ class ScriptGeneratorTool(BaseTool):
             }
 
     def get_supported_types(self) -> Dict[str, str]:
-        """获取支持的脚本类型"""
         return self.SCRIPT_TYPES.copy()
 
     def get_supported_styles(self) -> Dict[str, str]:
-        """获取支持的脚本风格"""
         return self.SCRIPT_STYLES.copy()

@@ -1,4 +1,3 @@
-"""Security infrastructure adapters."""
 
 from backend.infrastructure.security.jwt_token_gateway import JWTTokenGateway
 from backend.infrastructure.security.password_hash_gateway import PasswordHashGateway

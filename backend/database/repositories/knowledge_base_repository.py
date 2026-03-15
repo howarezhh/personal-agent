@@ -1,3 +1,8 @@
+"""知识库仓储模块。
+
+本文件使用 UTF-8 编码，负责知识库实体的创建、查询、更新与删除。
+"""
+
 from __future__ import annotations
 
 from datetime import datetime

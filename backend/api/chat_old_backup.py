@@ -1,7 +1,3 @@
-"""
-对话API接口
-提供用户提问和流式输出功能
-"""
 
 import json
 import asyncio
@@ -31,14 +27,12 @@ router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
 
 class AskRequest(BaseModel):
-    """用户提问请求"""
     question: str = Field(..., min_length=1, max_length=5000, description="用户问题")
     conversation_id: Optional[str] = Field(None, description="会话ID（可选，不提供则创建新会话）")
     stream: bool = Field(default=True, description="是否使用流式输出")
 
 
 class AskResponse(BaseModel):
-    """用户提问响应（非流式）"""
     conversation_id: str = Field(..., description="会话ID")
     message_id: str = Field(..., description="消息ID")
     answer: str = Field(..., description="助手回答")
@@ -50,29 +44,6 @@ async def ask(
     request: AskRequest,
     user_id: str = Depends(get_current_user_id)
 ):
-    """
-    用户提问接口
-
-    完整处理流程：
-    1. 验证用户身份（使用get_current_user_id依赖）
-    2. 创建或获取会话
-    3. 保存用户消息到数据库
-    4. 调用路由Agent分析问题
-    5. 根据路由决策调用生成Agent
-    6. 流式返回生成内容（使用StreamingResponse）
-    7. 保存助手回复到数据库
-    8. 保存智能体执行记录
-
-    Args:
-        request: 提问请求
-        user_id: 当前用户ID（从token获取）
-
-    Returns:
-        流式响应或普通响应
-
-    Raises:
-        HTTPException: 处理失败
-    """
     try:
         logger.info(f"[CHAT] 收到用户提问: user_id={user_id}, question={request.question[:50]}...")
         logger.info(f"[CHAT] 请求参数: conversation_id={request.conversation_id}, stream={request.stream}")
@@ -191,19 +162,6 @@ async def _stream_response(
     question: str,
     conversation_history: list
 ):
-    """
-    流式响应生成器
-
-    Args:
-        user_id: 用户ID
-        conversation_id: 会话ID
-        user_message_id: 用户消息ID
-        question: 用户问题
-        conversation_history: 对话历史
-
-    Yields:
-        SSE格式的数据块
-    """
     try:
         logger.info("[CHAT-STREAM] ========== 开始流式响应生成 ==========")
         logger.info(f"[CHAT-STREAM] 用户ID: {user_id}")
@@ -539,22 +497,6 @@ async def _non_stream_response(
     question: str,
     conversation_history: list
 ) -> str:
-    """
-    非流式响应处理
-
-    Args:
-        user_id: 用户ID
-        conversation_id: 会话ID
-        user_message_id: 用户消息ID
-        question: 用户问题
-        conversation_history: 对话历史
-
-    Returns:
-        助手回答
-
-    Raises:
-        Exception: 处理失败
-    """
     try:
         message_repo = get_message_repository()
         conversation_repo = get_conversation_repository()
@@ -716,16 +658,6 @@ async def _non_stream_response(
 
 
 def _format_sse_data(event_type: str, data: str) -> str:
-    """
-    格式化SSE数据
-
-    Args:
-        event_type: 事件类型（thinking/content/error/done）
-        data: 数据内容
-
-    Returns:
-        SSE格式的字符串
-    """
     import datetime
 
     event_data = {
@@ -744,18 +676,6 @@ async def ask_v2(
     request: AskRequest,
     user_id: str = Depends(get_current_user_id)
 ):
-    """
-    用户提问接口 V2（使用工作流执行器）
-    
-    这是使用新的工作流执行器的版本，提供更好的可维护性和扩展性
-    
-    Args:
-        request: 提问请求
-        user_id: 当前用户ID
-    
-    Returns:
-        流式响应或普通响应
-    """
     try:
         from backend.workflows.workflow_executor import WorkflowExecutor
         
@@ -846,19 +766,6 @@ async def _stream_response_v2(
     question: str,
     conversation_history: list
 ):
-    """
-    流式响应生成器 V2（使用工作流执行器）
-    
-    Args:
-        user_id: 用户ID
-        conversation_id: 会话ID
-        user_message_id: 用户消息ID
-        question: 用户问题
-        conversation_history: 对话历史
-    
-    Yields:
-        SSE格式的数据块
-    """
     try:
         from backend.workflows.workflow_executor import WorkflowExecutor
         

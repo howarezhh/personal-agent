@@ -1,4 +1,3 @@
-"""Unified API response contracts."""
 
 from datetime import datetime, timezone
 from typing import Generic, List, Optional, TypeVar

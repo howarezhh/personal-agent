@@ -1,6 +1,3 @@
-"""
-生成智能体，负责基于用户问题生成回答。
-"""
 
 from datetime import datetime
 from typing import AsyncGenerator, Optional, List, Dict, Any
@@ -16,19 +13,7 @@ from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionU
 
 
 class GenerationAgent(BaseAgent):
-    """
-    生成智能体。
-    功能：
-    1. 基于用户问题生成回答
-    2. 支持流式输出
-    3. 保存生成记录
-    4. 引用来源提取
-    5. 幻觉检测
-    第一阶段：不考虑检索上下文，直接基于问题生成回答。
-    """
-
     def __init__(self):
-        """初始化生成智能体"""
         super().__init__(
             agent_name="generation_agent",
             agent_type="generation"
@@ -49,13 +34,6 @@ class GenerationAgent(BaseAgent):
         logger.info(f"Generation agent initialized (citation={self.enable_citation}, hallucination_check={self.enable_hallucination_check})")
 
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
-        """
-        执行生成任务（非流式）
-        Args:
-            agent_input: 智能体输入
-        Returns:
-            智能体输出，包含生成的回答
-        """
         try:
             if agent_input.metadata:
                 tool_result = agent_input.metadata.get("tool_result")
@@ -128,14 +106,6 @@ class GenerationAgent(BaseAgent):
             )
 
     async def execute_stream(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
-        """
-        执行生成任务（流式）
-
-        Args:
-            agent_input: 智能体输入
-        Yields:
-            流式数据
-        """
         try:
             if agent_input.metadata:
                 tool_result = agent_input.metadata.get("tool_result")
@@ -209,14 +179,6 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         retrieval_results: list
     ) -> AgentOutput:
-        """
-        基于检索结果生成回答（用于第二阶段 RAG）
-        Args:
-            agent_input: 智能体输入
-            retrieval_results: 检索结果列表
-        Returns:
-            智能体输出
-        """
         try:
             context = self._format_retrieval_context(retrieval_results)
 
@@ -289,14 +251,6 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         retrieval_results: list
     ) -> AsyncGenerator[StreamChunk, None]:
-        """
-        基于检索结果流式生成回答（用于第二阶段 RAG）
-        Args:
-            agent_input: 智能体输入
-            retrieval_results: 检索结果列表
-        Yields:
-            流式数据
-        """
         try:
             yield StreamChunk.create_thinking("正在基于检索结果生成回答")
 
@@ -358,14 +312,6 @@ class GenerationAgent(BaseAgent):
             yield StreamChunk.create_error(str(e))
 
     def _format_retrieval_context(self, retrieval_results: list) -> str:
-        """
-        格式化检索结果为上下文字符串
-
-        Args:
-            retrieval_results: 检索结果列表
-        Returns:
-            格式化后的上下文字符串
-        """
         if not retrieval_results:
             return ""
 
@@ -389,14 +335,6 @@ class GenerationAgent(BaseAgent):
         return "\n\n".join(context_parts)
 
     def _extract_citations(self, content: str, retrieval_results: list) -> list:
-        """
-        从生成的内容中提取引用信息（使用 SourceExtractor）
-        Args:
-            content: 生成的内容
-            retrieval_results: 检索结果列表
-        Returns:
-            引用列表
-        """
         if not self.enable_citation:
             return []
 
@@ -409,17 +347,6 @@ class GenerationAgent(BaseAgent):
         answer: str,
         retrieval_results: Optional[List[Dict[str, Any]]] = None
     ) -> dict:
-        """
-        检查生成的回答是否包含幻觉（使用 HallucinationChecker）
-        Args:
-            question: 用户问题
-            context: 提供的上下文
-            answer: 生成的回答
-            retrieval_results: 检索结果列表（可选）
-
-        Returns:
-            幻觉检查结果字典
-        """
         if not self.enable_hallucination_check:
             return {"has_hallucination": False, "confidence": 1.0, "reason": "Hallucination check disabled"}
 
@@ -442,15 +369,6 @@ class GenerationAgent(BaseAgent):
         question: str,
         answer: str
     ) -> dict:
-        """
-        评估回答质量
-
-        Args:
-            question: 用户问题
-            answer: 生成的回答
-        Returns:
-            质量评估结果字典
-        """
         try:
             eval_prompt = self._get_prompt(
                 "answer_quality_prompt",
@@ -500,17 +418,6 @@ class GenerationAgent(BaseAgent):
         context: str,
         conversation_history: list = None
     ) -> list:
-        """
-        构建包含上下文的消息列表
-
-        Args:
-            user_content: 用户输入内容
-            context: 检索上下文
-            conversation_history: 对话历史
-
-        Returns:
-            消息列表
-        """
         messages = []
 
         system_prompt = self._get_prompt("generation_system_prompt")
@@ -552,16 +459,6 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         tool_result: dict
     ) -> AgentOutput:
-        """
-        基于工具调用结果生成回答（用于第三阶段工具调用）
-
-        Args:
-            agent_input: 智能体输入
-            tool_result: 工具调用结果
-
-        Returns:
-            智能体输出
-        """
         try:
             tool_context = self._format_tool_result_context(tool_result)
 
@@ -632,16 +529,6 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         tool_result: dict
     ) -> AsyncGenerator[StreamChunk, None]:
-        """
-        基于工具调用结果流式生成回答（用于第三阶段工具调用）
-
-        Args:
-            agent_input: 智能体输入
-            tool_result: 工具调用结果
-
-        Yields:
-            流式数据
-        """
         try:
             yield StreamChunk.create_thinking("正在基于工具结果生成回答...")
 
@@ -701,15 +588,6 @@ class GenerationAgent(BaseAgent):
             yield StreamChunk.create_error(str(e))
 
     def _format_tool_result_context(self, tool_result: dict) -> str:
-        """
-        格式化工具结果为上下文字符串
-
-        Args:
-            tool_result: 工具调用结果
-
-        Returns:
-            格式化后的上下文字符串
-        """
         if not tool_result:
             return ""
 
@@ -728,16 +606,6 @@ class GenerationAgent(BaseAgent):
         tool_context: str,
         conversation_history: list = None
     ) -> list:
-        """
-        构建包含工具结果的消息列表
-        Args:
-            user_content: 用户输入内容
-            tool_context: 工具结果上下文
-            conversation_history: 对话历史
-
-        Returns:
-            消息列表
-        """
         messages = []
 
         system_prompt = self._get_prompt("generation_system_prompt_with_tool_result")

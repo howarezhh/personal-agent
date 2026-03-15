@@ -1,7 +1,3 @@
-"""
-文件处理智能体
-负责文件处理的完整流程
-"""
 
 import os
 import time
@@ -26,19 +22,7 @@ from backend.utils.vector_db_client import get_vector_db_client
 
 
 class FileProcessorAgent(BaseAgent):
-    """
-    文件处理智能体
-
-    功能：
-    1. 识别文件类型
-    2. 调用对应解析器提取内容
-    3. 文档分块
-    4. 向量化（待集成）
-    5. 更新文件处理状态
-    """
-
     def __init__(self):
-        """初始化文件处理智能体"""
         super().__init__(
             agent_name="file_processor_agent",
             agent_type="file_processor"
@@ -79,15 +63,6 @@ class FileProcessorAgent(BaseAgent):
         self.logger.info(f"最大文件大小: {self.max_file_size}MB")
 
     def _get_parser_for_file(self, file_type: FileType) -> Optional[BaseParser]:
-        """
-        根据文件类型获取解析器
-
-        Args:
-            file_type: 文件类型
-
-        Returns:
-            解析器实例
-        """
         parser_map = {
             FileType.PDF: "pdf",
             FileType.DOCX: "word",
@@ -137,15 +112,6 @@ class FileProcessorAgent(BaseAgent):
             file.error_message = error_message
 
     async def process_file(self, file_id: str) -> Dict[str, Any]:
-        """
-        处理单个文件
-
-        Args:
-            file_id: 文件ID
-
-        Returns:
-            处理结果
-        """
         try:
             # 1. 获取文件记录
             file = self.file_repo.get_file_by_id(file_id)
@@ -374,18 +340,6 @@ class FileProcessorAgent(BaseAgent):
             }
 
     async def _generate_summary(self, parsed_content, chunks: List, filename: str, file_type: str) -> str:
-        """
-        生成文件摘要（使用LLM智能生成）
-
-        Args:
-            parsed_content: 解析后的内容
-            chunks: 文本块列表
-            filename: 文件名
-            file_type: 文件类型
-
-        Returns:
-            摘要文本
-        """
         try:
             # 获取文档元数据
             metadata = parsed_content.metadata
@@ -440,16 +394,6 @@ class FileProcessorAgent(BaseAgent):
             return self._generate_simple_summary(parsed_content, chunks)
 
     def _generate_simple_summary(self, parsed_content, chunks: List) -> str:
-        """
-        生成简单摘要（降级方案）
-
-        Args:
-            parsed_content: 解析后的内容
-            chunks: 文本块列表
-
-        Returns:
-            摘要文本
-        """
         # 简单摘要：提取前200字符
         text = parsed_content.text
         if len(text) > 200:
@@ -466,16 +410,6 @@ class FileProcessorAgent(BaseAgent):
         return summary
 
     def _build_stats_summary(self, metadata: dict, chunk_count: int) -> str:
-        """
-        构建统计信息摘要
-
-        Args:
-            metadata: 文档元数据
-            chunk_count: 文本块数量
-
-        Returns:
-            统计信息字符串
-        """
         stats = []
 
         if "total_pages" in metadata:
@@ -492,16 +426,6 @@ class FileProcessorAgent(BaseAgent):
         return ', '.join(stats) if stats else ""
 
     def _get_error_message(self, error_type: str, **kwargs) -> str:
-        """
-        获取友好的错误提示信息
-
-        Args:
-            error_type: 错误类型
-            **kwargs: 错误相关参数
-
-        Returns:
-            错误提示信息
-        """
         error_prompt_key = f"error_handling.{error_type}"
         error_message = self._get_prompt(error_prompt_key, **kwargs)
 
@@ -512,15 +436,6 @@ class FileProcessorAgent(BaseAgent):
         return f"文件处理失败：{kwargs.get('error_message', '未知错误')}"
 
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
-        """
-        执行文件处理（非流式）
-
-        Args:
-            agent_input: 智能体输入，content应为file_id
-
-        Returns:
-            智能体输出
-        """
         start_time = time.time()
 
         try:
@@ -574,15 +489,6 @@ class FileProcessorAgent(BaseAgent):
             )
 
     async def execute_stream(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
-        """
-        执行文件处理（流式）
-
-        Args:
-            agent_input: 智能体输入
-
-        Yields:
-            流式数据块
-        """
         try:
             file_id = agent_input.content
 
@@ -802,15 +708,6 @@ class FileProcessorAgent(BaseAgent):
             yield StreamChunk.create_error(f"文件处理失败: {str(e)}")
 
     async def process_multiple_files(self, file_ids: List[str]) -> Dict[str, Any]:
-        """
-        批量处理多个文件
-
-        Args:
-            file_ids: 文件ID列表
-
-        Returns:
-            批量处理结果
-        """
         results = []
 
         for file_id in file_ids:

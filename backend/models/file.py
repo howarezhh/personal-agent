@@ -1,7 +1,3 @@
-"""
-文件数据模型
-定义文件相关的数据结构
-"""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,7 +8,6 @@ import json
 
 
 class FileType(str, Enum):
-    """文件类型枚举"""
     PDF = "pdf"
     DOCX = "docx"
     XLSX = "xlsx"
@@ -26,7 +21,6 @@ class FileType(str, Enum):
 
 
 class ProcessingStatus(str, Enum):
-    """文件处理状态枚举"""
     PENDING = "pending"          # 等待处理
     PROCESSING = "processing"    # 处理中
     COMPLETED = "completed"      # 处理完成
@@ -35,9 +29,6 @@ class ProcessingStatus(str, Enum):
 
 @dataclass
 class File:
-    """
-    文件数据模型
-    """
     file_id: str
     user_id: str
     conversation_id: Optional[str]
@@ -56,7 +47,6 @@ class File:
 
     @classmethod
     def from_dict(cls, data: dict) -> "File":
-        """从字典数据恢复文件模型。"""
         payload = dict(data)
 
         for field_name in ("created_at", "updated_at", "processed_at"):
@@ -82,12 +72,6 @@ class File:
         return cls(**payload)
 
     def to_dict(self) -> dict:
-        """
-        转换为字典
-
-        Returns:
-            字典格式的文件数据
-        """
         return {
             "file_id": self.file_id,
             "user_id": self.user_id,
@@ -108,25 +92,12 @@ class File:
 
     @staticmethod
     def from_db_row(row: tuple, columns: list) -> 'File':
-        """
-        从数据库行创建File对象
-
-        Args:
-            row: 数据库行数据
-            columns: 列名列表
-
-        Returns:
-            File对象
-        """
         data = dict(zip(columns, row))
         return File.from_dict(data)
 
 
 @dataclass
 class FileCreate:
-    """
-    文件创建数据模型
-    """
     user_id: str
     original_filename: str
     file_type: FileType
@@ -137,12 +108,6 @@ class FileCreate:
     metadata: Optional[Dict[str, Any]] = None
 
     def validate(self) -> tuple[bool, Optional[str]]:
-        """
-        验证数据
-
-        Returns:
-            (是否有效, 错误信息)
-        """
         if not self.user_id:
             return False, "user_id不能为空"
 
@@ -161,12 +126,6 @@ class FileCreate:
         return True, None
 
     def to_file(self) -> File:
-        """
-        转换为File对象
-
-        Returns:
-            File对象
-        """
         now = datetime.utcnow()
 
         return File(
@@ -186,9 +145,6 @@ class FileCreate:
 
 @dataclass
 class FileUpdate:
-    """
-    文件更新数据模型
-    """
     processing_status: Optional[ProcessingStatus] = None
     processed_at: Optional[datetime] = None
     error_message: Optional[str] = None
@@ -197,12 +153,6 @@ class FileUpdate:
     metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典（只包含非None的字段）
-
-        Returns:
-            字典格式的更新数据
-        """
         data = {}
 
         if self.processing_status is not None:
@@ -231,12 +181,6 @@ class FileUpdate:
 
 @dataclass
 class FileChunk:
-    """
-    文件分块数据模型
-
-    对应数据库表: file_chunks
-    存储文件分块信息，用于向量检索
-    """
     chunk_id: str
     file_id: str
     chunk_index: int
@@ -250,12 +194,6 @@ class FileChunk:
     metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典
-
-        Returns:
-            字典格式的分块数据
-        """
         return {
             "chunk_id": self.chunk_id,
             "file_id": self.file_id,
@@ -272,15 +210,6 @@ class FileChunk:
 
     @classmethod
     def from_dict(cls, data: dict) -> "FileChunk":
-        """
-        从字典创建FileChunk对象
-
-        Args:
-            data: 字典数据
-
-        Returns:
-            FileChunk对象
-        """
         # 处理datetime字段
         if isinstance(data.get("created_at"), str):
             data["created_at"] = datetime.fromisoformat(data["created_at"].replace("Z", "+00:00"))
@@ -296,67 +225,25 @@ class FileChunk:
 
     @classmethod
     def from_db_row(cls, row: tuple, columns: list) -> "FileChunk":
-        """
-        从数据库行创建FileChunk对象
-
-        Args:
-            row: 数据库查询结果行
-            columns: 列名列表
-
-        Returns:
-            FileChunk对象
-        """
         data = dict(zip(columns, row))
         return cls.from_dict(data)
 
     def set_metadata(self, key: str, value: Any):
-        """
-        设置元数据
-
-        Args:
-            key: 元数据键
-            value: 元数据值
-        """
         if self.metadata is None:
             self.metadata = {}
         self.metadata[key] = value
 
     def get_metadata(self, key: str, default: Any = None) -> Any:
-        """
-        获取元数据
-
-        Args:
-            key: 元数据键
-            default: 默认值
-
-        Returns:
-            元数据值
-        """
         if self.metadata is None:
             return default
         return self.metadata.get(key, default)
 
     def get_char_range(self) -> Optional[tuple[int, int]]:
-        """
-        获取字符范围
-
-        Returns:
-            (起始位置, 结束位置) 或 None
-        """
         if self.start_char is not None and self.end_char is not None:
             return (self.start_char, self.end_char)
         return None
 
     def get_content_preview(self, max_length: int = 100) -> str:
-        """
-        获取内容预览
-
-        Args:
-            max_length: 最大长度
-
-        Returns:
-            内容预览字符串
-        """
         if len(self.content) <= max_length:
             return self.content
         return self.content[:max_length] + "..."

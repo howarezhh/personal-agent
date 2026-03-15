@@ -1,7 +1,3 @@
-"""
-天气查询MCP服务
-使用Open-Meteo免费API提供天气查询功能
-"""
 
 from typing import Dict, Any, Optional
 from backend.tools.mcp.base_mcp_tool import MCPTool
@@ -10,19 +6,7 @@ import logging
 
 
 class WeatherMCP(MCPTool):
-    """
-    天气查询MCP服务
-
-    功能：
-    - 查询指定城市的当前天气
-    - 查询未来7天天气预报
-    - 支持全球主要城市
-
-    使用Open-Meteo免费API，无需API密钥
-    """
-
     def __init__(self):
-        """初始化天气查询MCP"""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         # 主要城市坐标映射
@@ -40,13 +24,13 @@ class WeatherMCP(MCPTool):
         }
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="weather_mcp",
             description="查询天气信息，支持当前天气和未来7天预报",
             category="mcp",
             version="1.0.0",
             timeout=10,
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="city",
@@ -56,34 +40,23 @@ class WeatherMCP(MCPTool):
                 ),
                 ToolParameter(
                     name="forecast_days",
-                    type="number",
+                    type="integer",
                     description="预报天数（1-7天），默认为1天",
                     required=False,
-                    default=1
+                    default=1,
+                    minimum=1,
+                    maximum=7,
                 )
             ]
         )
 
     def get_api_endpoint(self) -> str:
-        """获取API端点"""
         return "https://api.open-meteo.com/v1/forecast"
 
     def get_api_key(self) -> Optional[str]:
-        """获取API密钥（Open-Meteo不需要密钥）"""
         return None
 
     async def execute(self, city: str, forecast_days: int = 1, **kwargs) -> Dict[str, Any]:
-        """
-        执行天气查询
-
-        Args:
-            city: 城市名称
-            forecast_days: 预报天数（1-7）
-            **kwargs: 其他参数
-
-        Returns:
-            天气信息
-        """
         try:
             # 参数类型转换和验证
             if isinstance(forecast_days, str):
@@ -143,17 +116,6 @@ class WeatherMCP(MCPTool):
             }
 
     def _parse_weather_data(self, city: str, data: Dict[str, Any], forecast_days: int) -> Dict[str, Any]:
-        """
-        解析天气数据
-
-        Args:
-            city: 城市名称
-            data: API返回的原始数据
-            forecast_days: 预报天数
-
-        Returns:
-            格式化的天气信息
-        """
         # 天气代码映射
         weather_codes = {
             0: "晴朗",

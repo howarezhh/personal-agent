@@ -1,7 +1,3 @@
-"""
-SQL生成器
-根据自然语言生成SQL查询
-"""
 
 from typing import Dict, Any, Optional
 from backend.utils.llm_client import get_llm_client
@@ -10,17 +6,7 @@ from backend.core.prompt_manager import get_prompt_manager
 
 
 class SQLGenerator:
-    """
-    SQL生成器
-    
-    功能：
-    1. 将自然语言转换为SQL查询
-    2. 验证SQL语法
-    3. 防止SQL注入
-    """
-    
     def __init__(self):
-        """初始化SQL生成器"""
         self.logger = get_logger(self.__class__.__name__)
         self.llm_client = get_llm_client()
         self.prompt_manager = get_prompt_manager()
@@ -40,17 +26,6 @@ class SQLGenerator:
         schema_info: Dict[str, Any],
         database_type: str = "mysql"
     ) -> Dict[str, Any]:
-        """
-        根据自然语言生成SQL查询
-
-        Args:
-            natural_language_query: 自然语言查询
-            schema_info: 数据库schema信息
-            database_type: 数据库类型
-
-        Returns:
-            包含SQL查询和元数据的字典
-        """
         try:
             self.logger.info(f"开始生成SQL: 查询={natural_language_query}, 数据库类型={database_type}")
 
@@ -116,7 +91,6 @@ class SQLGenerator:
         schema_info: Dict[str, Any],
         database_type: str
     ) -> str:
-        """?? LLM ????"""
         schema_str = self._format_schema(schema_info)
         return self.prompt_manager.format_prompt(
             "tool.database_query_sql_generation_prompt",
@@ -126,7 +100,6 @@ class SQLGenerator:
         )
     
     def _format_schema(self, schema_info: Dict[str, Any]) -> str:
-        """格式化schema信息"""
         lines = []
         
         for table_name, table_info in schema_info.items():
@@ -142,7 +115,6 @@ class SQLGenerator:
         return "\n".join(lines)
     
     def _extract_sql(self, response: str) -> str:
-        """从LLM响应中提取SQL查询"""
         # 移除代码块标记
         sql = response.strip()
         
@@ -158,12 +130,6 @@ class SQLGenerator:
         return sql
     
     def _validate_sql_safety(self, sql: str) -> tuple[bool, Optional[str]]:
-        """
-        验证SQL查询的安全性
-
-        Returns:
-            (是否安全, 原因)
-        """
         sql_upper = sql.upper()
 
         # 检查是否包含危险关键词

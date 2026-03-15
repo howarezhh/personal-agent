@@ -1,15 +1,3 @@
-"""
-PDF 文件解析器模块
-
-提供 PDF 文件的解析功能，支持使用 pdfplumber 或 PyPDF2 库提取 PDF 内容。
-优先使用 pdfplumber（文本提取效果更好），如果未安装则降级使用 PyPDF2。
-
-主要功能：
-- 提取 PDF 文本内容
-- 保留页码和页面信息
-- 提取元数据（作者、标题、主题等）
-- 支持异步解析
-"""
 
 import asyncio
 import os
@@ -21,23 +9,6 @@ from backend.file_processors.parsers.base_parser import BaseParser, ParsedConten
 
 
 class PDFParser(BaseParser):
-    """
-    PDF 文件解析器类
-
-    继承自 BaseParser，实现 PDF 格式文件的具体解析逻辑。
-    采用双库策略：优先使用 pdfplumber 获得更好的文本提取效果，
-    如果未安装则自动降级使用 PyPDF2。
-
-    主要功能：
-    - 提取文本内容：从 PDF 各页中提取可读文本
-    - 保留页码信息：记录每页的页码和对应文本
-    - 提取元数据：获取 PDF 的作者、标题、主题等元信息
-    - 异步处理：将阻塞式 PDF 解析卸载到线程池，避免阻塞事件循环
-
-    Attributes:
-        logger: 日志记录器，用于记录解析过程中的信息和错误
-    """
-
     _PDFPLUMBER_METADATA_KEYS = {
         "title": ("Title",),
         "author": ("Author",),
@@ -52,34 +23,9 @@ class PDFParser(BaseParser):
     }
 
     def __init__(self):
-        """
-        初始化 PDF 解析器
-
-        调用父类 BaseParser 的初始化方法，设置日志记录器等基础组件。
-        """
         super().__init__()
 
     async def parse(self, file_path: str) -> ParsedContent:
-        """
-        解析 PDF 文件的主方法
-
-        采用降级策略解析 PDF 文件：
-        1. 首先尝试使用 pdfplumber（推荐，文本提取效果更好）
-        2. 如果 pdfplumber 不可用，降级使用 PyPDF2
-        3. 如果两个库都不可用，抛出 ImportError
-
-        Args:
-            file_path (str): PDF 文件的路径
-
-        Returns:
-            ParsedContent: 包含解析后的文本、元数据和页面信息的对象
-
-        Raises:
-            FileNotFoundError: 文件不存在时抛出
-            PermissionError: 文件不可读时抛出
-            ImportError: 当 pdfplumber 和 PyPDF2 都未安装时抛出
-            Exception: 其他解析过程中的错误
-        """
         normalized_path = self._validate_file_path(file_path)
 
         try:
@@ -99,15 +45,12 @@ class PDFParser(BaseParser):
             raise
 
     async def _parse_with_pdfplumber(self, file_path: Path) -> ParsedContent:
-        """在线程池中使用 pdfplumber 解析 PDF，避免阻塞事件循环。"""
         return await asyncio.to_thread(self._parse_with_pdfplumber_sync, file_path)
 
     async def _parse_with_pypdf2(self, file_path: Path) -> ParsedContent:
-        """在线程池中使用 PyPDF2 解析 PDF，避免阻塞事件循环。"""
         return await asyncio.to_thread(self._parse_with_pypdf2_sync, file_path)
 
     def _parse_with_pdfplumber_sync(self, file_path: Path) -> ParsedContent:
-        """使用 pdfplumber 同步解析 PDF 文件。"""
         import pdfplumber
 
         return self._parse_with_backend(
@@ -121,7 +64,6 @@ class PDFParser(BaseParser):
         )
 
     def _parse_with_pypdf2_sync(self, file_path: Path) -> ParsedContent:
-        """使用 PyPDF2 同步解析 PDF 文件。"""
         import PyPDF2
 
         return self._parse_with_backend(
@@ -144,21 +86,6 @@ class PDFParser(BaseParser):
         pages_getter: Callable[[Any], Sequence[Any]],
         text_extractor: Callable[[Any], Any],
     ) -> ParsedContent:
-        """
-        使用统一流程解析 PDF，减少 pdfplumber 与 PyPDF2 的重复逻辑。
-
-        Args:
-            file_path: PDF 文件路径
-            parser_name: 解析器名称
-            document_loader: 文档加载函数
-            metadata_getter: 文档元数据提取函数
-            metadata_keys: 元数据字段映射
-            pages_getter: 页面序列获取函数
-            text_extractor: 页面文本提取函数
-
-        Returns:
-            ParsedContent: 标准化后的解析结果
-        """
         with file_path.open("rb") as file_obj, ExitStack() as stack:
             document = document_loader(file_obj)
             if hasattr(document, "__enter__") and hasattr(document, "__exit__"):
@@ -186,7 +113,6 @@ class PDFParser(BaseParser):
             )
 
     def _validate_file_path(self, file_path: str) -> Path:
-        """校验 PDF 路径有效性并确保文件可读。"""
         if not file_path or not str(file_path).strip():
             raise ValueError("PDF file path cannot be empty.")
 
@@ -207,7 +133,6 @@ class PDFParser(BaseParser):
         raw_metadata: Any,
         metadata_keys: Mapping[str, Sequence[str]],
     ) -> dict[str, Any]:
-        """标准化 PDF 元数据，并处理编码异常字符。"""
         metadata: dict[str, Any] = {
             "total_pages": total_pages,
             "parser": parser_name,
@@ -222,7 +147,6 @@ class PDFParser(BaseParser):
         return metadata
 
     def _read_metadata_value(self, raw_metadata: Any, source_keys: Sequence[str]) -> Any:
-        """按候选键顺序读取元数据字段。"""
         for source_key in source_keys:
             value = None
 
@@ -244,7 +168,6 @@ class PDFParser(BaseParser):
         pages: Sequence[Any],
         text_extractor: Callable[[Any], Any],
     ) -> List[dict[str, Any]]:
-        """提取各页文本并统一清洗，避免重复拼装逻辑。"""
         pages_info: List[dict[str, Any]] = []
 
         for page_num, page in enumerate(pages, start=1):
@@ -275,22 +198,7 @@ class PDFParser(BaseParser):
         )
 
     def supports(self, file_extension: str) -> bool:
-        """
-        检查是否支持指定的文件扩展名
-
-        Args:
-            file_extension (str): 文件扩展名（如 '.pdf'）
-
-        Returns:
-            bool: 如果支持该扩展名返回 True，否则返回 False
-        """
         return file_extension.lower() in [".pdf"]
 
     def get_supported_extensions(self) -> List[str]:
-        """
-        获取此解析器支持的所有文件扩展名
-
-        Returns:
-            List[str]: 支持的文件扩展名列表
-        """
         return [".pdf"]

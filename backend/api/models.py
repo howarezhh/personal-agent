@@ -1,4 +1,3 @@
-"""Backward-compatible API response models re-exported from contracts."""
 
 from backend.contracts.responses import (
     ApiResponse,

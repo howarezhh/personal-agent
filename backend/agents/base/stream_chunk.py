@@ -1,7 +1,3 @@
-"""
-流式输出数据块结构
-定义智能体流式输出时的数据块格式
-"""
 
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, Literal
@@ -14,12 +10,6 @@ ChunkType = Literal["thinking", "content", "tool_call", "result", "error", "meta
 
 @dataclass
 class StreamChunk:
-    """
-    流式输出数据块
-
-    用于智能体流式输出时的数据传输
-    """
-
     chunk_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     chunk_type: ChunkType = "content"
     content: str = ""
@@ -27,12 +17,6 @@ class StreamChunk:
     timestamp: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的数据块
-        """
         return {
             "chunk_id": self.chunk_id,
             "chunk_type": self.chunk_type,
@@ -43,15 +27,6 @@ class StreamChunk:
 
     @classmethod
     def from_dict(cls, data: dict) -> "StreamChunk":
-        """
-        从字典创建StreamChunk对象
-
-        Args:
-            data: 字典数据
-
-        Returns:
-            StreamChunk对象
-        """
         # 处理datetime字段
         timestamp = data.get("timestamp")
         if isinstance(timestamp, str):
@@ -66,28 +41,12 @@ class StreamChunk:
         )
 
     def to_sse_format(self) -> str:
-        """
-        转换为SSE (Server-Sent Events) 格式
-
-        Returns:
-            SSE格式的字符串
-        """
         import json
         data_str = json.dumps(self.to_dict(), ensure_ascii=False)
         return f"data: {data_str}\n\n"
 
     @classmethod
     def create_thinking(cls, content: str, **metadata) -> "StreamChunk":
-        """
-        创建思考过程数据块
-
-        Args:
-            content: 思考内容
-            **metadata: 元数据
-
-        Returns:
-            StreamChunk对象
-        """
         return cls(
             chunk_type="thinking",
             content=content,
@@ -96,16 +55,6 @@ class StreamChunk:
 
     @classmethod
     def create_content(cls, content: str, **metadata) -> "StreamChunk":
-        """
-        创建内容数据块
-
-        Args:
-            content: 内容
-            **metadata: 元数据
-
-        Returns:
-            StreamChunk对象
-        """
         return cls(
             chunk_type="content",
             content=content,
@@ -114,17 +63,6 @@ class StreamChunk:
 
     @classmethod
     def create_tool_call(cls, tool_name: str, tool_input: Dict[str, Any], **metadata) -> "StreamChunk":
-        """
-        创建工具调用数据块
-
-        Args:
-            tool_name: 工具名称
-            tool_input: 工具输入
-            **metadata: 元数据
-
-        Returns:
-            StreamChunk对象
-        """
         return cls(
             chunk_type="tool_call",
             content=f"调用工具: {tool_name}",
@@ -137,16 +75,6 @@ class StreamChunk:
 
     @classmethod
     def create_result(cls, content: str, **metadata) -> "StreamChunk":
-        """
-        创建结果数据块
-
-        Args:
-            content: 结果内容
-            **metadata: 元数据
-
-        Returns:
-            StreamChunk对象
-        """
         return cls(
             chunk_type="result",
             content=content,
@@ -155,16 +83,6 @@ class StreamChunk:
 
     @classmethod
     def create_error(cls, error_message: str, **metadata) -> "StreamChunk":
-        """
-        创建错误数据块
-
-        Args:
-            error_message: 错误信息
-            **metadata: 元数据
-
-        Returns:
-            StreamChunk对象
-        """
         return cls(
             chunk_type="error",
             content=error_message,
@@ -173,15 +91,6 @@ class StreamChunk:
 
     @classmethod
     def create_metadata(cls, metadata: Dict[str, Any]) -> "StreamChunk":
-        """
-        创建元数据块
-
-        Args:
-            metadata: 元数据
-
-        Returns:
-            StreamChunk对象
-        """
         return cls(
             chunk_type="metadata",
             content="",
@@ -196,12 +105,6 @@ class StreamChunk:
 
 @dataclass
 class StreamProgress:
-    """
-    流式输出进度信息
-
-    用于跟踪流式输出的进度
-    """
-
     total_chunks: int = 0
     completed_chunks: int = 0
     current_agent: Optional[str] = None
@@ -210,12 +113,6 @@ class StreamProgress:
     estimated_time_remaining_ms: Optional[int] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的进度信息
-        """
         return {
             "total_chunks": self.total_chunks,
             "completed_chunks": self.completed_chunks,
@@ -226,34 +123,16 @@ class StreamProgress:
         }
 
     def update_progress(self, completed_chunks: int):
-        """
-        更新进度
-
-        Args:
-            completed_chunks: 已完成的数据块数量
-        """
         self.completed_chunks = completed_chunks
         if self.total_chunks > 0:
             self.progress_percentage = (self.completed_chunks / self.total_chunks) * 100
 
     def to_stream_chunk(self) -> StreamChunk:
-        """
-        转换为StreamChunk对象
-
-        Returns:
-            StreamChunk对象
-        """
         return StreamChunk.create_metadata(self.to_dict())
 
 
 @dataclass
 class StreamSession:
-    """
-    流式输出会话
-
-    用于管理一次完整的流式输出过程
-    """
-
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     conversation_id: str = ""
     message_id: Optional[str] = None
@@ -263,12 +142,6 @@ class StreamSession:
     is_active: bool = True
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的会话信息
-        """
         return {
             "session_id": self.session_id,
             "conversation_id": self.conversation_id,
@@ -280,19 +153,10 @@ class StreamSession:
         }
 
     def end_session(self):
-        """
-        结束会话
-        """
         self.ended_at = datetime.now(timezone.utc)
         self.is_active = False
 
     def get_duration_ms(self) -> int:
-        """
-        获取会话持续时间（毫秒）
-
-        Returns:
-            持续时间（毫秒）
-        """
         if self.ended_at:
             duration = self.ended_at - self.started_at
         else:

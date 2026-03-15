@@ -1,4 +1,3 @@
-"""Embedding gateway adapter."""
 
 from backend.utils.embedding_client import get_embedding_client
 

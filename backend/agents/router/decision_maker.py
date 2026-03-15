@@ -1,37 +1,19 @@
-"""
-决策制定器
-辅助路由Agent进行决策分析
-版本: v2.0 - 增强版，支持工具感知和LLM决策协作
-"""
 
 from typing import Dict, Any, List, Optional
 from backend.utils.logger import get_logger
 from backend.tools.tool_registry import get_tool_registry
+from backend.tools.tool_initializer import ensure_tools_initialized
 
 
 class DecisionMaker:
-    """
-    决策制定器（增强版）
-
-    功能：
-    1. 分析用户问题特征
-    2. 提供决策建议
-    3. 计算决策置信度
-    4. 处理边界情况
-    5. 工具感知和匹配（新增）
-    6. LLM决策协作（新增）
-    7. 工具推荐（新增）
-    """
-
     def __init__(self):
-        """初始化决策制定器"""
         self.logger = get_logger(self.__class__.__name__)
 
         # 获取工具注册表（新增：工具感知能力）
         try:
             self.tool_registry = get_tool_registry()
             if self.tool_registry.get_tool_count() == 0:
-                from backend.tools import tool_initializer  # noqa: F401
+                ensure_tools_initialized(strict=False)
                 self.logger.info("工具注册表为空，已触发自动初始化")
             self._build_tool_category_map()
             self.logger.info(f"决策制定器初始化完成，可用工具数量: {self.tool_registry.get_tool_count()}")
@@ -88,7 +70,6 @@ class DecisionMaker:
         ]
 
     def _build_tool_category_map(self):
-        """构建工具类别映射"""
         self.tool_category_map = {}
         if not self.tool_registry:
             return
@@ -113,17 +94,6 @@ class DecisionMaker:
         conversation_history: Optional[List] = None,
         llm_decision: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        分析用户问题特征（增强版：支持LLM决策协作）
-
-        Args:
-            question: 用户问题
-            conversation_history: 对话历史
-            llm_decision: LLM的路由决策（可选，用于协作决策）
-
-        Returns:
-            分析结果，包含问题特征和建议的行动
-        """
         if not question:
             return {
                 "action": "direct_answer",
@@ -178,15 +148,6 @@ class DecisionMaker:
             }
 
     def _extract_features(self, question: str) -> Dict[str, Any]:
-        """
-        提取问题的基本特征（增强版）
-
-        Args:
-            question: 用户问题
-
-        Returns:
-            特征字典
-        """
         features = {
             "original_question": question,
             "normalized_question": question.lower(),
@@ -205,15 +166,6 @@ class DecisionMaker:
         return features
 
     def _calculate_enhanced_keyword_scores(self, question: str) -> Dict[str, float]:
-        """
-        计算增强的关键词匹配分数（新版：支持分组和权重）
-
-        Args:
-            question: 用户问题
-
-        Returns:
-            各行动类型的分数
-        """
         scores = {
             "direct_answer": 0.0,
             "retrieval": 0.0,
@@ -244,15 +196,6 @@ class DecisionMaker:
         return scores
 
     def _get_keyword_group_weight(self, group_name: str) -> float:
-        """
-        获取关键词组的权重
-
-        Args:
-            group_name: 关键词组名称
-
-        Returns:
-            权重值
-        """
         weights = {
             # direct_answer相关
             "greetings": 1.0,
@@ -281,15 +224,6 @@ class DecisionMaker:
         return weights.get(group_name, 0.5)
 
     def _match_tools(self, question: str) -> Dict[str, Any]:
-        """
-        匹配可用的工具（新增功能）
-
-        Args:
-            question: 用户问题
-
-        Returns:
-            工具匹配结果
-        """
         if not self.tool_registry:
             return {
                 "matched_tools": [],
@@ -340,16 +274,6 @@ class DecisionMaker:
         }
 
     def _get_tool_keywords(self, tool_name: str, definition) -> List[str]:
-        """
-        获取工具的关键词
-
-        Args:
-            tool_name: 工具名称
-            definition: 工具定义
-
-        Returns:
-            关键词列表
-        """
         keywords = []
 
         # 从工具名称提取关键词
@@ -383,7 +307,6 @@ class DecisionMaker:
         return keywords
 
     def _has_explicit_retrieval_signal(self, question: str) -> bool:
-        """判断问题是否明确要求查询知识库/文档。"""
         question_lower = question.lower()
 
         if any(keyword in question_lower for keyword in self.explicit_retrieval_keywords):
@@ -392,20 +315,10 @@ class DecisionMaker:
         return any(phrase in question_lower for phrase in self.explicit_retrieval_phrases)
 
     def _has_explicit_external_tool_signal(self, question: str) -> bool:
-        """判断问题是否明确要求外部工具。"""
         question_lower = question.lower()
         return any(keyword in question_lower for keyword in self.explicit_external_tool_keywords)
 
     def _analyze_context(self, conversation_history: Optional[List]) -> Dict[str, Any]:
-        """
-        分析对话上下文（增强版）
-
-        Args:
-            conversation_history: 对话历史
-
-        Returns:
-            上下文信息
-        """
         if not conversation_history:
             return {
                 "has_history": False,
@@ -440,19 +353,6 @@ class DecisionMaker:
         context_info: Dict[str, Any],
         llm_decision: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        综合各种信息做出增强决策（新版：支持LLM协作）
-
-        Args:
-            features: 问题特征
-            keyword_scores: 关键词分数
-            tool_matches: 工具匹配结果
-            context_info: 上下文信息
-            llm_decision: LLM的决策（可选）
-
-        Returns:
-            决策结果
-        """
         # 初始化各行动的得分
         action_scores = {
             "direct_answer": 0.0,
@@ -611,17 +511,6 @@ class DecisionMaker:
         keyword_scores: Dict[str, float],
         context_info: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        综合各种信息做出决策（保留原方法以保持兼容性）
-
-        Args:
-            features: 问题特征
-            keyword_scores: 关键词分数
-            context_info: 上下文信息
-
-        Returns:
-            决策结果
-        """
         # 调用增强版决策方法
         return self._make_enhanced_decision(
             features,
@@ -638,18 +527,6 @@ class DecisionMaker:
         keyword_scores: Dict[str, float],
         tool_matches: Dict[str, Any]
     ) -> str:
-        """
-        生成增强的决策理由
-
-        Args:
-            action: 选择的行动
-            features: 问题特征
-            keyword_scores: 关键词分数
-            tool_matches: 工具匹配结果
-
-        Returns:
-            决策理由
-        """
         reasons = []
 
         if action == "direct_answer":
@@ -688,17 +565,6 @@ class DecisionMaker:
         features: Dict[str, Any],
         keyword_scores: Dict[str, float]
     ) -> str:
-        """
-        生成决策理由（保留原方法以保持兼容性）
-
-        Args:
-            action: 选择的行动
-            features: 问题特征
-            keyword_scores: 关键词分数
-
-        Returns:
-            决策理由
-        """
         return self._generate_enhanced_reason(
             action,
             features,
@@ -707,15 +573,6 @@ class DecisionMaker:
         )
 
     def validate_decision(self, decision: Dict[str, Any]) -> bool:
-        """
-        验证决策的有效性
-
-        Args:
-            decision: 决策结果
-
-        Returns:
-            是否有效
-        """
         required_fields = ["action", "confidence", "reason"]
         if not all(field in decision for field in required_fields):
             self.logger.warning(f"决策缺少必需字段: {required_fields}")
@@ -737,28 +594,12 @@ class DecisionMaker:
         decision: Dict[str, Any],
         feedback: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        根据反馈调整决策（用于未来的学习优化）
-
-        Args:
-            decision: 原始决策
-            feedback: 反馈信息
-
-        Returns:
-            调整后的决策
-        """
         # TODO: 实现基于反馈的决策调整
         # 这可以用于未来的强化学习或在线学习
         self.logger.info("基于反馈的决策调整功能尚未实现")
         return decision
 
     def get_available_tools_summary(self) -> Dict[str, Any]:
-        """
-        获取可用工具的摘要信息（新增功能）
-
-        Returns:
-            工具摘要
-        """
         if not self.tool_registry:
             return {
                 "total_count": 0,

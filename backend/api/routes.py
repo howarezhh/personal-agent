@@ -1,7 +1,3 @@
-"""
-路由聚合模块
-统一管理和注册所有API路由
-"""
 
 from fastapi import FastAPI
 from backend.api import auth, chat, conversations, knowledge, tools, content_generation
@@ -12,12 +8,6 @@ logger = get_logger(__name__)
 
 
 def register_all_routes(app: FastAPI) -> None:
-    """
-    注册所有API路由到FastAPI应用
-
-    Args:
-        app: FastAPI应用实例
-    """
     # 认证路由
     app.include_router(auth.router)
     logger.info("认证路由已注册: /api/v1/auth")
@@ -48,15 +38,6 @@ def register_all_routes(app: FastAPI) -> None:
 
 
 def get_route_summary(app: FastAPI) -> dict:
-    """
-    获取所有路由的摘要信息
-
-    Args:
-        app: FastAPI应用实例
-
-    Returns:
-        路由摘要字典
-    """
     routes_summary = {
         "total_routes": 0,
         "routes_by_tag": {},
@@ -96,12 +77,6 @@ def get_route_summary(app: FastAPI) -> dict:
 
 
 def print_route_summary(app: FastAPI) -> None:
-    """
-    打印路由摘要信息到日志
-
-    Args:
-        app: FastAPI应用实例
-    """
     summary = get_route_summary(app)
 
     logger.info("=" * 60)

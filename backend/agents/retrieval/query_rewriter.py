@@ -1,4 +1,3 @@
-"""Query rewriting utilities for retrieval."""
 
 from __future__ import annotations
 
@@ -13,8 +12,6 @@ from backend.utils.logger import get_logger
 
 
 class QueryRewriter:
-    """Use the LLM to expand retrieval queries safely."""
-
     def __init__(self):
         self.logger = get_logger("query_rewriter")
         self.config_manager = get_config_manager()

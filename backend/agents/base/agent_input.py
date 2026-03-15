@@ -1,7 +1,3 @@
-"""
-智能体输入数据结构
-定义智能体执行时的输入格式
-"""
 
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List
@@ -9,12 +5,6 @@ from typing import Optional, Dict, Any, List
 
 @dataclass
 class AgentInput:
-    """
-    智能体输入数据结构
-
-    所有智能体的统一输入格式
-    """
-
     user_id: str
     conversation_id: str
     content: str
@@ -23,12 +13,6 @@ class AgentInput:
     metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的输入数据
-        """
         return {
             "user_id": self.user_id,
             "conversation_id": self.conversation_id,
@@ -40,15 +24,6 @@ class AgentInput:
 
     @classmethod
     def from_dict(cls, data: dict) -> "AgentInput":
-        """
-        从字典创建AgentInput对象
-
-        Args:
-            data: 字典数据
-
-        Returns:
-            AgentInput对象
-        """
         return cls(
             user_id=data.get("user_id", ""),
             conversation_id=data.get("conversation_id", ""),
@@ -59,42 +34,16 @@ class AgentInput:
         )
 
     def set_metadata(self, key: str, value: Any):
-        """
-        设置元数据
-
-        Args:
-            key: 元数据键
-            value: 元数据值
-        """
         if self.metadata is None:
             self.metadata = {}
         self.metadata[key] = value
 
     def get_metadata(self, key: str, default: Any = None) -> Any:
-        """
-        获取元数据
-
-        Args:
-            key: 元数据键
-            default: 默认值
-
-        Returns:
-            元数据值
-        """
         if self.metadata is None:
             return default
         return self.metadata.get(key, default)
 
     def get_history_messages(self, max_messages: int = 100) -> List[Dict[str, str]]:
-        """
-        获取对话历史消息（限制数量）
-
-        Args:
-            max_messages: 最大消息数量
-
-        Returns:
-            消息列表
-        """
         if not self.conversation_history:
             return []
 
@@ -104,12 +53,6 @@ class AgentInput:
         return self.conversation_history
 
     def validate(self) -> tuple[bool, Optional[str]]:
-        """
-        验证输入数据
-
-        Returns:
-            (是否有效, 错误信息)
-        """
         if not self.user_id:
             return False, "用户ID不能为空"
         if not self.conversation_id:
@@ -125,21 +68,9 @@ class AgentInput:
 
 @dataclass
 class RouterAgentInput(AgentInput):
-    """
-    路由智能体专用输入数据结构
-
-    继承自AgentInput，可添加路由特定的字段
-    """
-
     available_agents: Optional[List[str]] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的输入数据
-        """
         data = super().to_dict()
         data["available_agents"] = self.available_agents
         return data
@@ -147,23 +78,11 @@ class RouterAgentInput(AgentInput):
 
 @dataclass
 class RetrievalAgentInput(AgentInput):
-    """
-    检索智能体专用输入数据结构
-
-    继承自AgentInput，可添加检索特定的字段
-    """
-
     top_k: int = 5
     similarity_threshold: float = 0.7
     rerank: bool = True
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的输入数据
-        """
         data = super().to_dict()
         data["top_k"] = self.top_k
         data["similarity_threshold"] = self.similarity_threshold
@@ -173,12 +92,6 @@ class RetrievalAgentInput(AgentInput):
 
 @dataclass
 class GenerationAgentInput(AgentInput):
-    """
-    生成智能体专用输入数据结构
-
-    继承自AgentInput，可添加生成特定的字段
-    """
-
     context: Optional[str] = None
     retrieval_results: Optional[List[Dict[str, Any]]] = None
     tool_results: Optional[List[Dict[str, Any]]] = None
@@ -186,12 +99,6 @@ class GenerationAgentInput(AgentInput):
     max_tokens: Optional[int] = None
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的输入数据
-        """
         data = super().to_dict()
         data["context"] = self.context
         data["retrieval_results"] = self.retrieval_results
@@ -203,22 +110,10 @@ class GenerationAgentInput(AgentInput):
 
 @dataclass
 class ToolAgentInput(AgentInput):
-    """
-    工具智能体专用输入数据结构
-
-    继承自AgentInput，可添加工具特定的字段
-    """
-
     available_tools: Optional[List[str]] = None
     tool_timeout: int = 30
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的输入数据
-        """
         data = super().to_dict()
         data["available_tools"] = self.available_tools
         data["tool_timeout"] = self.tool_timeout
@@ -227,24 +122,12 @@ class ToolAgentInput(AgentInput):
 
 @dataclass
 class FileProcessorAgentInput(AgentInput):
-    """
-    文件处理智能体专用输入数据结构
-
-    继承自AgentInput，可添加文件处理特定的字段
-    """
-
     file_path: Optional[str] = None
     file_type: Optional[str] = None
     extract_images: bool = False
     extract_tables: bool = True
 
     def to_dict(self) -> dict:
-        """
-        转换为字典格式
-
-        Returns:
-            字典格式的输入数据
-        """
         data = super().to_dict()
         data["file_path"] = self.file_path
         data["file_type"] = self.file_type

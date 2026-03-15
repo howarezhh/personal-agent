@@ -1,7 +1,3 @@
-"""
-IP地址查询MCP服务
-使用ip-api.com提供IP地址信息查询功能
-"""
 
 from typing import Dict, Any, Optional
 from backend.tools.mcp.base_mcp_tool import MCPTool
@@ -10,30 +6,18 @@ import logging
 
 
 class IPLookupMCP(MCPTool):
-    """
-    IP地址查询MCP服务
-
-    功能：
-    - 查询IP地址的地理位置
-    - 查询IP所属的ISP信息
-    - 支持IPv4和IPv6
-
-    使用ip-api.com，完全免费，无需API密钥
-    """
-
     def __init__(self):
-        """初始化IP地址查询MCP"""
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def _create_definition(self) -> ToolDefinition:
-        """创建工具定义"""
         return ToolDefinition(
             name="ip_lookup_mcp",
             description="查询IP地址的地理位置和ISP信息",
             category="mcp",
             version="1.0.0",
             timeout=10,
+            strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="ip_address",
@@ -53,11 +37,9 @@ class IPLookupMCP(MCPTool):
         )
 
     def get_api_endpoint(self) -> str:
-        """获取API端点"""
         return "http://ip-api.com/json"
 
     def get_api_key(self) -> Optional[str]:
-        """获取API密钥（ip-api.com不需要密钥）"""
         return None
 
     async def execute(
@@ -66,17 +48,6 @@ class IPLookupMCP(MCPTool):
         language: str = "zh-CN",
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        执行IP地址查询
-
-        Args:
-            ip_address: IP地址（不指定则查询当前IP）
-            language: 返回语言
-            **kwargs: 其他参数
-
-        Returns:
-            IP地址信息
-        """
         try:
             # 构建API URL
             if ip_address:

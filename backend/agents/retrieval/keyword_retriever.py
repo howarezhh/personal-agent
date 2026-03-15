@@ -1,4 +1,3 @@
-"""Keyword inverted-index retrieval with BM25 scoring."""
 
 from __future__ import annotations
 

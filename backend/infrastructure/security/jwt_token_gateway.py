@@ -1,4 +1,3 @@
-"""JWT token gateway adapter."""
 
 from backend.utils.jwt_utils import get_jwt_manager
 

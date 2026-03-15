@@ -1,7 +1,3 @@
-"""
-工具管理API
-提供工具列表、详情、执行等接口
-"""
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,7 +22,6 @@ router = APIRouter(
 # ==================== 请求模型 ====================
 
 class ToolExecuteRequest(BaseModel):
-    """工具执行请求"""
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -45,7 +40,6 @@ class ToolExecuteRequest(BaseModel):
 # ==================== 响应模型 ====================
 
 class ToolInfo(BaseModel):
-    """工具信息"""
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -73,7 +67,6 @@ class ToolInfo(BaseModel):
 
 
 class ToolListResponse(BaseModel):
-    """工具列表响应"""
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -90,7 +83,6 @@ class ToolListResponse(BaseModel):
 
 
 class ToolDetailResponse(BaseModel):
-    """工具详情响应"""
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -111,7 +103,6 @@ class ToolDetailResponse(BaseModel):
 
 
 class ToolExecuteResponse(BaseModel):
-    """工具执行响应"""
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -119,7 +110,12 @@ class ToolExecuteResponse(BaseModel):
                 "data": {
                     "translated_text": "你好，世界！"
                 },
-                "error": None
+                "error": None,
+                "error_code": None,
+                "error_type": None,
+                "metadata": {
+                    "tool_name": "translation"
+                }
             }
         }
     )
@@ -127,6 +123,9 @@ class ToolExecuteResponse(BaseModel):
     success: bool = Field(..., description="是否成功")
     data: Optional[Dict[str, Any]] = Field(None, description="执行结果")
     error: Optional[str] = Field(None, description="错误信息")
+    error_code: Optional[str] = Field(None, description="稳定错误码")
+    error_type: Optional[str] = Field(None, description="错误分类")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="附加元数据")
 
 
 # ==================== API端点 ====================
@@ -139,15 +138,6 @@ class ToolExecuteResponse(BaseModel):
 async def get_tool_categories(
     current_user: User = Depends(get_current_user)
 ):
-    """
-    获取工具分类列表
-
-    Args:
-        current_user: 当前用户
-
-    Returns:
-        分类列表
-    """
     try:
         logger.info(f"用户 {current_user.user_id} 请求工具分类列表")
 
@@ -191,16 +181,6 @@ async def get_tools_list(
     category: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    获取所有工具列表
-
-    Args:
-        category: 工具分类（可选）
-        current_user: 当前用户
-
-    Returns:
-        工具列表
-    """
     try:
         logger.info(f"用户 {current_user.user_id} 请求工具列表，分类: {category}")
 
@@ -260,16 +240,6 @@ async def get_tool_detail(
     tool_name: str,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    获取工具详情
-
-    Args:
-        tool_name: 工具名称
-        current_user: 当前用户
-
-    Returns:
-        工具详情
-    """
     try:
         logger.info(f"用户 {current_user.user_id} 请求工具详情: {tool_name}")
 
@@ -327,17 +297,6 @@ async def execute_tool(
     request: ToolExecuteRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """
-    执行工具
-
-    Args:
-        tool_name: 工具名称
-        request: 执行请求
-        current_user: 当前用户
-
-    Returns:
-        执行结果
-    """
     start_time = time.time()
     db_manager = get_database_manager()
     execution_id = None
@@ -416,7 +375,7 @@ async def execute_tool(
                     """,
                     (
                         'success' if result.get('success') else 'failed',
-                        json.dumps(result.get('data'), ensure_ascii=False) if result.get('success') else None,
+                        json.dumps(result, ensure_ascii=False),
                         execution_time,
                         execution_id
                     )
@@ -429,7 +388,10 @@ async def execute_tool(
         return ToolExecuteResponse(
             success=result.get("success", False),
             data=result.get("data"),
-            error=result.get("error")
+            error=result.get("error"),
+            error_code=result.get("error_code"),
+            error_type=result.get("error_type"),
+            metadata=result.get("metadata"),
         )
 
     except HTTPException:
@@ -477,5 +439,8 @@ async def execute_tool(
         return ToolExecuteResponse(
             success=False,
             data=None,
-            error=f"执行工具失败: {str(e)}"
+            error=f"执行工具失败: {str(e)}",
+            error_code="TOOL_EXECUTION_ERROR",
+            error_type="execution_error",
+            metadata={"tool_name": tool_name},
         )
