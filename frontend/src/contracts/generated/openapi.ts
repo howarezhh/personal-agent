@@ -363,23 +363,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/knowledge/rebuild-vectors/full": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Rebuild Vectors Full */
-        post: operations["rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/knowledge/rebuild-vectors/full/tasks": {
         parameters: {
             query?: never;
@@ -408,6 +391,23 @@ export interface paths {
         get: operations["get_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks__task_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/rebuild-vectors/full": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebuild Vectors Full */
+        post: operations["rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -830,7 +830,9 @@ export interface components {
              * Data
              * @description 生成结果
              */
-            data?: Record<string, never> | null;
+            data?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Error
              * @description 错误信息
@@ -1134,6 +1136,79 @@ export interface components {
              */
             error?: string | null;
         };
+        /** FullVectorRebuildTaskResponse */
+        FullVectorRebuildTaskResponse: {
+            /** Total Documents */
+            total_documents: number;
+            /** Processed Documents */
+            processed_documents: number;
+            /** Succeeded Documents */
+            succeeded_documents: number;
+            /** Failed Documents */
+            failed_documents: number;
+            /** Total Missing Chunks Before */
+            total_missing_chunks_before: number;
+            /** Total Vectorized Chunks Now */
+            total_vectorized_chunks_now: number;
+            /** Total Missing Chunks After */
+            total_missing_chunks_after: number;
+            /** Details */
+            details: components["schemas"]["VectorRebuildItem"][];
+            /**
+             * Reset Collection
+             * @description ???????????
+             * @default false
+             */
+            reset_collection: boolean;
+            /**
+             * Target Dimension
+             * @description ??????????
+             * @default 512
+             */
+            target_dimension: number;
+            /**
+             * Error
+             * @description ??????????
+             */
+            error?: string | null;
+            /** Task Id */
+            task_id: string;
+            /**
+             * Status
+             * @description ?????pending/running/succeeded/failed
+             * @default pending
+             */
+            status: string;
+            /**
+             * Scope
+             * @description ????
+             * @default all_knowledge_bases
+             */
+            scope: string;
+            /**
+             * Knowledge Base Id
+             * @description ???????? ID
+             */
+            knowledge_base_id?: string | null;
+            /**
+             * Current Document Id
+             * @description ???????? ID
+             */
+            current_document_id?: string | null;
+            /**
+             * Current File Name
+             * @description ?????????
+             */
+            current_file_name?: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1189,7 +1264,9 @@ export interface components {
             /** Source */
             source: string;
             /** Metadata */
-            metadata: Record<string, never>;
+            metadata: {
+                [key: string]: unknown;
+            };
         };
         /** KnowledgeSearchResponse */
         KnowledgeSearchResponse: {
@@ -2121,7 +2198,9 @@ export interface components {
              * Parameters
              * @description 工具参数
              */
-            parameters: Record<string, never>;
+            parameters: {
+                [key: string]: unknown;
+            };
         };
         /**
          * ToolExecuteResponse
@@ -2143,7 +2222,9 @@ export interface components {
              * Data
              * @description 执行结果
              */
-            data?: Record<string, never> | null;
+            data?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Error
              * @description 错误信息
@@ -2188,7 +2269,9 @@ export interface components {
              * Parameters
              * @description 参数列表
              */
-            parameters: Record<string, never>[];
+            parameters: {
+                [key: string]: unknown;
+            }[];
             /**
              * Timeout
              * @description 超时时间（秒）
@@ -2305,79 +2388,6 @@ export interface components {
             /** Details */
             details: components["schemas"]["VectorRebuildItem"][];
         };
-        /** FullVectorRebuildTaskResponse */
-        FullVectorRebuildTaskResponse: {
-            /** Total Documents */
-            total_documents: number;
-            /** Processed Documents */
-            processed_documents: number;
-            /** Succeeded Documents */
-            succeeded_documents: number;
-            /** Failed Documents */
-            failed_documents: number;
-            /** Total Missing Chunks Before */
-            total_missing_chunks_before: number;
-            /** Total Vectorized Chunks Now */
-            total_vectorized_chunks_now: number;
-            /** Total Missing Chunks After */
-            total_missing_chunks_after: number;
-            /** Details */
-            details: components["schemas"]["VectorRebuildItem"][];
-            /**
-             * Reset Collection
-             * @description ???????????
-             * @default false
-             */
-            reset_collection: boolean;
-            /**
-             * Target Dimension
-             * @description ??????????
-             * @default 512
-             */
-            target_dimension: number;
-            /**
-             * Error
-             * @description ??????????
-             */
-            error?: string | null;
-            /** Task Id */
-            task_id: string;
-            /**
-             * Status
-             * @description ?????pending/running/succeeded/failed
-             * @default pending
-             */
-            status: string;
-            /**
-             * Scope
-             * @description ????
-             * @default all_knowledge_bases
-             */
-            scope: string;
-            /**
-             * Knowledge Base Id
-             * @description ???????? ID
-             */
-            knowledge_base_id?: string | null;
-            /**
-             * Current Document Id
-             * @description ???????? ID
-             */
-            current_document_id?: string | null;
-            /**
-             * Current File Name
-             * @description ?????????
-             */
-            current_file_name?: string | null;
-            /** Created At */
-            created_at: string;
-            /** Updated At */
-            updated_at?: string | null;
-            /** Started At */
-            started_at?: string | null;
-            /** Finished At */
-            finished_at?: string | null;
-        };
         /** ErrorDetail */
         ErrorDetail: {
             /**
@@ -2458,7 +2468,9 @@ export interface components {
              */
             content: unknown;
             /** Metadata */
-            metadata?: Record<string, never>;
+            metadata?: {
+                [key: string]: unknown;
+            };
             /** Timestamp */
             timestamp?: string;
             /**
@@ -4395,84 +4407,6 @@ export interface operations {
             };
         };
     };
-    rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VectorRebuildRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SuccessResponse_FullVectorRebuildResponse_"];
-                };
-            };
-            /** @description Unified error response */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unified error response */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unified error response */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unified error response */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-            /** @description Unified error response */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     start_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks_post: {
         parameters: {
             query?: never;
@@ -4486,7 +4420,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Accepted */
+            /** @description Successful Response */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -4569,6 +4503,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuccessResponse_FullVectorRebuildTaskResponse_"];
+                };
+            };
+            /** @description Unified error response */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unified error response */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unified error response */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VectorRebuildRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse_FullVectorRebuildResponse_"];
                 };
             };
             /** @description Unified error response */
@@ -5013,7 +5025,9 @@ export interface operations {
     };
     generate_novel_outline_api_v1_content_novel_outline_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5024,13 +5038,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5091,7 +5106,9 @@ export interface operations {
     };
     generate_novel_chapter_api_v1_content_novel_chapter_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5102,13 +5119,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5169,7 +5187,9 @@ export interface operations {
     };
     generate_novel_character_api_v1_content_novel_character_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5180,13 +5200,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5247,7 +5268,9 @@ export interface operations {
     };
     generate_novel_worldview_api_v1_content_novel_worldview_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5258,13 +5281,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5325,7 +5349,9 @@ export interface operations {
     };
     continue_novel_api_v1_content_novel_continue_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5336,13 +5362,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5403,7 +5430,9 @@ export interface operations {
     };
     generate_script_outline_api_v1_content_script_outline_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5414,13 +5443,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5481,7 +5511,9 @@ export interface operations {
     };
     generate_script_scene_api_v1_content_script_scene_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5492,13 +5524,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5559,7 +5592,9 @@ export interface operations {
     };
     generate_script_dialogue_api_v1_content_script_dialogue_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5570,13 +5605,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5637,7 +5673,9 @@ export interface operations {
     };
     generate_script_storyboard_api_v1_content_script_storyboard_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5648,13 +5686,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5715,7 +5754,9 @@ export interface operations {
     };
     generate_complete_script_api_v1_content_script_complete_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5726,13 +5767,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */
@@ -5793,7 +5835,9 @@ export interface operations {
     };
     optimize_content_api_v1_content_optimize_post: {
         parameters: {
-            query?: never;
+            query?: {
+                stream?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5804,13 +5848,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Successful response or SSE stream */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ContentGenerationResponse"];
+                    "text/event-stream": string;
                 };
             };
             /** @description Unified error response */

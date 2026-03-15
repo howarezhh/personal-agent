@@ -1,34 +1,89 @@
-/* 小说生成器样式 */
-
-.novel-generator {
+﻿.novel-generator {
   width: 100%;
 }
 
-.form-card {
-  margin-top: 16px;
-  margin-bottom: 16px;
+.novel-generator__layout > .ant-col,
+.novel-generator__tabs-card,
+.novel-generator__form-card {
+  min-width: 0;
 }
 
-.result-card {
-  margin-top: 16px;
+.novel-generator__tabs-card,
+.novel-generator__form-card {
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
-.result-content {
-  max-height: 600px;
-  overflow: auto;
-  background: #f5f5f5;
+.novel-generator__layout {
+  margin-top: 20px;
+}
+
+.novel-generator__workspace {
   padding: 16px;
-  border-radius: 4px;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
 }
 
-/* 响应式设计 */
+.novel-generator__workspace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.novel-generator__workspace-title {
+  margin-bottom: 6px !important;
+}
+
+.novel-generator__workspace-note,
+.novel-generator__guide {
+  margin-bottom: 0;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.novel-generator__workspace-note {
+  padding: 0;
+  background: transparent;
+}
+
+.novel-generator__status-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.novel-generator__status-tags .ant-tag {
+  margin-inline-end: 0;
+}
+
+.novel-generator__form .ant-form-item:last-child {
+  margin-bottom: 0;
+}
+
+.novel-generator__actions {
+  margin-bottom: 0;
+}
+
+@media (max-width: 1200px) {
+  .novel-generator__layout {
+    margin-top: 16px;
+  }
+}
+
 @media (max-width: 768px) {
-  .result-content {
-    font-size: 12px;
-    padding: 12px;
+  .novel-generator__workspace-head {
+    flex-direction: column;
+  }
+
+  .novel-generator__actions .ant-space {
+    width: 100%;
+  }
+
+  .novel-generator__actions .ant-space-item,
+  .novel-generator__actions .ant-btn {
+    width: 100%;
   }
 }

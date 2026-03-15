@@ -11,6 +11,7 @@ from backend.infrastructure.persistence import (
 )
 from backend.models.conversation import ConversationCreate
 from backend.models.message import MessageCreate
+from backend.utils.citation_utils import normalize_message_content_with_citations, replace_citation_placeholders
 
 
 class ChatApplicationService:
@@ -49,6 +50,9 @@ class ChatApplicationService:
 
     def get_history(self, *, conversation_id: str, limit: int):
         history = self.message_repo.get_conversation_history(conversation_id=conversation_id, limit=limit)
+        for message in history:
+            if message.message_type == "assistant":
+                message.content = normalize_message_content_with_citations(message.content, message.metadata)
         return history, [
             {"role": "user" if msg.message_type == "user" else "assistant", "content": msg.content}
             for msg in history
@@ -106,6 +110,7 @@ class ChatApplicationService:
     ):
         if not content:
             return None
+        normalized_content = replace_citation_placeholders(content, citations)
         message_metadata = {"citations": citations} if citations else {}
         if metadata:
             message_metadata.update(metadata)
@@ -114,7 +119,7 @@ class ChatApplicationService:
             MessageCreate(
                 conversation_id=conversation_id,
                 message_type="assistant",
-                content=content,
+                content=normalized_content,
                 sequence_number=sequence_number,
                 parent_message_id=parent_message_id,
                 metadata=message_metadata or None,

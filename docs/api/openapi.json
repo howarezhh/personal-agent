@@ -3117,23 +3117,51 @@
         "summary": "生成小说大纲",
         "description": "根据标题和主题生成小说大纲",
         "operationId": "generate_novel_outline_api_v1_content_novel_outline_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NovelOutlineRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3199,11 +3227,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/novel/chapter": {
@@ -3214,23 +3241,51 @@
         "summary": "生成小说章节",
         "description": "生成指定章节的小说内容",
         "operationId": "generate_novel_chapter_api_v1_content_novel_chapter_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NovelChapterRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3296,11 +3351,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/novel/character": {
@@ -3311,23 +3365,51 @@
         "summary": "生成角色设定",
         "description": "生成小说角色的详细设定",
         "operationId": "generate_novel_character_api_v1_content_novel_character_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NovelCharacterRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3393,11 +3475,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/novel/worldview": {
@@ -3408,23 +3489,51 @@
         "summary": "生成世界观设定",
         "description": "生成小说的世界观设定",
         "operationId": "generate_novel_worldview_api_v1_content_novel_worldview_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NovelWorldviewRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3490,11 +3599,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/novel/continue": {
@@ -3505,23 +3613,51 @@
         "summary": "续写小说",
         "description": "根据前文内容续写小说",
         "operationId": "continue_novel_api_v1_content_novel_continue_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/NovelContinueRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3587,11 +3723,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/script/outline": {
@@ -3602,23 +3737,51 @@
         "summary": "生成脚本大纲",
         "description": "生成脚本的详细大纲",
         "operationId": "generate_script_outline_api_v1_content_script_outline_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ScriptOutlineRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3684,11 +3847,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/script/scene": {
@@ -3699,23 +3861,51 @@
         "summary": "生成场景脚本",
         "description": "生成指定场景的脚本内容",
         "operationId": "generate_script_scene_api_v1_content_script_scene_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ScriptSceneRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3781,11 +3971,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/script/dialogue": {
@@ -3796,23 +3985,51 @@
         "summary": "生成对白",
         "description": "生成脚本对白",
         "operationId": "generate_script_dialogue_api_v1_content_script_dialogue_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ScriptDialogueRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3878,11 +4095,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/script/storyboard": {
@@ -3893,23 +4109,51 @@
         "summary": "生成分镜脚本",
         "description": "生成详细的分镜脚本",
         "operationId": "generate_script_storyboard_api_v1_content_script_storyboard_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ScriptStoryboardRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -3975,11 +4219,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/script/complete": {
@@ -3990,23 +4233,51 @@
         "summary": "生成完整脚本",
         "description": "生成完整的脚本内容",
         "operationId": "generate_complete_script_api_v1_content_script_complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ScriptCompleteRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -4072,11 +4343,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     },
     "/api/v1/content/optimize": {
@@ -4087,23 +4357,51 @@
         "summary": "优化内容",
         "description": "对内容进行润色、改写、扩写、缩写等优化",
         "operationId": "optimize_content_api_v1_content_optimize_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Stream"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ContentOptimizeRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successful response or SSE stream",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentGenerationResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "stream": {
+                    "summary": "SSE stream",
+                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
+                  }
                 }
               }
             }
@@ -4169,11 +4467,10 @@
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true
       }
     }
   },
@@ -4369,6 +4666,7 @@
           "data": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -5211,6 +5509,7 @@
             "title": "Source"
           },
           "metadata": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
           }
@@ -6759,6 +7058,7 @@
       "ToolExecuteRequest": {
         "properties": {
           "parameters": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Parameters",
             "description": "工具参数"
@@ -6788,6 +7088,7 @@
           "data": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -6842,6 +7143,7 @@
           },
           "parameters": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "type": "array",
@@ -7294,6 +7596,7 @@
             "title": "Content"
           },
           "metadata": {
+            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },

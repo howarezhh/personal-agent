@@ -267,10 +267,48 @@ def test_replace_citation_placeholders_uses_source_names():
         {"source_name": "江西财经大学管理办法.docx"},
     ]
 
-    normalized = chat._replace_citation_placeholders(answer, citations)
+    normalized = chat.replace_citation_placeholders(answer, citations)
 
     assert "[来源1]" not in normalized
     assert "【来源2】" not in normalized
     assert "[1]" not in normalized
     assert "【教育部文件.pdf】" in normalized
     assert "【江西财经大学管理办法.docx】" in normalized
+
+
+def test_normalize_message_content_with_citations_supports_legacy_messages():
+    from backend.utils.citation_utils import normalize_message_content_with_citations
+
+    content = "根据资料，【来源1】和[来源2]均提到了相关要求。"
+    metadata = {
+        "citations": [
+            {"source_name": "教育部《高等学校预防与处理学术不端行为办法》.pdf"},
+            {"source_name": "5-江西财经大学《普通本科毕业论文（设计）管理办法（2022年修订）》江财教务字〔2022〕16号.pdf"},
+        ]
+    }
+
+    normalized = normalize_message_content_with_citations(content, metadata)
+
+    assert '【来源1】' not in normalized
+    assert '[来源2]' not in normalized
+    assert '【教育部《高等学校预防与处理学术不端行为办法》.pdf】' in normalized
+    assert '【5-江西财经大学《普通本科毕业论文（设计）管理办法（2022年修订）》江财教务字〔2022〕16号.pdf】' in normalized
+
+
+def test_source_extractor_recognizes_full_width_chinese_citation_markers():
+    from backend.agents.generation.source_extractor import SourceExtractor
+
+    extractor = SourceExtractor()
+    content = "相关规定见【来源1】、[来源2] 和 [3]。"
+    retrieval_results = [
+        {"id": "doc-1", "score": 0.9, "content": "A", "metadata": {"source": "文档A.pdf"}},
+        {"id": "doc-2", "score": 0.8, "content": "B", "metadata": {"original_filename": "文档B.pdf"}},
+        {"id": "doc-3", "score": 0.7, "content": "C", "metadata": {"file_name": "文档C.pdf"}},
+    ]
+
+    citations = extractor.extract_citations(content, retrieval_results)
+
+    assert [citation['index'] for citation in citations] == [1, 2, 3]
+    assert citations[0]['source_name'] == '文档A.pdf'
+    assert citations[1]['source_name'] == '文档B.pdf'
+    assert citations[2]['source_name'] == '文档C.pdf'

@@ -3,7 +3,7 @@
 支持AI自动生成小说内容
 """
 
-from typing import Dict, Any, Optional, List
+from typing import AsyncGenerator, Dict, Any, Optional, List
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
 from backend.core.config_manager import get_config_manager
 from backend.core.prompt_manager import get_prompt_manager
@@ -202,6 +202,255 @@ class NovelGeneratorTool(BaseTool):
                 "data": None,
                 "error": f"生成失败: {str(e)}"
             }
+
+    def _get_genre_name(self, genre: Optional[str]) -> str:
+        return self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
+
+    def _get_style_name(self, style: Optional[str]) -> str:
+        return self.WRITING_STYLES.get(style, "默认") if style else "默认"
+
+    def _parse_json_response(self, response: str, raw_key: str) -> Dict[str, Any]:
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                return json.loads(response[json_start:json_end])
+        except Exception:
+            self.logger.debug("Failed to parse structured response, fallback to raw text", exc_info=True)
+
+        return {raw_key: response}
+
+    async def execute_stream(self, action: str, **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        try:
+            self.logger.info(f"执行小说生成流式操作: {action}")
+
+            if action == "outline":
+                async for event in self._stream_outline(
+                    kwargs.get("title"),
+                    kwargs.get("theme"),
+                    kwargs.get("genre"),
+                    kwargs.get("style")
+                ):
+                    yield event
+            elif action == "chapter":
+                async for event in self._stream_chapter(
+                    kwargs.get("chapter_number", 1),
+                    kwargs.get("chapter_title"),
+                    kwargs.get("outline"),
+                    kwargs.get("genre"),
+                    kwargs.get("style"),
+                    kwargs.get("word_count", 2000)
+                ):
+                    yield event
+            elif action == "character":
+                async for event in self._stream_character(
+                    kwargs.get("character_name"),
+                    kwargs.get("genre"),
+                    kwargs.get("theme")
+                ):
+                    yield event
+            elif action == "worldview":
+                async for event in self._stream_worldview(
+                    kwargs.get("title"),
+                    kwargs.get("theme"),
+                    kwargs.get("genre")
+                ):
+                    yield event
+            elif action == "continue":
+                async for event in self._stream_continue(
+                    kwargs.get("previous_content"),
+                    kwargs.get("genre"),
+                    kwargs.get("style"),
+                    kwargs.get("word_count", 1000)
+                ):
+                    yield event
+            else:
+                yield {
+                    "type": "error",
+                    "error": f"不支持的操作类型: {action}",
+                }
+        except Exception as e:
+            self.logger.error(f"小说流式生成失败: {str(e)}", exc_info=True)
+            yield {
+                "type": "error",
+                "error": f"生成失败: {str(e)}",
+            }
+
+    async def _stream_outline(
+        self,
+        title: Optional[str],
+        theme: Optional[str],
+        genre: Optional[str],
+        style: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        genre_name = self._get_genre_name(genre)
+        style_name = self._get_style_name(style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.novel_generator_outline_prompt",
+            title=title or "未命名小说",
+            genre_name=genre_name,
+            style_name=style_name,
+            theme=theme or "请围绕用户主题生成完整故事大纲",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "title": title,
+                "genre": genre_name,
+                "style": style_name,
+                "outline": self._parse_json_response(response, "raw_outline"),
+            },
+        }
+
+    async def _stream_chapter(
+        self,
+        chapter_number: int,
+        chapter_title: Optional[str],
+        outline: Optional[str],
+        genre: Optional[str],
+        style: Optional[str],
+        word_count: int,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        genre_name = self._get_genre_name(genre)
+        style_name = self._get_style_name(style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.novel_generator_chapter_prompt",
+            chapter_number=chapter_number,
+            chapter_title=chapter_title or f"第{chapter_number}章",
+            genre_name=genre_name,
+            style_name=style_name,
+            word_count=word_count,
+            outline_text=outline or "请根据上下文自然展开情节",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=word_count * 2):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "chapter_number": chapter_number,
+                "chapter_title": chapter_title or f"第{chapter_number}章",
+                "content": response,
+                "word_count": len(response),
+                "genre": genre_name,
+                "style": style_name,
+            },
+        }
+
+    async def _stream_character(
+        self,
+        character_name: Optional[str],
+        genre: Optional[str],
+        theme: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        genre_name = self._get_genre_name(genre)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.novel_generator_character_prompt",
+            character_name=character_name or "主角",
+            genre_name=genre_name,
+            theme=theme or "请补充完整的人物设定",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "character": self._parse_json_response(response, "raw_character"),
+                "genre": genre_name,
+            },
+        }
+
+    async def _stream_worldview(
+        self,
+        title: Optional[str],
+        theme: Optional[str],
+        genre: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        genre_name = self._get_genre_name(genre)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.novel_generator_worldview_prompt",
+            title=title or "未命名小说",
+            genre_name=genre_name,
+            theme=theme or "请补充世界规则、势力与背景",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "worldview": self._parse_json_response(response, "raw_worldview"),
+                "genre": genre_name,
+            },
+        }
+
+    async def _stream_continue(
+        self,
+        previous_content: Optional[str],
+        genre: Optional[str],
+        style: Optional[str],
+        word_count: int,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        if not previous_content:
+            yield {"type": "error", "error": "需要提供前文内容"}
+            return
+
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        genre_name = self._get_genre_name(genre)
+        style_name = self._get_style_name(style)
+        context = previous_content[-1000:] if len(previous_content) > 1000 else previous_content
+        prompt = self.prompt_manager.format_prompt(
+            "tool.novel_generator_continue_prompt",
+            genre_name=genre_name,
+            style_name=style_name,
+            word_count=word_count,
+            context=context,
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=word_count * 2):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "continued_content": response,
+                "word_count": len(response),
+                "genre": genre_name,
+                "style": style_name,
+            },
+        }
 
     async def _generate_outline(self, title: Optional[str], theme: Optional[str],
                                genre: Optional[str], style: Optional[str]) -> Dict[str, Any]:

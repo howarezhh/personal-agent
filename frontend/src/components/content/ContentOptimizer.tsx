@@ -1,233 +1,197 @@
-/**
- * 内容优化器组件
- * 提供文本润色、改写、扩写、缩写、风格转换、语法纠错、SEO优化等功能
- */
-
-import React, { useState } from 'react';
-import { Form, Input, Select, Button, Card, message, Spin, InputNumber } from 'antd';
+import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Statistic, Typography, message } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
-import {
-  optimizeContent,
-  OPTIMIZATION_TYPES,
-  CONTENT_STYLES,
-  type ContentOptimizeResult,
-} from '@/services/contentService';
+
+import { toContentOptimizeRequestContract } from '@/adapters/contentAdapter';
+import { ContentResultPanel } from '@/components/content/ContentResultPanel';
+import { API_PATHS } from '@/constants/api';
+import { contentStyleOptions, optimizationActionMeta } from '@/constants/contentOptions';
+import { useContentGenerationStream } from '@/hooks/useContentGenerationStream';
+
 import './ContentOptimizer.css';
 
 const { TextArea } = Input;
-const { Option } = Select;
+const { Paragraph, Text } = Typography;
 
-export const ContentOptimizer: React.FC = () => {
+type OptimizationActionKey =
+  | 'polish'
+  | 'rewrite'
+  | 'expand'
+  | 'summarize'
+  | 'style_transfer'
+  | 'grammar_check'
+  | 'seo_optimize';
+
+const optimizationOptions = Object.entries(optimizationActionMeta).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+}));
+
+const needsTargetStyle = (action: OptimizationActionKey) => action === 'style_transfer';
+const needsTargetLength = (action: OptimizationActionKey) => action === 'expand' || action === 'summarize';
+const needsKeywords = (action: OptimizationActionKey) => action === 'seo_optimize';
+
+export const ContentOptimizer = () => {
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ContentOptimizeResult | null>(null);
-  const [selectedAction, setSelectedAction] = useState<string>('polish');
+  const [selectedAction, setSelectedAction] = useState<OptimizationActionKey>('polish');
+  const { cancel, errorMessage, generationId, isStreaming, reset, result, runStream, streamingText } =
+    useContentGenerationStream<Record<string, unknown>>();
+
+  const currentContent = Form.useWatch('content', form) as string | undefined;
+  const actionMeta = useMemo(() => optimizationActionMeta[selectedAction], [selectedAction]);
+
+  const handleActionChange = (action: OptimizationActionKey) => {
+    const currentValues = form.getFieldsValue();
+    setSelectedAction(action);
+    reset();
+    form.setFieldsValue({
+      action,
+      content: currentValues.content,
+      requirements: currentValues.requirements,
+      targetStyle: undefined,
+      targetLength: undefined,
+      keywords: undefined,
+    });
+  };
 
   const handleOptimize = async () => {
     try {
-      const values = await form.validateFields();
-      setLoading(true);
-      setResult(null);
-
-      const response = await optimizeContent({
-        action: selectedAction,
-        ...values
-      });
+      const values = (await form.validateFields()) as Record<string, unknown>;
+      const response = await runStream(
+        API_PATHS.content.optimize,
+        toContentOptimizeRequestContract({
+          action: selectedAction,
+          content: String(values.content ?? ''),
+          targetStyle: values.targetStyle ? String(values.targetStyle) : undefined,
+          targetLength: typeof values.targetLength === 'number' ? values.targetLength : undefined,
+          keywords: values.keywords ? String(values.keywords) : undefined,
+          requirements: values.requirements ? String(values.requirements) : undefined,
+        })
+      );
 
       if (response.success) {
-        setResult(response.data ?? null);
-        message.success('优化成功！');
-      } else {
-        message.error(response.error || '优化失败');
+        message.open({ key: 'content-optimize', type: 'success', content: `${actionMeta.label}完成` });
+        return;
       }
+
+      if (response.error === '已取消生成') {
+        message.open({ key: 'content-optimize', type: 'warning', content: '已停止当前优化' });
+        return;
+      }
+
+      message.open({ key: 'content-optimize', type: 'error', content: response.error || `${actionMeta.label}失败` });
     } catch (error: any) {
-      if (error.errorFields) {
-        message.error('请填写必填字段');
+      if (error?.errorFields) {
+        message.open({ key: 'content-optimize', type: 'warning', content: '请先补充必填信息' });
       } else {
-        message.error('优化失败，请稍后重试');
-        console.error('优化失败:', error);
+        message.open({ key: 'content-optimize', type: 'error', content: `${actionMeta.label}失败，请稍后重试` });
+        console.error('content optimize failed', error);
       }
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleClear = () => {
+  const handleStop = () => {
+    cancel();
+    message.open({ key: 'content-optimize', type: 'warning', content: '已停止当前优化' });
+  };
+
+  const handleReset = () => {
     form.resetFields();
-    setResult(null);
-  };
-
-  const handleCopyResult = () => {
-    if (result && result.optimizedContent) {
-      navigator.clipboard.writeText(result.optimizedContent);
-      message.success('已复制到剪贴板');
-    }
-  };
-
-  const needsTargetStyle = () => {
-    return selectedAction === 'style_transfer';
-  };
-
-  const needsTargetLength = () => {
-    return selectedAction === 'expand' || selectedAction === 'summarize';
-  };
-
-  const needsKeywords = () => {
-    return selectedAction === 'seo_optimize';
-  };
-
-  const renderResult = () => {
-    if (!result) return null;
-
-    return (
-      <Card
-        title="优化结果"
-        className="result-card"
-        extra={
-          <Button onClick={handleCopyResult} size="small">
-            复制结果
-          </Button>
-        }
-      >
-        {result.optimizedContent && (
-          <div className="result-section">
-            <h4>优化后的内容：</h4>
-            <div className="result-content">
-              {result.optimizedContent}
-            </div>
-          </div>
-        )}
-
-        {result.checkResult && (
-          <div className="result-section">
-            <h4>检查结果：</h4>
-            <pre className="result-content">
-              {result.checkResult}
-            </pre>
-          </div>
-        )}
-
-        {result.originalLength && result.optimizedLength && (
-          <div className="result-meta">
-            <span>原文字数: {result.originalLength}</span>
-            <span>优化后字数: {result.optimizedLength}</span>
-            {result.compressionRatio && (
-              <span>压缩率: {result.compressionRatio}</span>
-            )}
-          </div>
-        )}
-      </Card>
-    );
+    form.setFieldsValue({ action: selectedAction });
+    reset();
   };
 
   return (
     <div className="content-optimizer">
-      <Card className="form-card">
-        <Spin spinning={loading} tip="正在优化中，请稍候...">
-          <Form form={form} layout="vertical">
-            <Form.Item
-              label="优化类型"
-              name="action"
-              rules={[{ required: true, message: '请选择优化类型' }]}
-              initialValue="polish"
-            >
-              <Select
-                placeholder="请选择优化类型"
-                onChange={setSelectedAction}
-              >
-                {Object.entries(OPTIMIZATION_TYPES).map(([key, value]) => (
-                  <Option key={key} value={key}>{value}</Option>
-                ))}
-              </Select>
-            </Form.Item>
+      <Row gutter={[20, 20]}>
+        <Col xs={24} xl={11}>
+          <Card className="content-optimizer__form-card" title={actionMeta.label} bordered={false}>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Alert type="info" showIcon message={actionMeta.description} description={actionMeta.hint} />
 
-            <Form.Item
-              label="原始内容"
-              name="content"
-              rules={[{ required: true, message: '请输入要优化的内容' }]}
-            >
-              <TextArea
-                rows={10}
-                placeholder="请输入要优化的内容"
-                showCount
-              />
-            </Form.Item>
+              {errorMessage ? <Alert type="error" showIcon message={errorMessage} /> : null}
 
-            {needsTargetStyle() && (
-              <Form.Item
-                label="目标风格"
-                name="targetStyle"
-                rules={[{ required: true, message: '请选择目标风格' }]}
-              >
-                <Select placeholder="请选择目标风格">
-                  {Object.entries(CONTENT_STYLES).map(([key, value]) => (
-                    <Option key={key} value={key}>{value}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            )}
+              <div className="content-optimizer__stats">
+                <Card className="content-optimizer__stat-card" bordered={false}>
+                  <Statistic title="当前字数" value={currentContent?.length ?? 0} />
+                </Card>
+                <Card className="content-optimizer__stat-card" bordered={false}>
+                  <Statistic title="当前模式" value={actionMeta.label} />
+                </Card>
+              </div>
 
-            {needsTargetLength() && (
-              <Form.Item
-                label="目标字数"
-                name="targetLength"
-                rules={[{ required: false }]}
-              >
-                <InputNumber
-                  min={100}
-                  max={10000}
-                  style={{ width: '100%' }}
-                  placeholder="请输入目标字数（可选）"
-                />
-              </Form.Item>
-            )}
+              <Paragraph className="content-optimizer__guide">
+                <Text strong>填写建议：</Text>
+                原文内容建议一次性粘贴完整，再切换优化模式尝试不同版本，便于横向比较。
+              </Paragraph>
 
-            {needsKeywords() && (
-              <Form.Item
-                label="关键词"
-                name="keywords"
-                rules={[{ required: false }]}
-              >
-                <Input placeholder="请输入关键词，用逗号分隔（可选）" />
-              </Form.Item>
-            )}
+              <Form form={form} layout="vertical" initialValues={{ action: selectedAction }} className="content-optimizer__form">
+                <Form.Item label="优化类型" name="action" rules={[{ required: true, message: '请选择优化类型' }]}>
+                  <Select placeholder="选择优化类型" options={optimizationOptions} onChange={handleActionChange} />
+                </Form.Item>
 
-            <Form.Item
-              label="特殊要求"
-              name="requirements"
-              rules={[{ required: false }]}
-            >
-              <TextArea
-                rows={3}
-                placeholder="请输入特殊要求或说明（可选）"
-              />
-            </Form.Item>
+                <Form.Item label="原始内容" name="content" rules={[{ required: true, message: '请输入需要优化的内容' }]}>
+                  <TextArea rows={14} placeholder="输入或粘贴需要优化的内容" showCount maxLength={12000} />
+                </Form.Item>
 
-            <Form.Item>
-              <Button
-                type="primary"
-                onClick={handleOptimize}
-                loading={loading}
-                size="large"
-                block
-                icon={<EditOutlined />}
-              >
-                开始优化
-              </Button>
-              <Button
-                onClick={handleClear}
-                size="large"
-                block
-                style={{ marginTop: 8 }}
-              >
-                清空
-              </Button>
-            </Form.Item>
-          </Form>
-        </Spin>
-      </Card>
+                {needsTargetStyle(selectedAction) ? (
+                  <Form.Item
+                    label="目标风格"
+                    name="targetStyle"
+                    preserve={false}
+                    rules={[{ required: true, message: '请选择目标风格' }]}
+                  >
+                    <Select placeholder="选择目标风格" options={contentStyleOptions} />
+                  </Form.Item>
+                ) : null}
 
-      {renderResult()}
+                {needsTargetLength(selectedAction) ? (
+                  <Form.Item label="目标字数" name="targetLength" preserve={false}>
+                    <InputNumber min={100} max={10000} step={50} style={{ width: '100%' }} placeholder="例如：300" />
+                  </Form.Item>
+                ) : null}
+
+                {needsKeywords(selectedAction) ? (
+                  <Form.Item label="关键词" name="keywords" preserve={false}>
+                    <Input placeholder="多个关键词用逗号分隔，例如：AI助手,企业知识库" />
+                  </Form.Item>
+                ) : null}
+
+                <Form.Item label="补充要求" name="requirements">
+                  <TextArea rows={4} placeholder="补充语气、目标场景、禁用词或格式要求" showCount maxLength={1200} />
+                </Form.Item>
+
+                <Form.Item className="content-optimizer__actions">
+                  <Space size="middle" wrap>
+                    <Button type="primary" icon={<EditOutlined />} size="large" loading={isStreaming} onClick={handleOptimize}>
+                      开始优化
+                    </Button>
+                    <Button size="large" onClick={handleReset} disabled={isStreaming}>
+                      清空结果
+                    </Button>
+                    {isStreaming ? (
+                      <Button danger size="large" onClick={handleStop}>
+                        停止优化
+                      </Button>
+                    ) : null}
+                  </Space>
+                </Form.Item>
+              </Form>
+            </Space>
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={13}>
+          <ContentResultPanel
+            title={`${actionMeta.label}结果`}
+            result={result}
+            generationId={generationId}
+            isStreaming={isStreaming}
+            streamingContent={streamingText}
+            emptyDescription="提交优化请求后，这里会实时展示优化结果、长度变化和完整返回结构。"
+          />
+        </Col>
+      </Row>
     </div>
   );
 };

@@ -20,6 +20,7 @@ from backend.contracts.errors import ErrorCode
 from backend.contracts.sse import build_sse_event
 from backend.core.config_manager import get_config_manager
 from backend.utils.logger import get_logger
+from backend.utils.citation_utils import replace_citation_placeholders
 
 
 logger = get_logger(__name__)
@@ -428,7 +429,7 @@ async def _stream_response(
 
         logger.info("[CHAT-STREAM] 工作流执行完成")
 
-        normalized_answer = _replace_citation_placeholders(full_answer, citations)
+        normalized_answer = replace_citation_placeholders(full_answer, citations)
 
         # 保存助手回复
         if normalized_answer:
@@ -541,7 +542,7 @@ async def _non_stream_response(
                 raise Exception(chunk.content)
             execution_id = _extract_execution_id(chunk) or execution_id
 
-        normalized_answer = _replace_citation_placeholders(full_answer, citations)
+        normalized_answer = replace_citation_placeholders(full_answer, citations)
 
         if normalized_answer:
             assistant_message = app_service.save_assistant_message(
@@ -648,34 +649,6 @@ def _build_sse_event_payload(chunk: Any) -> Any:
         return {"value": chunk.content}
 
     return chunk.content
-
-
-def _replace_citation_placeholders(answer: str, citations: list[dict[str, Any]]) -> str:
-    if not answer or not citations:
-        return answer
-
-    normalized_answer = answer
-    for index, citation in enumerate(citations, start=1):
-        source_name = (
-            citation.get("source_name")
-            or citation.get("source")
-            or citation.get("sourceName")
-            or f"来源{index}"
-        )
-        patterns = [
-            rf"\[来源{index}\]",
-            rf"\[参考{index}\]",
-            rf"【来源{index}】",
-            rf"【参考{index}】",
-            rf"\[{index}\]",
-            rf"【{index}】",
-            rf"\({index}\)",
-        ]
-        replacement = f"【{source_name}】"
-        for pattern in patterns:
-            normalized_answer = re.sub(pattern, replacement, normalized_answer)
-
-    return normalized_answer
 
 
 def _extract_execution_id(payload: Any) -> Optional[str]:

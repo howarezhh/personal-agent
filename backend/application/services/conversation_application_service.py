@@ -2,6 +2,7 @@
 
 from backend.infrastructure.persistence import ConversationRepositoryAdapter, MessageRepositoryAdapter
 from backend.models.conversation import ConversationCreate, ConversationUpdate
+from backend.utils.citation_utils import normalize_message_content_with_citations
 
 
 class ConversationApplicationService:
@@ -41,6 +42,9 @@ class ConversationApplicationService:
             total = self.message_repo.count_messages_by_conversation_id(conversation_id)
         else:
             total = self.message_repo.count_conversation_messages(conversation_id)
+        for message in messages:
+            if getattr(message, "message_type", None) == "assistant":
+                message.content = normalize_message_content_with_citations(message.content, message.metadata)
         return total, messages
 
     def create_conversation(self, *, user_id: str, title: str | None, description: str | None):

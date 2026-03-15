@@ -24,4 +24,17 @@ export const API_PATHS = {
     fullRebuildVectorTasks: '/api/v1/knowledge/rebuild-vectors/full/tasks',
     search: '/api/v1/knowledge/search',
   },
+  content: {
+    novelOutline: '/api/v1/content/novel/outline',
+    novelChapter: '/api/v1/content/novel/chapter',
+    novelCharacter: '/api/v1/content/novel/character',
+    novelWorldview: '/api/v1/content/novel/worldview',
+    novelContinue: '/api/v1/content/novel/continue',
+    scriptOutline: '/api/v1/content/script/outline',
+    scriptScene: '/api/v1/content/script/scene',
+    scriptDialogue: '/api/v1/content/script/dialogue',
+    scriptStoryboard: '/api/v1/content/script/storyboard',
+    scriptComplete: '/api/v1/content/script/complete',
+    optimize: '/api/v1/content/optimize',
+  },
 } as const;

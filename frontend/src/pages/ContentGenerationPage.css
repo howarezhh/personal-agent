@@ -1,40 +1,94 @@
-/* 内容生成页面样式 */
-
 .content-generation-page {
+  height: 100%;
   padding: 24px;
-  background: #f0f2f5;
-  min-height: 100vh;
+  min-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #f3f4f6 100%);
 }
 
-.page-header {
-  margin-bottom: 24px;
+.content-generation-page__hero,
+.content-generation-page__tabs-card,
+.content-generation-page__summary-card {
+  border-radius: 24px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
-.page-header h1 {
-  font-size: 28px;
-  font-weight: 600;
+.content-generation-page__hero {
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%);
+}
+
+.content-generation-page__hero-icon {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 24px;
+}
+
+.content-generation-page__title {
+  margin-bottom: 8px !important;
+}
+
+.content-generation-page__subtitle {
   margin-bottom: 8px;
-  color: #1890ff;
+  max-width: 760px;
+  color: #334155;
 }
 
-.page-header p {
-  font-size: 14px;
-  color: #8c8c8c;
-  margin: 0;
+.content-generation-page__summary {
+  margin-bottom: 20px;
 }
 
-.content-tabs-card {
-  background: #fff;
-  border-radius: 8px;
+.content-generation-page__summary > .ant-col,
+.content-generation-page__tabs-card,
+.content-generation-page__hero {
+  min-width: 0;
 }
 
-/* 响应式设计 */
+.content-generation-page__summary-card {
+  height: 100%;
+}
+
+.content-generation-page__summary-text {
+  margin-top: 12px;
+  margin-bottom: 0;
+  color: #475569;
+}
+
+.content-generation-page__tabs-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+}
+
 @media (max-width: 768px) {
   .content-generation-page {
     padding: 16px;
   }
 
-  .page-header h1 {
-    font-size: 24px;
+  .content-generation-page__hero {
+    margin-bottom: 16px;
+  }
+
+  .content-generation-page__summary {
+    margin-bottom: 16px;
+  }
+
+  .content-generation-page__hero-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    font-size: 20px;
+  }
+
+  .content-generation-page__title {
+    font-size: 28px !important;
   }
 }

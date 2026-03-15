@@ -3,7 +3,8 @@
 提供小说生成、脚本生成、内容优化等接口
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 import time
@@ -11,6 +12,8 @@ import json
 import uuid
 from backend.tools.tool_registry import get_tool
 from backend.api.dependencies import get_current_user
+from backend.contracts.sse import build_sse_event
+from backend.models.user import User
 from backend.utils.logger import get_logger
 from backend.database.database_manager import get_database_manager
 
@@ -23,6 +26,183 @@ router = APIRouter(
 
 
 # ==================== 辅助函数 ====================
+
+def resolve_current_user_id(current_user: User | Dict[str, Any]) -> str:
+    """Resolve the authenticated user id from dependency output."""
+    user_id = current_user.get("user_id") if isinstance(current_user, dict) else getattr(current_user, "user_id", None)
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="用户身份无效")
+
+    return user_id
+
+
+def _request_id(request: Request) -> str | None:
+    return getattr(getattr(request, "state", None), "request_id", None)
+
+
+def _with_generation_id(data: Optional[Dict[str, Any]], generation_id: str) -> Dict[str, Any]:
+    payload = dict(data or {})
+    payload["generation_id"] = generation_id
+    return payload
+
+
+def _extract_result_preview(data: Optional[Dict[str, Any]]) -> str:
+    if not data:
+        return ""
+
+    for key in ("content", "optimized_content", "check_result", "continued_content"):
+        value = data.get(key)
+        if isinstance(value, str) and value:
+            return value
+
+    for key in ("outline", "character", "worldview", "storyboard"):
+        value = data.get(key)
+        if isinstance(value, dict):
+            for nested_key in ("raw_outline", "raw_character", "raw_worldview", "raw_storyboard"):
+                nested_value = value.get(nested_key)
+                if isinstance(nested_value, str) and nested_value:
+                    return nested_value
+
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def _execute_db_write(query: str, params: tuple[Any, ...]) -> None:
+    """Execute a write statement across supported DB manager interfaces."""
+    db_manager = get_database_manager()
+
+    if hasattr(db_manager, "execute_update"):
+        db_manager.execute_update(query, params)
+        return
+
+    execute_query = getattr(db_manager, "execute_query", None)
+    if not callable(execute_query):
+        raise AttributeError("Database manager does not support write execution")
+
+    try:
+        execute_query(query, params, fetch_one=False, fetch_all=False)
+    except TypeError:
+        try:
+            execute_query(query, params, fetch=False)
+        except TypeError:
+            execute_query(query, params)
+
+
+def _format_content_sse_data(
+    event_type: str,
+    content: Any = None,
+    *,
+    request_id: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    message: Optional[str] = None,
+) -> str:
+    event = build_sse_event(
+        event_type,
+        content,
+        message=message,
+        metadata=metadata or {},
+        request_id=request_id,
+    )
+    return f"event: {event_type}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+
+async def _stream_content_generation(
+    *,
+    request_id: Optional[str],
+    user_id: str,
+    content_type: str,
+    action: str,
+    input_params: Dict[str, Any],
+    tool_name: str,
+    tool_params: Dict[str, Any],
+):
+    generation_id, start_time = await save_content_generation(
+        user_id=user_id,
+        content_type=content_type,
+        action=action,
+        input_params=input_params,
+        tool_name=tool_name,
+    )
+
+    stream_metadata = {
+        "generation_id": generation_id,
+        "content_type": content_type,
+        "action": action,
+        "tool_name": tool_name,
+    }
+
+    try:
+        tool = get_tool(tool_name)
+        if not tool:
+            error_message = f"工具不可用: {tool_name}"
+            await update_content_generation(generation_id, start_time, {"success": False, "data": None, "error": error_message})
+            yield _format_content_sse_data("error", None, request_id=request_id, metadata=stream_metadata, message=error_message)
+            return
+
+        yield _format_content_sse_data(
+            "thinking",
+            None,
+            request_id=request_id,
+            metadata=stream_metadata,
+            message="stream_started",
+        )
+
+        final_result: Optional[Dict[str, Any]] = None
+
+        if hasattr(tool, "execute_stream"):
+            async for event in tool.execute_stream(action=action, **tool_params):
+                event_type = event.get("type")
+                if event_type == "content":
+                    chunk = event.get("content") or ""
+                    if chunk:
+                        yield _format_content_sse_data("content", chunk, request_id=request_id, metadata=stream_metadata)
+                elif event_type == "result":
+                    final_result = {
+                        "success": True,
+                        "data": _with_generation_id(event.get("data"), generation_id),
+                        "error": None,
+                    }
+                    yield _format_content_sse_data("result", final_result["data"], request_id=request_id, metadata=stream_metadata)
+                elif event_type == "error":
+                    error_message = str(event.get("error") or "流式生成失败")
+                    final_result = {"success": False, "data": None, "error": error_message}
+                    break
+        else:
+            fallback_result = await tool.safe_execute(action=action, **tool_params)
+            final_result = {
+                "success": bool(fallback_result.get("success")),
+                "data": _with_generation_id(fallback_result.get("data"), generation_id) if fallback_result.get("success") else None,
+                "error": fallback_result.get("error"),
+            }
+
+            preview = _extract_result_preview(final_result.get("data")) if final_result.get("success") else ""
+            if preview:
+                yield _format_content_sse_data("content", preview, request_id=request_id, metadata=stream_metadata)
+            if final_result.get("success"):
+                yield _format_content_sse_data("result", final_result["data"], request_id=request_id, metadata=stream_metadata)
+
+        if not final_result:
+            final_result = {"success": False, "data": None, "error": "流式生成未返回结果"}
+
+        await update_content_generation(generation_id, start_time, final_result)
+
+        if final_result.get("success"):
+            yield _format_content_sse_data("done", final_result.get("data"), request_id=request_id, metadata=stream_metadata)
+            return
+
+        yield _format_content_sse_data(
+            "error",
+            None,
+            request_id=request_id,
+            metadata=stream_metadata,
+            message=str(final_result.get("error") or "流式生成失败"),
+        )
+    except Exception as error:
+        error_message = str(error)
+        logger.error("内容生成流式处理失败: %s", error_message, exc_info=True)
+        await update_content_generation(generation_id, start_time, {"success": False, "data": None, "error": error_message})
+        yield _format_content_sse_data("error", None, request_id=request_id, metadata=stream_metadata, message=error_message)
+
 
 async def save_content_generation(
     user_id: str,
@@ -50,8 +230,7 @@ async def save_content_generation(
     start_time = int(time.time() * 1000)
 
     try:
-        db_manager = get_database_manager()
-        db_manager.execute_query(
+        _execute_db_write(
             """
             INSERT INTO content_generations
             (id, user_id, conversation_id, content_type, action, input_params, status)
@@ -65,8 +244,7 @@ async def save_content_generation(
                 action,
                 json.dumps(input_params, ensure_ascii=False),
                 'pending'
-            ),
-            fetch=False
+            )
         )
         logger.info(f"创建内容生成记录，ID: {generation_id}, 类型: {content_type}, 操作: {action}")
     except Exception as e:
@@ -91,10 +269,8 @@ async def update_content_generation(
     execution_time = int(time.time() * 1000) - start_time_ms
 
     try:
-        db_manager = get_database_manager()
-
         if result.get('success'):
-            db_manager.execute_query(
+            _execute_db_write(
                 """
                 UPDATE content_generations
                 SET output_content = %s,
@@ -107,12 +283,11 @@ async def update_content_generation(
                     'completed',
                     execution_time,
                     generation_id
-                ),
-                fetch=False
+                )
             )
             logger.info(f"内容生成完成，ID: {generation_id}, 执行时间: {execution_time}ms")
         else:
-            db_manager.execute_query(
+            _execute_db_write(
                 """
                 UPDATE content_generations
                 SET status = %s,
@@ -125,8 +300,7 @@ async def update_content_generation(
                     result.get('error'),
                     execution_time,
                     generation_id
-                ),
-                fetch=False
+                )
             )
             logger.info(f"内容生成失败，ID: {generation_id}, 错误: {result.get('error')}")
     except Exception as e:
@@ -248,22 +422,43 @@ class ContentGenerationResponse(BaseModel):
     description="根据标题和主题生成小说大纲"
 )
 async def generate_novel_outline(
+    http_request: Request,
     request: NovelOutlineRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成小说大纲"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成小说大纲: {request.title}")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='novel',
+                    action='outline',
+                    input_params=request.model_dump(),
+                    tool_name='novel_generator',
+                    tool_params={
+                        'title': request.title,
+                        'theme': request.theme,
+                        'genre': request.genre,
+                        'style': request.style,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成小说大纲: {request.title}")
 
         # 保存生成记录（pending状态）
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='novel',
             action='outline',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='novel_generator'
         )
 
@@ -310,22 +505,45 @@ async def generate_novel_outline(
     description="生成指定章节的小说内容"
 )
 async def generate_novel_chapter(
+    http_request: Request,
     request: NovelChapterRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成小说章节"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成第{request.chapter_number}章")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='novel',
+                    action='chapter',
+                    input_params=request.model_dump(),
+                    tool_name='novel_generator',
+                    tool_params={
+                        'chapter_number': request.chapter_number,
+                        'chapter_title': request.chapter_title,
+                        'outline': request.outline,
+                        'genre': request.genre,
+                        'style': request.style,
+                        'word_count': request.word_count,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成第{request.chapter_number}章")
 
         # 保存生成记录
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='novel',
             action='chapter',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='novel_generator'
         )
 
@@ -372,21 +590,41 @@ async def generate_novel_chapter(
     description="生成小说角色的详细设定"
 )
 async def generate_novel_character(
+    http_request: Request,
     request: NovelCharacterRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成角色设定"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成角色设定: {request.character_name}")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='novel',
+                    action='character',
+                    input_params=request.model_dump(),
+                    tool_name='novel_generator',
+                    tool_params={
+                        'character_name': request.character_name,
+                        'genre': request.genre,
+                        'theme': request.theme,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成角色设定: {request.character_name}")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='novel',
             action='character',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='novel_generator'
         )
 
@@ -429,21 +667,41 @@ async def generate_novel_character(
     description="生成小说的世界观设定"
 )
 async def generate_novel_worldview(
+    http_request: Request,
     request: NovelWorldviewRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成世界观设定"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成世界观设定")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='novel',
+                    action='worldview',
+                    input_params=request.model_dump(),
+                    tool_name='novel_generator',
+                    tool_params={
+                        'title': request.title,
+                        'theme': request.theme,
+                        'genre': request.genre,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成世界观设定")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='novel',
             action='worldview',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='novel_generator'
         )
 
@@ -486,21 +744,42 @@ async def generate_novel_worldview(
     description="根据前文内容续写小说"
 )
 async def continue_novel(
+    http_request: Request,
     request: NovelContinueRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """续写小说"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求续写小说")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='novel',
+                    action='continue',
+                    input_params=request.model_dump(),
+                    tool_name='novel_generator',
+                    tool_params={
+                        'previous_content': request.previous_content,
+                        'genre': request.genre,
+                        'style': request.style,
+                        'word_count': request.word_count,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求续写小说")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='novel',
             action='continue',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='novel_generator'
         )
 
@@ -546,21 +825,44 @@ async def continue_novel(
     description="生成脚本的详细大纲"
 )
 async def generate_script_outline(
+    http_request: Request,
     request: ScriptOutlineRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成脚本大纲"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成脚本大纲: {request.title}")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='script',
+                    action='outline',
+                    input_params=request.model_dump(),
+                    tool_name='script_generator',
+                    tool_params={
+                        'script_type': request.script_type,
+                        'title': request.title,
+                        'theme': request.theme,
+                        'style': request.style,
+                        'duration': request.duration,
+                        'target_audience': request.target_audience,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成脚本大纲: {request.title}")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='script',
             action='outline',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='script_generator'
         )
 
@@ -606,21 +908,44 @@ async def generate_script_outline(
     description="生成指定场景的脚本内容"
 )
 async def generate_script_scene(
+    http_request: Request,
     request: ScriptSceneRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成场景脚本"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成第{request.scene_number}场脚本")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='script',
+                    action='scene',
+                    input_params=request.model_dump(),
+                    tool_name='script_generator',
+                    tool_params={
+                        'script_type': request.script_type,
+                        'scene_number': request.scene_number,
+                        'scene_description': request.scene_description,
+                        'characters': request.characters,
+                        'style': request.style,
+                        'outline': request.outline,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成第{request.scene_number}场脚本")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='script',
             action='scene',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='script_generator'
         )
 
@@ -666,21 +991,42 @@ async def generate_script_scene(
     description="生成脚本对白"
 )
 async def generate_script_dialogue(
+    http_request: Request,
     request: ScriptDialogueRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成对白"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成对白")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='script',
+                    action='dialogue',
+                    input_params=request.model_dump(),
+                    tool_name='script_generator',
+                    tool_params={
+                        'script_type': request.script_type,
+                        'characters': request.characters,
+                        'scene_description': request.scene_description,
+                        'style': request.style,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成对白")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='script',
             action='dialogue',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='script_generator'
         )
 
@@ -724,21 +1070,41 @@ async def generate_script_dialogue(
     description="生成详细的分镜脚本"
 )
 async def generate_script_storyboard(
+    http_request: Request,
     request: ScriptStoryboardRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成分镜脚本"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成分镜脚本")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='script',
+                    action='storyboard',
+                    input_params=request.model_dump(),
+                    tool_name='script_generator',
+                    tool_params={
+                        'script_type': request.script_type,
+                        'scene_description': request.scene_description,
+                        'style': request.style,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成分镜脚本")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='script',
             action='storyboard',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='script_generator'
         )
 
@@ -781,21 +1147,44 @@ async def generate_script_storyboard(
     description="生成完整的脚本内容"
 )
 async def generate_complete_script(
+    http_request: Request,
     request: ScriptCompleteRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """生成完整脚本"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求生成完整脚本: {request.title}")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='script',
+                    action='complete',
+                    input_params=request.model_dump(),
+                    tool_name='script_generator',
+                    tool_params={
+                        'script_type': request.script_type,
+                        'title': request.title,
+                        'theme': request.theme,
+                        'style': request.style,
+                        'duration': request.duration,
+                        'target_audience': request.target_audience,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求生成完整脚本: {request.title}")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='script',
             action='complete',
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='script_generator'
         )
 
@@ -843,21 +1232,43 @@ async def generate_complete_script(
     description="对内容进行润色、改写、扩写、缩写等优化"
 )
 async def optimize_content(
+    http_request: Request,
     request: ContentOptimizeRequest,
-    current_user: dict = Depends(get_current_user)
+    stream: bool = False,
+    current_user: User | Dict[str, Any] = Depends(get_current_user)
 ):
     """优化内容"""
     generation_id = None
     start_time = None
 
     try:
-        logger.info(f"用户 {current_user.get('user_id')} 请求优化内容，操作: {request.action}")
+        current_user_id = resolve_current_user_id(current_user)
+        if stream:
+            return StreamingResponse(
+                _stream_content_generation(
+                    request_id=_request_id(http_request),
+                    user_id=current_user_id,
+                    content_type='optimization',
+                    action=request.action,
+                    input_params=request.model_dump(),
+                    tool_name='content_optimizer',
+                    tool_params={
+                        'content': request.content,
+                        'target_style': request.target_style,
+                        'target_length': request.target_length,
+                        'keywords': request.keywords,
+                        'requirements': request.requirements,
+                    },
+                ),
+                media_type="text/event-stream",
+            )
+        logger.info(f"用户 {current_user_id} 请求优化内容，操作: {request.action}")
 
         generation_id, start_time = await save_content_generation(
-            user_id=current_user.get('user_id'),
+            user_id=current_user_id,
             content_type='optimization',
             action=request.action,
-            input_params=request.dict(),
+            input_params=request.model_dump(),
             tool_name='content_optimizer'
         )
 

@@ -76,5 +76,40 @@ def build_custom_openapi(app: FastAPI):
                 operation["x-sse-event-schema"] = {"$ref": "#/components/schemas/SSEEvent"}
                 operation["x-stream-response"] = True
 
+            if path in {
+                "/api/v1/content/novel/outline",
+                "/api/v1/content/novel/chapter",
+                "/api/v1/content/novel/character",
+                "/api/v1/content/novel/worldview",
+                "/api/v1/content/novel/continue",
+                "/api/v1/content/script/outline",
+                "/api/v1/content/script/scene",
+                "/api/v1/content/script/dialogue",
+                "/api/v1/content/script/storyboard",
+                "/api/v1/content/script/complete",
+                "/api/v1/content/optimize",
+            } and method.lower() == "post":
+                json_schema = responses.get("200", {}).get("content", {}).get("application/json", {}).get("schema")
+                if json_schema:
+                    responses["200"] = {
+                        "description": "Successful response or SSE stream",
+                        "content": {
+                            "application/json": {
+                                "schema": json_schema,
+                            },
+                            "text/event-stream": {
+                                "schema": {"type": "string"},
+                                "examples": {
+                                    "stream": {
+                                        "summary": "SSE stream",
+                                        "value": 'event: content\ndata: {"type":"content","content":"hello"}\n\n',
+                                    }
+                                },
+                            },
+                        },
+                    }
+                    operation["x-sse-event-schema"] = {"$ref": "#/components/schemas/SSEEvent"}
+                    operation["x-stream-response"] = True
+
     app.openapi_schema = schema
     return schema

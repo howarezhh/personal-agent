@@ -3,7 +3,7 @@
 支持文本润色、改写、扩写、缩写等内容优化功能
 """
 
-from typing import Dict, Any, Optional
+from typing import AsyncGenerator, Dict, Any, Optional
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
 from backend.core.config_manager import get_config_manager
 from backend.core.prompt_manager import get_prompt_manager
@@ -163,6 +163,249 @@ class ContentOptimizerTool(BaseTool):
                 "data": None,
                 "error": f"优化失败: {str(e)}"
             }
+
+    def _get_style_name(self, style: Optional[str]) -> str:
+        return self.WRITING_STYLES.get(style, "默认") if style else "默认"
+
+    async def execute_stream(self, action: str, content: str, **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        try:
+            self.logger.info(f"执行内容优化流式操作: {action}, 内容长度: {len(content)}")
+
+            if action == "polish":
+                async for event in self._stream_polish(content, kwargs.get("requirements")):
+                    yield event
+            elif action == "rewrite":
+                async for event in self._stream_rewrite(content, kwargs.get("requirements")):
+                    yield event
+            elif action == "expand":
+                async for event in self._stream_expand(content, kwargs.get("target_length"), kwargs.get("requirements")):
+                    yield event
+            elif action == "summarize":
+                async for event in self._stream_summarize(content, kwargs.get("target_length"), kwargs.get("requirements")):
+                    yield event
+            elif action == "style_transfer":
+                async for event in self._stream_style_transfer(content, kwargs.get("target_style"), kwargs.get("requirements")):
+                    yield event
+            elif action == "grammar_check":
+                async for event in self._stream_grammar_check(content):
+                    yield event
+            elif action == "seo_optimize":
+                async for event in self._stream_seo(content, kwargs.get("keywords"), kwargs.get("requirements")):
+                    yield event
+            else:
+                yield {"type": "error", "error": f"不支持的操作类型: {action}"}
+        except Exception as e:
+            self.logger.error(f"内容优化流式处理失败: {str(e)}", exc_info=True)
+            yield {"type": "error", "error": f"优化失败: {str(e)}"}
+
+    async def _stream_polish(self, content: str, requirements: Optional[str]) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        prompt = self.prompt_manager.format_prompt(
+            "tool.content_optimizer_polish_prompt",
+            content=content,
+            requirements=requirements or "无额外要求",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "original_content": content,
+                "optimized_content": response,
+                "original_length": len(content),
+                "optimized_length": len(response),
+                "action": "润色",
+            },
+        }
+
+    async def _stream_rewrite(self, content: str, requirements: Optional[str]) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        prompt = self.prompt_manager.format_prompt(
+            "tool.content_optimizer_rewrite_prompt",
+            content=content,
+            requirements=requirements or "保持核心信息不变",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "original_content": content,
+                "optimized_content": response,
+                "original_length": len(content),
+                "optimized_length": len(response),
+                "action": "改写",
+            },
+        }
+
+    async def _stream_expand(
+        self,
+        content: str,
+        target_length: Optional[int],
+        requirements: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        prompt = self.prompt_manager.format_prompt(
+            "tool.content_optimizer_expand_prompt",
+            content=content,
+            target_length=target_length or "自动扩写",
+            requirements=requirements or "补足必要细节",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "original_content": content,
+                "optimized_content": response,
+                "original_length": len(content),
+                "optimized_length": len(response),
+                "target_length": target_length,
+                "action": "扩写",
+            },
+        }
+
+    async def _stream_summarize(
+        self,
+        content: str,
+        target_length: Optional[int],
+        requirements: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        prompt = self.prompt_manager.format_prompt(
+            "tool.content_optimizer_summarize_prompt",
+            content=content,
+            target_length=target_length or "自动摘要",
+            requirements=requirements or "保留关键信息",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.5):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "original_content": content,
+                "optimized_content": response,
+                "original_length": len(content),
+                "optimized_length": len(response),
+                "target_length": target_length,
+                "compression_ratio": f"{len(response) / len(content) * 100:.1f}%" if content else "0.0%",
+                "action": "缩写",
+            },
+        }
+
+    async def _stream_style_transfer(
+        self,
+        content: str,
+        target_style: Optional[str],
+        requirements: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        style_name = self._get_style_name(target_style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.content_optimizer_style_transfer_prompt",
+            content=content,
+            style_name=style_name,
+            requirements=requirements or "保持原意不变",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "original_content": content,
+                "optimized_content": response,
+                "original_length": len(content),
+                "optimized_length": len(response),
+                "target_style": style_name,
+                "action": "风格转换",
+            },
+        }
+
+    async def _stream_grammar_check(self, content: str) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        prompt = self.prompt_manager.format_prompt(
+            "tool.content_optimizer_grammar_check_prompt",
+            content=content,
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.3):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "original_content": content,
+                "check_result": response,
+                "action": "语法纠错",
+            },
+        }
+
+    async def _stream_seo(
+        self,
+        content: str,
+        keywords: Optional[str],
+        requirements: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        prompt = self.prompt_manager.format_prompt(
+            "tool.content_optimizer_seo_prompt",
+            content=content,
+            keywords=keywords or "无关键词",
+            requirements=requirements or "提升搜索友好度",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "original_content": content,
+                "optimized_content": response,
+                "original_length": len(content),
+                "optimized_length": len(response),
+                "keywords": keywords,
+                "action": "SEO优化",
+            },
+        }
 
     async def _polish_content(self, content: str, requirements: Optional[str]) -> Dict[str, Any]:
         """润色内容"""

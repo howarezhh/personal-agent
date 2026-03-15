@@ -3,7 +3,7 @@
 支持AI自动生成各类脚本（影视剧本、短视频脚本、广告脚本等）
 """
 
-from typing import Dict, Any, Optional
+from typing import AsyncGenerator, Dict, Any, Optional
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
 from backend.core.config_manager import get_config_manager
 from backend.core.prompt_manager import get_prompt_manager
@@ -204,6 +204,265 @@ class ScriptGeneratorTool(BaseTool):
                 "data": None,
                 "error": f"生成失败: {str(e)}"
             }
+
+    def _get_type_name(self, script_type: str) -> str:
+        return self.SCRIPT_TYPES.get(script_type, script_type)
+
+    def _get_style_name(self, style: Optional[str]) -> str:
+        return self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
+
+    def _parse_json_response(self, response: str, raw_key: str) -> Dict[str, Any]:
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                return json.loads(response[json_start:json_end])
+        except Exception:
+            self.logger.debug("Failed to parse structured script response, fallback to raw text", exc_info=True)
+
+        return {raw_key: response}
+
+    async def execute_stream(self, action: str, script_type: str, **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        try:
+            self.logger.info(f"执行脚本生成流式操作: {action}, 类型: {script_type}")
+
+            if action == "outline":
+                async for event in self._stream_outline(
+                    script_type,
+                    kwargs.get("title"),
+                    kwargs.get("theme"),
+                    kwargs.get("style"),
+                    kwargs.get("duration"),
+                    kwargs.get("target_audience")
+                ):
+                    yield event
+            elif action == "scene":
+                async for event in self._stream_scene(
+                    script_type,
+                    kwargs.get("scene_number", 1),
+                    kwargs.get("scene_description"),
+                    kwargs.get("characters"),
+                    kwargs.get("style"),
+                    kwargs.get("outline")
+                ):
+                    yield event
+            elif action == "dialogue":
+                async for event in self._stream_dialogue(
+                    script_type,
+                    kwargs.get("characters"),
+                    kwargs.get("scene_description"),
+                    kwargs.get("style")
+                ):
+                    yield event
+            elif action == "storyboard":
+                async for event in self._stream_storyboard(
+                    script_type,
+                    kwargs.get("scene_description"),
+                    kwargs.get("style")
+                ):
+                    yield event
+            elif action == "complete":
+                async for event in self._stream_complete_script(
+                    script_type,
+                    kwargs.get("title"),
+                    kwargs.get("theme"),
+                    kwargs.get("style"),
+                    kwargs.get("duration"),
+                    kwargs.get("target_audience")
+                ):
+                    yield event
+            else:
+                yield {"type": "error", "error": f"不支持的操作类型: {action}"}
+        except Exception as e:
+            self.logger.error(f"脚本流式生成失败: {str(e)}", exc_info=True)
+            yield {"type": "error", "error": f"生成失败: {str(e)}"}
+
+    async def _stream_outline(
+        self,
+        script_type: str,
+        title: Optional[str],
+        theme: Optional[str],
+        style: Optional[str],
+        duration: Optional[int],
+        target_audience: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        type_name = self._get_type_name(script_type)
+        style_name = self._get_style_name(style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.script_generator_outline_prompt",
+            title=title or "未命名脚本",
+            type_name=type_name,
+            style_name=style_name,
+            duration=duration or "未指定",
+            target_audience=target_audience or "泛受众",
+            theme=theme or "请生成完整脚本大纲",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "title": title,
+                "script_type": type_name,
+                "style": style_name,
+                "duration": duration,
+                "outline": self._parse_json_response(response, "raw_outline"),
+            },
+        }
+
+    async def _stream_scene(
+        self,
+        script_type: str,
+        scene_number: int,
+        scene_description: Optional[str],
+        characters: Optional[str],
+        style: Optional[str],
+        outline: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        type_name = self._get_type_name(script_type)
+        style_name = self._get_style_name(style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.script_generator_scene_prompt",
+            type_name=type_name,
+            scene_number=scene_number,
+            scene_description=scene_description or "请根据项目目标生成场景",
+            characters=characters or "未指定角色",
+            style_name=style_name,
+            outline_text=outline or "请保持剧情连贯",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=3000):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "scene_number": scene_number,
+                "script_type": type_name,
+                "style": style_name,
+                "content": response,
+            },
+        }
+
+    async def _stream_dialogue(
+        self,
+        script_type: str,
+        characters: Optional[str],
+        scene_description: Optional[str],
+        style: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        type_name = self._get_type_name(script_type)
+        style_name = self._get_style_name(style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.script_generator_dialogue_prompt",
+            type_name=type_name,
+            characters=characters or "未指定角色",
+            scene_description=scene_description or "请生成符合剧情的对白",
+            style_name=style_name,
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=2500):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "script_type": type_name,
+                "style": style_name,
+                "content": response,
+                "characters": characters,
+            },
+        }
+
+    async def _stream_storyboard(
+        self,
+        script_type: str,
+        scene_description: Optional[str],
+        style: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        type_name = self._get_type_name(script_type)
+        style_name = self._get_style_name(style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.script_generator_storyboard_prompt",
+            type_name=type_name,
+            scene_description=scene_description or "请拆分出完整分镜",
+            style_name=style_name,
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "script_type": type_name,
+                "style": style_name,
+                "storyboard": self._parse_json_response(response, "raw_storyboard"),
+            },
+        }
+
+    async def _stream_complete_script(
+        self,
+        script_type: str,
+        title: Optional[str],
+        theme: Optional[str],
+        style: Optional[str],
+        duration: Optional[int],
+        target_audience: Optional[str],
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        from backend.core.llm_manager import get_llm_manager
+
+        llm_manager = get_llm_manager()
+        type_name = self._get_type_name(script_type)
+        style_name = self._get_style_name(style)
+        prompt = self.prompt_manager.format_prompt(
+            "tool.script_generator_complete_prompt",
+            title=title or "未命名脚本",
+            type_name=type_name,
+            style_name=style_name,
+            duration=duration or "未指定",
+            target_audience=target_audience or "泛受众",
+            theme=theme or "请生成完整脚本",
+        )
+
+        response = ""
+        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=4000):
+            response += chunk
+            yield {"type": "content", "content": chunk}
+
+        yield {
+            "type": "result",
+            "data": {
+                "title": title,
+                "script_type": type_name,
+                "style": style_name,
+                "duration": duration,
+                "target_audience": target_audience,
+                "content": response,
+            },
+        }
 
     async def _generate_outline(self, script_type: str, title: Optional[str],
                                theme: Optional[str], style: Optional[str],

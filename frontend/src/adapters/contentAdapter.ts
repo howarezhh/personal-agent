@@ -114,7 +114,7 @@ export interface ContentOptimizeResult {
 
 const toCamelCase = (value: string): string => value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 
-const camelizeKeys = (value: unknown): unknown => {
+export const camelizeKeys = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map((item) => camelizeKeys(item));
   }
@@ -136,6 +136,9 @@ export const adaptContentGenerationResponse = <T = Record<string, unknown>>(
   data: response.data ? (camelizeKeys(response.data) as T) : undefined,
   error: response.error ?? undefined,
 });
+
+export const adaptContentGenerationData = <T = Record<string, unknown>>(data: unknown): T =>
+  camelizeKeys(data) as T;
 
 export const toNovelOutlineRequestContract = (request: NovelOutlineRequest): NovelOutlineRequestContract => ({
   title: request.title,

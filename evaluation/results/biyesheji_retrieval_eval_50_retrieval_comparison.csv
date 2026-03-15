@@ -1,0 +1,4 @@
+strategy,Recall@5,Recall@10,MRR@10,Precision@3,duration_seconds,avg_query_ms
+vector,1.0000,1.0000,0.9500,0.3800,70.1450,1402.90
+bm25,1.0000,1.0000,0.9900,0.3800,0.0575,1.15
+hybrid_rrf,1.0000,1.0000,0.9600,0.3800,70.2065,1404.13
