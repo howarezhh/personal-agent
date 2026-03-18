@@ -1,86 +1,62 @@
+﻿"""项目统一异常定义。
+
+说明：
+- 对外 API 错误码、状态码统一收敛到 `backend.contracts.errors`。
+- 本模块仅保留领域/工具侧更语义化的异常别名，避免业务层直接依赖 FastAPI HTTPException。
 """
-自定义异常类
-定义项目中使用的所有自定义异常
-"""
+
+from __future__ import annotations
+
+from backend.contracts.errors import AppException, ErrorCode
 
 
-class PersonalAgentException(Exception):
-    """
-    项目基础异常类
-    所有自定义异常都应该继承此类
-    """
-    def __init__(self, message: str, code: str = None, details: dict = None):
-        self.message = message
-        self.code = code or "UNKNOWN_ERROR"
-        self.details = details or {}
-        super().__init__(self.message)
+class PersonalAgentException(AppException):
+    def __init__(self, message: str, *, status_code: int = 500, error_code: ErrorCode | str = ErrorCode.SYSTEM_INTERNAL_ERROR, error: str = "PersonalAgentException"):
+        super().__init__(status_code=status_code, message=message, error_code=error_code, error=error)
 
 
-# 配置相关异常
 class ConfigurationError(PersonalAgentException):
-    """配置错误"""
-    def __init__(self, message: str, details: dict = None):
-        super().__init__(message, "CONFIG_ERROR", details)
+    def __init__(self, message: str):
+        super().__init__(message, status_code=500, error_code=ErrorCode.SYSTEM_INTERNAL_ERROR, error="ConfigurationError")
 
 
-# 数据库相关异常
 class DatabaseError(PersonalAgentException):
-    """数据库错误"""
-    def __init__(self, message: str, details: dict = None):
-        super().__init__(message, "DATABASE_ERROR", details)
+    def __init__(self, message: str):
+        super().__init__(message, status_code=500, error_code=ErrorCode.SYSTEM_INTERNAL_ERROR, error="DatabaseError")
 
 
-class RecordNotFoundError(DatabaseError):
-    """记录不存在"""
+class RecordNotFoundError(PersonalAgentException):
     def __init__(self, model: str, identifier: str):
         super().__init__(
             f"{model} 未找到: {identifier}",
-            {"model": model, "identifier": identifier}
+            status_code=404,
+            error_code=ErrorCode.SYSTEM_NOT_FOUND,
+            error="RecordNotFoundError",
         )
 
 
-# 认证相关异常
 class AuthenticationError(PersonalAgentException):
-    """认证错误"""
-    def __init__(self, message: str, details: dict = None):
-        super().__init__(message, "AUTH_ERROR", details)
+    def __init__(self, message: str):
+        super().__init__(message, status_code=401, error_code=ErrorCode.AUTH_UNAUTHORIZED, error="AuthenticationError")
 
 
-# 智能体相关异常
 class AgentError(PersonalAgentException):
-    """智能体错误"""
-    def __init__(self, message: str, agent_name: str = None, details: dict = None):
-        details = details or {}
-        if agent_name:
-            details["agent_name"] = agent_name
-        super().__init__(message, "AGENT_ERROR", details)
+    def __init__(self, message: str):
+        super().__init__(message, status_code=500, error_code=ErrorCode.WORKFLOW_EXECUTION_ERROR, error="AgentError")
 
 
-# 文件处理相关异常
 class FileProcessingError(PersonalAgentException):
-    """文件处理错误"""
-    def __init__(self, message: str, file_path: str = None, details: dict = None):
-        details = details or {}
-        if file_path:
-            details["file_path"] = file_path
-        super().__init__(message, "FILE_PROCESSING_ERROR", details)
+    def __init__(self, message: str):
+        super().__init__(message, status_code=500, error_code=ErrorCode.SYSTEM_INTERNAL_ERROR, error="FileProcessingError")
 
 
-# 工具调用相关异常
 class ToolError(PersonalAgentException):
-    """工具调用错误"""
-    def __init__(self, message: str, tool_name: str = None, details: dict = None):
-        details = details or {}
-        if tool_name:
-            details["tool_name"] = tool_name
-        super().__init__(message, "TOOL_ERROR", details)
+    def __init__(self, message: str):
+        super().__init__(message, status_code=500, error_code=ErrorCode.SYSTEM_INTERNAL_ERROR, error="ToolError")
 
 
-# 验证相关异常
 class ValidationError(PersonalAgentException):
-    """数据验证错误"""
-    def __init__(self, message: str, field: str = None, details: dict = None):
-        details = details or {}
+    def __init__(self, message: str, field: str | None = None):
         if field:
-            details["field"] = field
-        super().__init__(message, "VALIDATION_ERROR", details)
+            message = f"{field}: {message}"
+        super().__init__(message, status_code=400, error_code=ErrorCode.SYSTEM_VALIDATION_ERROR, error="ValidationError")

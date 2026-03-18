@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from datetime import datetime
 import uuid
+
+from backend.utils.time_utils import utc_now
 import json
 
 
@@ -52,18 +54,18 @@ class ConversationState:
 
     def set_value(self, key: str, value: Any):
         self.state_value[key] = value
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utc_now()
 
     def remove_value(self, key: str) -> bool:
         if key in self.state_value:
             del self.state_value[key]
-            self.updated_at = datetime.utcnow()
+            self.updated_at = utc_now()
             return True
         return False
 
     def clear_values(self):
         self.state_value = {}
-        self.updated_at = datetime.utcnow()
+        self.updated_at = utc_now()
 
     def __repr__(self) -> str:
         return f"ConversationState(state_id='{self.state_id}', conversation_id='{self.conversation_id}', key='{self.state_key}')"
@@ -87,7 +89,7 @@ class ConversationStateCreate:
         return True, None
 
     def to_conversation_state(self) -> ConversationState:
-        now = datetime.utcnow()
+        now = utc_now()
         return ConversationState(
             conversation_id=self.conversation_id,
             state_key=self.state_key,
@@ -106,7 +108,7 @@ class ConversationStateUpdate:
         if self.state_value is not None:
             data["state_value"] = json.dumps(self.state_value, ensure_ascii=False)
         # 总是更新updated_at
-        data["updated_at"] = datetime.utcnow()
+        data["updated_at"] = utc_now()
         return data
 
 

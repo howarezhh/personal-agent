@@ -5,6 +5,8 @@ from datetime import datetime
 import uuid
 import json
 
+from backend.utils.time_utils import utc_now
+
 
 ToolCallStatus = Literal["success", "failed", "timeout", "running"]
 
@@ -77,20 +79,20 @@ class ToolCall:
         self.status = "success"
         self.tool_output = tool_output
         self.execution_time_ms = execution_time_ms
-        self.completed_at = datetime.utcnow()
+        self.completed_at = utc_now()
 
     def mark_failed(self, error_message: str, execution_time_ms: int = None):
         self.status = "failed"
         self.error_message = error_message
         if execution_time_ms is not None:
             self.execution_time_ms = execution_time_ms
-        self.completed_at = datetime.utcnow()
+        self.completed_at = utc_now()
 
     def mark_timeout(self, execution_time_ms: int):
         self.status = "timeout"
         self.error_message = "Tool call timeout"
         self.execution_time_ms = execution_time_ms
-        self.completed_at = datetime.utcnow()
+        self.completed_at = utc_now()
 
     def __repr__(self) -> str:
         return f"ToolCall(call_id='{self.call_id}', tool_name='{self.tool_name}', status='{self.status}')"
@@ -112,7 +114,7 @@ class ToolCallCreate:
             tool_input=self.tool_input,
             metadata=self.metadata,
             status="running",
-            created_at=datetime.utcnow(),
+            created_at=utc_now(),
         )
 
     def validate(self) -> tuple[bool, Optional[str]]:

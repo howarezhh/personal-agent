@@ -4,12 +4,11 @@
 """
 
 from typing import Optional, List
-from datetime import datetime
 import json
 from backend.database.repositories.user_repository import BaseRepository
-from backend.database.database_manager import DatabaseManager, get_database_manager
 from backend.models.retrieval_result import RetrievalResult, RetrievalResultCreate
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -26,10 +25,6 @@ class RetrievalResultRepository(BaseRepository):
     """
 
     TABLE_NAME = "retrieval_results"
-
-    def create_result(self, result_create: RetrievalResultCreate) -> RetrievalResult:
-        """兼容旧调用方的方法名。"""
-        return self.create_retrieval_result(result_create)
 
     def create_retrieval_result(self, result_create: RetrievalResultCreate) -> RetrievalResult:
         """
@@ -52,7 +47,7 @@ class RetrievalResultRepository(BaseRepository):
 
         # 创建检索结果对象
         result = result_create.to_retrieval_result()
-        result.created_at = datetime.utcnow()
+        result.created_at = utc_now()
 
         # 插入数据库
         data = {
@@ -183,7 +178,7 @@ class RetrievalResultRepository(BaseRepository):
 
             # 创建检索结果对象
             result = result_create.to_retrieval_result()
-            result.created_at = datetime.utcnow()
+            result.created_at = utc_now()
             results.append(result)
 
             # 准备插入数据

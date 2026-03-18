@@ -59,7 +59,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
+        /**
+         * Register
+         * @description 处理 `register` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
         options?: never;
@@ -76,7 +85,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login */
+        /**
+         * Login
+         * @description 处理 `login` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["login_api_v1_auth_login_post"];
         delete?: never;
         options?: never;
@@ -93,7 +111,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Logout */
+        /**
+         * Logout
+         * @description 处理 `logout` 相关逻辑。
+         *
+         *     Args:
+         *         token_payload: 参数 `token_payload` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["logout_api_v1_auth_logout_post"];
         delete?: never;
         options?: never;
@@ -108,7 +135,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Profile */
+        /**
+         * Get Profile
+         * @description 处理 `get_profile` 相关逻辑。
+         *
+         *     Args:
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_profile_api_v1_auth_profile_get"];
         put?: never;
         post?: never;
@@ -127,7 +163,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refresh Token */
+        /**
+         * Refresh Token
+         * @description 处理 `refresh_token` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["refresh_token_api_v1_auth_refresh_post"];
         delete?: never;
         options?: never;
@@ -146,7 +191,14 @@ export interface paths {
         put?: never;
         /**
          * Pause Stream
-         * @description 暂停正在执行的流式对话。
+         * @description 处理 `pause_stream` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
          */
         post: operations["pause_stream_api_v1_chat_pause_post"];
         delete?: never;
@@ -164,7 +216,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ask Endpoint */
+        /**
+         * Ask Endpoint
+         * @description 处理 `ask_endpoint` 相关逻辑。
+         *
+         *     Args:
+         *         http_request: 参数 `http_request` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["ask_endpoint_api_v1_chat_ask_post"];
         delete?: never;
         options?: never;
@@ -179,10 +242,32 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Conversations */
+        /**
+         * Get Conversations
+         * @description 处理 `get_conversations` 相关逻辑。
+         *
+         *     Args:
+         *         page: 参数 `page` 的业务输入值。
+         *         page_size: 参数 `page_size` 的业务输入值。
+         *         only_active: 参数 `only_active` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_conversations_api_v1_conversations_get"];
         put?: never;
-        /** Create Conversation */
+        /**
+         * Create Conversation
+         * @description 处理 `create_conversation` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["create_conversation_api_v1_conversations_post"];
         delete?: never;
         options?: never;
@@ -197,12 +282,43 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Conversation */
+        /**
+         * Get Conversation
+         * @description 处理 `get_conversation` 相关逻辑。
+         *
+         *     Args:
+         *         conversation_id: 参数 `conversation_id` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_conversation_api_v1_conversations__conversation_id__get"];
-        /** Update Conversation */
+        /**
+         * Update Conversation
+         * @description 处理 `update_conversation` 相关逻辑。
+         *
+         *     Args:
+         *         conversation_id: 参数 `conversation_id` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         put: operations["update_conversation_api_v1_conversations__conversation_id__put"];
         post?: never;
-        /** Delete Conversation */
+        /**
+         * Delete Conversation
+         * @description 处理 `delete_conversation` 相关逻辑。
+         *
+         *     Args:
+         *         conversation_id: 参数 `conversation_id` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         delete: operations["delete_conversation_api_v1_conversations__conversation_id__delete"];
         options?: never;
         head?: never;
@@ -216,7 +332,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Conversation Messages */
+        /**
+         * Get Conversation Messages
+         * @description 处理 `get_conversation_messages` 相关逻辑。
+         *
+         *     Args:
+         *         conversation_id: 参数 `conversation_id` 的业务输入值。
+         *         page: 参数 `page` 的业务输入值。
+         *         page_size: 参数 `page_size` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_conversation_messages_api_v1_conversations__conversation_id__messages_get"];
         put?: never;
         post?: never;
@@ -233,10 +361,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Knowledge Bases */
+        /**
+         * Get Knowledge Bases
+         * @description 处理 `get_knowledge_bases` 相关逻辑。
+         *
+         *     Args:
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_knowledge_bases_api_v1_knowledge_bases_get"];
         put?: never;
-        /** Create Knowledge Base */
+        /**
+         * Create Knowledge Base
+         * @description 处理 `create_knowledge_base` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["create_knowledge_base_api_v1_knowledge_bases_post"];
         delete?: never;
         options?: never;
@@ -254,7 +401,18 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Knowledge Base */
+        /**
+         * Delete Knowledge Base
+         * @description 处理 `delete_knowledge_base` 相关逻辑。
+         *
+         *     Args:
+         *         knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         delete: operations["delete_knowledge_base_api_v1_knowledge_bases__knowledge_base_id__delete"];
         options?: never;
         head?: never;
@@ -270,7 +428,20 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Document */
+        /**
+         * Upload Document
+         * @description 处理 `upload_document` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *         background_tasks: 参数 `background_tasks` 的业务输入值。
+         *         file: 参数 `file` 的业务输入值。
+         *         knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["upload_document_api_v1_knowledge_upload_post"];
         delete?: never;
         options?: never;
@@ -287,7 +458,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Upload Documents Batch */
+        /**
+         * Upload Documents Batch
+         * @description 处理 `upload_documents_batch` 相关逻辑。
+         *
+         *     Args:
+         *         request: 参数 `request` 的业务输入值。
+         *         files: 参数 `files` 的业务输入值。
+         *         knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["upload_documents_batch_api_v1_knowledge_upload_batch_post"];
         delete?: never;
         options?: never;
@@ -302,7 +485,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Document Status */
+        /**
+         * Get Document Status
+         * @description 处理 `get_document_status` 相关逻辑。
+         *
+         *     Args:
+         *         document_id: 参数 `document_id` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_document_status_api_v1_knowledge_documents__document_id__status_get"];
         put?: never;
         post?: never;
@@ -319,7 +512,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Documents */
+        /**
+         * Get Documents
+         * @description 处理 `get_documents` 相关逻辑。
+         *
+         *     Args:
+         *         knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_documents_api_v1_knowledge_documents_get"];
         put?: never;
         post?: never;
@@ -339,7 +542,18 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Document */
+        /**
+         * Delete Document
+         * @description 处理 `delete_document` 相关逻辑。
+         *
+         *     Args:
+         *         document_id: 参数 `document_id` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         delete: operations["delete_document_api_v1_knowledge_documents__document_id__delete"];
         options?: never;
         head?: never;
@@ -355,7 +569,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rebuild Vectors */
+        /**
+         * Rebuild Vectors
+         * @description 处理 `rebuild_vectors` 相关逻辑。
+         *
+         *     Args:
+         *         payload: 参数 `payload` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["rebuild_vectors_api_v1_knowledge_rebuild_vectors_post"];
         delete?: never;
         options?: never;
@@ -372,7 +597,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start Full Rebuild Vectors Task */
+        /**
+         * Start Full Rebuild Vectors Task
+         * @description 处理 `start_full_rebuild_vectors_task` 相关逻辑。
+         *
+         *     Args:
+         *         payload: 参数 `payload` 的业务输入值。
+         *         background_tasks: 参数 `background_tasks` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["start_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks_post"];
         delete?: never;
         options?: never;
@@ -387,7 +624,18 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Full Rebuild Vectors Task */
+        /**
+         * Get Full Rebuild Vectors Task
+         * @description 处理 `get_full_rebuild_vectors_task` 相关逻辑。
+         *
+         *     Args:
+         *         task_id: 参数 `task_id` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         get: operations["get_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks__task_id__get"];
         put?: never;
         post?: never;
@@ -406,7 +654,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rebuild Vectors Full */
+        /**
+         * Rebuild Vectors Full
+         * @description 处理 `rebuild_vectors_full` 相关逻辑。
+         *
+         *     Args:
+         *         payload: 参数 `payload` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post"];
         delete?: never;
         options?: never;
@@ -423,7 +682,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Search Knowledge */
+        /**
+         * Search Knowledge
+         * @description 处理 `search_knowledge` 相关逻辑。
+         *
+         *     Args:
+         *         payload: 参数 `payload` 的业务输入值。
+         *         request: 参数 `request` 的业务输入值。
+         *         user_id: 参数 `user_id` 的业务输入值。
+         *
+         *     Returns:
+         *         返回接口层所需的响应对象、业务结果或中间处理结果。
+         */
         post: operations["search_knowledge_api_v1_knowledge_search_post"];
         delete?: never;
         options?: never;
@@ -440,7 +710,7 @@ export interface paths {
         };
         /**
          * 获取工具分类列表
-         * @description 获取所有工具的分类列表
+         * @description 获取所有可见工具的业务分类列表
          */
         get: operations["get_tool_categories_api_v1_tools_categories_list_get"];
         put?: never;
@@ -459,8 +729,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 获取所有工具列表
-         * @description 获取系统中所有可用工具的列表
+         * 获取工具列表
+         * @description 获取当前用户可见的工具列表
          */
         get: operations["get_tools_list_api_v1_tools_get"];
         put?: never;
@@ -480,7 +750,7 @@ export interface paths {
         };
         /**
          * 获取工具详情
-         * @description 获取指定工具的详细信息
+         * @description 获取当前用户可见工具的详细信息
          */
         get: operations["get_tool_detail_api_v1_tools__tool_name__get"];
         put?: never;
@@ -502,7 +772,7 @@ export interface paths {
         put?: never;
         /**
          * 执行工具
-         * @description 执行指定的工具
+         * @description 执行指定工具
          */
         post: operations["execute_tool_api_v1_tools__tool_name__execute_post"];
         delete?: never;
@@ -737,22 +1007,29 @@ export interface components {
     schemas: {
         /**
          * AskRequest
-         * @description 鐢ㄦ埛鎻愰棶璇锋眰
+         * @description AskRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         question: 字段 `question` 的业务含义。
+         *         conversation_id: 字段 `conversation_id` 的业务含义。
+         *         stream: 字段 `stream` 的业务含义。
+         *         enable_knowledge_base: 字段 `enable_knowledge_base` 的业务含义。
+         *         knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。
          */
         AskRequest: {
             /**
              * Question
-             * @description 鐢ㄦ埛闂
+             * @description 用户问题
              */
             question: string;
             /**
              * Conversation Id
-             * @description 浼氳瘽ID锛堝彲閫夛紝涓嶆彁渚涘垯鍒涘缓鏂颁細璇濓級
+             * @description 会话ID（可选，不提供则创建新会话）
              */
             conversation_id?: string | null;
             /**
              * Stream
-             * @description 鏄惁浣跨敤娴佸紡杈撳嚭
+             * @description 是否使用流式输出
              * @default true
              */
             stream: boolean;
@@ -768,7 +1045,16 @@ export interface components {
              */
             knowledge_base_id?: string | null;
         };
-        /** BatchUploadItemResponse */
+        /**
+         * BatchUploadItemResponse
+         * @description BatchUploadItemResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         file_name: 字段 `file_name` 的业务含义。
+         *         success: 字段 `success` 的业务含义。
+         *         document: 字段 `document` 的业务含义。
+         *         error: 字段 `error` 的业务含义。
+         */
         BatchUploadItemResponse: {
             /** File Name */
             file_name: string;
@@ -778,7 +1064,16 @@ export interface components {
             /** Error */
             error?: string | null;
         };
-        /** BatchUploadResponse */
+        /**
+         * BatchUploadResponse
+         * @description BatchUploadResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         total: 字段 `total` 的业务含义。
+         *         success_count: 字段 `success_count` 的业务含义。
+         *         failed_count: 字段 `failed_count` 的业务含义。
+         *         results: 字段 `results` 的业务含义。
+         */
         BatchUploadResponse: {
             /** Total */
             total: number;
@@ -818,7 +1113,12 @@ export interface components {
         };
         /**
          * ContentGenerationResponse
-         * @description 内容生成响应
+         * @description ContentGenerationResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         success: 字段 `success` 的业务含义。
+         *         data: 字段 `data` 的业务含义。
+         *         error: 字段 `error` 的业务含义。
          */
         ContentGenerationResponse: {
             /**
@@ -841,7 +1141,15 @@ export interface components {
         };
         /**
          * ContentOptimizeRequest
-         * @description 内容优化请求
+         * @description ContentOptimizeRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         action: 字段 `action` 的业务含义。
+         *         content: 字段 `content` 的业务含义。
+         *         target_style: 字段 `target_style` 的业务含义。
+         *         target_length: 字段 `target_length` 的业务含义。
+         *         keywords: 字段 `keywords` 的业务含义。
+         *         requirements: 字段 `requirements` 的业务含义。
          */
         ContentOptimizeRequest: {
             /**
@@ -875,7 +1183,19 @@ export interface components {
              */
             requirements?: string | null;
         };
-        /** ConversationMessageItem */
+        /**
+         * ConversationMessageItem
+         * @description ConversationMessageItem 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         message_id: 字段 `message_id` 的业务含义。
+         *         conversation_id: 字段 `conversation_id` 的业务含义。
+         *         message_type: 字段 `message_type` 的业务含义。
+         *         content: 字段 `content` 的业务含义。
+         *         sequence_number: 字段 `sequence_number` 的业务含义。
+         *         parent_message_id: 字段 `parent_message_id` 的业务含义。
+         *         created_at: 字段 `created_at` 的业务含义。
+         */
         ConversationMessageItem: {
             /**
              * Message Id
@@ -913,7 +1233,20 @@ export interface components {
              */
             created_at: string;
         };
-        /** ConversationResponse */
+        /**
+         * ConversationResponse
+         * @description ConversationResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         conversation_id: 字段 `conversation_id` 的业务含义。
+         *         user_id: 字段 `user_id` 的业务含义。
+         *         title: 字段 `title` 的业务含义。
+         *         description: 字段 `description` 的业务含义。
+         *         message_count: 字段 `message_count` 的业务含义。
+         *         is_active: 字段 `is_active` 的业务含义。
+         *         created_at: 字段 `created_at` 的业务含义。
+         *         updated_at: 字段 `updated_at` 的业务含义。
+         */
         ConversationResponse: {
             /**
              * Conversation Id
@@ -958,7 +1291,17 @@ export interface components {
              */
             updated_at: string;
         };
-        /** ConversationSummaryResponse */
+        /**
+         * ConversationSummaryResponse
+         * @description ConversationSummaryResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         conversation_id: 字段 `conversation_id` 的业务含义。
+         *         title: 字段 `title` 的业务含义。
+         *         message_count: 字段 `message_count` 的业务含义。
+         *         last_message_preview: 字段 `last_message_preview` 的业务含义。
+         *         updated_at: 字段 `updated_at` 的业务含义。
+         */
         ConversationSummaryResponse: {
             /**
              * Conversation Id
@@ -987,7 +1330,14 @@ export interface components {
              */
             updated_at: string;
         };
-        /** CreateConversationRequest */
+        /**
+         * CreateConversationRequest
+         * @description CreateConversationRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         title: 字段 `title` 的业务含义。
+         *         description: 字段 `description` 的业务含义。
+         */
         CreateConversationRequest: {
             /**
              * Title
@@ -1000,7 +1350,29 @@ export interface components {
              */
             description?: string | null;
         };
-        /** DocumentInfo */
+        /**
+         * DocumentInfo
+         * @description DocumentInfo 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         document_id: 字段 `document_id` 的业务含义。
+         *         file_name: 字段 `file_name` 的业务含义。
+         *         file_type: 字段 `file_type` 的业务含义。
+         *         file_size: 字段 `file_size` 的业务含义。
+         *         chunk_count: 字段 `chunk_count` 的业务含义。
+         *         upload_time: 字段 `upload_time` 的业务含义。
+         *         user_id: 字段 `user_id` 的业务含义。
+         *         knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。
+         *         knowledge_base_name: 字段 `knowledge_base_name` 的业务含义。
+         *         status: 字段 `status` 的业务含义。
+         *         processing_stage: 字段 `processing_stage` 的业务含义。
+         *         processing_progress: 字段 `processing_progress` 的业务含义。
+         *         error_message: 字段 `error_message` 的业务含义。
+         *         vectorized_chunk_count: 字段 `vectorized_chunk_count` 的业务含义。
+         *         missing_vector_chunk_count: 字段 `missing_vector_chunk_count` 的业务含义。
+         *         vectorization_status: 字段 `vectorization_status` 的业务含义。
+         *         can_retry_vectorization: 字段 `can_retry_vectorization` 的业务含义。
+         */
         DocumentInfo: {
             /**
              * Document Id
@@ -1093,14 +1465,29 @@ export interface components {
              */
             can_retry_vectorization: boolean;
         };
-        /** DocumentListResponse */
+        /**
+         * DocumentListResponse
+         * @description DocumentListResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         documents: 字段 `documents` 的业务含义。
+         *         total: 字段 `total` 的业务含义。
+         */
         DocumentListResponse: {
             /** Documents */
             documents: components["schemas"]["DocumentInfo"][];
             /** Total */
             total: number;
         };
-        /** FullVectorRebuildResponse */
+        /**
+         * FullVectorRebuildResponse
+         * @description FullVectorRebuildResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         reset_collection: 字段 `reset_collection` 的业务含义。
+         *         target_dimension: 字段 `target_dimension` 的业务含义。
+         *         error: 字段 `error` 的业务含义。
+         */
         FullVectorRebuildResponse: {
             /** Total Documents */
             total_documents: number;
@@ -1120,23 +1507,38 @@ export interface components {
             details: components["schemas"]["VectorRebuildItem"][];
             /**
              * Reset Collection
-             * @description ???????????
+             * @description 是否重置集合
              * @default false
              */
             reset_collection: boolean;
             /**
              * Target Dimension
-             * @description ??????????
+             * @description 目标向量维度
              * @default 512
              */
             target_dimension: number;
             /**
              * Error
-             * @description ??????????
+             * @description 错误信息
              */
             error?: string | null;
         };
-        /** FullVectorRebuildTaskResponse */
+        /**
+         * FullVectorRebuildTaskResponse
+         * @description FullVectorRebuildTaskResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         task_id: 字段 `task_id` 的业务含义。
+         *         status: 字段 `status` 的业务含义。
+         *         scope: 字段 `scope` 的业务含义。
+         *         knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。
+         *         current_document_id: 字段 `current_document_id` 的业务含义。
+         *         current_file_name: 字段 `current_file_name` 的业务含义。
+         *         created_at: 字段 `created_at` 的业务含义。
+         *         updated_at: 字段 `updated_at` 的业务含义。
+         *         started_at: 字段 `started_at` 的业务含义。
+         *         finished_at: 字段 `finished_at` 的业务含义。
+         */
         FullVectorRebuildTaskResponse: {
             /** Total Documents */
             total_documents: number;
@@ -1156,48 +1558,48 @@ export interface components {
             details: components["schemas"]["VectorRebuildItem"][];
             /**
              * Reset Collection
-             * @description ???????????
+             * @description 是否重置集合
              * @default false
              */
             reset_collection: boolean;
             /**
              * Target Dimension
-             * @description ??????????
+             * @description 目标向量维度
              * @default 512
              */
             target_dimension: number;
             /**
              * Error
-             * @description ??????????
+             * @description 错误信息
              */
             error?: string | null;
             /** Task Id */
             task_id: string;
             /**
              * Status
-             * @description ?????pending/running/succeeded/failed
+             * @description 任务状态：pending/running/succeeded/failed
              * @default pending
              */
             status: string;
             /**
              * Scope
-             * @description ????
+             * @description 任务作用范围
              * @default all_knowledge_bases
              */
             scope: string;
             /**
              * Knowledge Base Id
-             * @description ???????? ID
+             * @description 当前知识库 ID
              */
             knowledge_base_id?: string | null;
             /**
              * Current Document Id
-             * @description ???????? ID
+             * @description 当前文档 ID
              */
             current_document_id?: string | null;
             /**
              * Current File Name
-             * @description ?????????
+             * @description 当前文件名
              */
             current_file_name?: string | null;
             /** Created At */
@@ -1214,7 +1616,14 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** KnowledgeBaseCreateRequest */
+        /**
+         * KnowledgeBaseCreateRequest
+         * @description KnowledgeBaseCreateRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         name: 字段 `name` 的业务含义。
+         *         description: 字段 `description` 的业务含义。
+         */
         KnowledgeBaseCreateRequest: {
             /**
              * Name
@@ -1227,14 +1636,34 @@ export interface components {
              */
             description?: string | null;
         };
-        /** KnowledgeBaseListResponse */
+        /**
+         * KnowledgeBaseListResponse
+         * @description KnowledgeBaseListResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         knowledge_bases: 字段 `knowledge_bases` 的业务含义。
+         *         total: 字段 `total` 的业务含义。
+         */
         KnowledgeBaseListResponse: {
             /** Knowledge Bases */
             knowledge_bases: components["schemas"]["KnowledgeBaseResponse"][];
             /** Total */
             total: number;
         };
-        /** KnowledgeBaseResponse */
+        /**
+         * KnowledgeBaseResponse
+         * @description KnowledgeBaseResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。
+         *         user_id: 字段 `user_id` 的业务含义。
+         *         name: 字段 `name` 的业务含义。
+         *         description: 字段 `description` 的业务含义。
+         *         is_default: 字段 `is_default` 的业务含义。
+         *         is_active: 字段 `is_active` 的业务含义。
+         *         created_at: 字段 `created_at` 的业务含义。
+         *         updated_at: 字段 `updated_at` 的业务含义。
+         */
         KnowledgeBaseResponse: {
             /** Knowledge Base Id */
             knowledge_base_id: string;
@@ -1253,7 +1682,17 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
         };
-        /** KnowledgeSearchItem */
+        /**
+         * KnowledgeSearchItem
+         * @description KnowledgeSearchItem 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         id: 字段 `id` 的业务含义。
+         *         content: 字段 `content` 的业务含义。
+         *         score: 字段 `score` 的业务含义。
+         *         source: 字段 `source` 的业务含义。
+         *         metadata: 字段 `metadata` 的业务含义。
+         */
         KnowledgeSearchItem: {
             /** Id */
             id: string;
@@ -1268,7 +1707,16 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /** KnowledgeSearchResponse */
+        /**
+         * KnowledgeSearchResponse
+         * @description KnowledgeSearchResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         query: 字段 `query` 的业务含义。
+         *         knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。
+         *         results: 字段 `results` 的业务含义。
+         *         total: 字段 `total` 的业务含义。
+         */
         KnowledgeSearchResponse: {
             /** Query */
             query: string;
@@ -1279,7 +1727,14 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** LoginRequest */
+        /**
+         * LoginRequest
+         * @description LoginRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         username_or_email: 字段 `username_or_email` 的业务含义。
+         *         password: 字段 `password` 的业务含义。
+         */
         LoginRequest: {
             /**
              * Username Or Email
@@ -1292,7 +1747,14 @@ export interface components {
              */
             password: string;
         };
-        /** LogoutResponse */
+        /**
+         * LogoutResponse
+         * @description LogoutResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         message: 字段 `message` 的业务含义。
+         *         user_id: 字段 `user_id` 的业务含义。
+         */
         LogoutResponse: {
             /** Message */
             message: string;
@@ -1313,7 +1775,15 @@ export interface components {
         };
         /**
          * NovelChapterRequest
-         * @description 小说章节生成请求
+         * @description NovelChapterRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         chapter_number: 字段 `chapter_number` 的业务含义。
+         *         chapter_title: 字段 `chapter_title` 的业务含义。
+         *         outline: 字段 `outline` 的业务含义。
+         *         genre: 字段 `genre` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
+         *         word_count: 字段 `word_count` 的业务含义。
          */
         NovelChapterRequest: {
             /**
@@ -1350,7 +1820,12 @@ export interface components {
         };
         /**
          * NovelCharacterRequest
-         * @description 角色设定生成请求
+         * @description NovelCharacterRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         character_name: 字段 `character_name` 的业务含义。
+         *         genre: 字段 `genre` 的业务含义。
+         *         theme: 字段 `theme` 的业务含义。
          */
         NovelCharacterRequest: {
             /**
@@ -1371,7 +1846,13 @@ export interface components {
         };
         /**
          * NovelContinueRequest
-         * @description 小说续写请求
+         * @description NovelContinueRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         previous_content: 字段 `previous_content` 的业务含义。
+         *         genre: 字段 `genre` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
+         *         word_count: 字段 `word_count` 的业务含义。
          */
         NovelContinueRequest: {
             /**
@@ -1398,7 +1879,13 @@ export interface components {
         };
         /**
          * NovelOutlineRequest
-         * @description 小说大纲生成请求
+         * @description NovelOutlineRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         title: 字段 `title` 的业务含义。
+         *         theme: 字段 `theme` 的业务含义。
+         *         genre: 字段 `genre` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
          */
         NovelOutlineRequest: {
             /**
@@ -1424,7 +1911,12 @@ export interface components {
         };
         /**
          * NovelWorldviewRequest
-         * @description 世界观设定生成请求
+         * @description NovelWorldviewRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         title: 字段 `title` 的业务含义。
+         *         theme: 字段 `theme` 的业务含义。
+         *         genre: 字段 `genre` 的业务含义。
          */
         NovelWorldviewRequest: {
             /**
@@ -1536,29 +2028,45 @@ export interface components {
         };
         /**
          * PauseRequest
-         * @description 鏆傚仠娴佸紡瀵硅瘽璇锋眰
+         * @description PauseRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         stream_id: 字段 `stream_id` 的业务含义。
          */
         PauseRequest: {
             /**
              * Stream Id
-             * @description 娴佸紡浼氳瘽ID
+             * @description 流式会话ID
              */
             stream_id: string;
         };
-        /** PauseStreamResponse */
+        /**
+         * PauseStreamResponse
+         * @description PauseStreamResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         stream_id: 字段 `stream_id` 的业务含义。
+         *         paused: 字段 `paused` 的业务含义。
+         */
         PauseStreamResponse: {
             /**
              * Stream Id
-             * @description ???? ID
+             * @description 流式会话 ID
              */
             stream_id: string;
             /**
              * Paused
-             * @description ?????
+             * @description 是否已暂停
              */
             paused: boolean;
         };
-        /** RefreshTokenRequest */
+        /**
+         * RefreshTokenRequest
+         * @description RefreshTokenRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         refresh_token: 字段 `refresh_token` 的业务含义。
+         */
         RefreshTokenRequest: {
             /**
              * Refresh Token
@@ -1566,7 +2074,16 @@ export interface components {
              */
             refresh_token: string;
         };
-        /** RegisterRequest */
+        /**
+         * RegisterRequest
+         * @description RegisterRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         username: 字段 `username` 的业务含义。
+         *         email: 字段 `email` 的业务含义。
+         *         password: 字段 `password` 的业务含义。
+         *         full_name: 字段 `full_name` 的业务含义。
+         */
         RegisterRequest: {
             /**
              * Username
@@ -1592,7 +2109,15 @@ export interface components {
         };
         /**
          * ScriptCompleteRequest
-         * @description 完整脚本生成请求
+         * @description ScriptCompleteRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         script_type: 字段 `script_type` 的业务含义。
+         *         title: 字段 `title` 的业务含义。
+         *         theme: 字段 `theme` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
+         *         duration: 字段 `duration` 的业务含义。
+         *         target_audience: 字段 `target_audience` 的业务含义。
          */
         ScriptCompleteRequest: {
             /**
@@ -1628,7 +2153,13 @@ export interface components {
         };
         /**
          * ScriptDialogueRequest
-         * @description 对白生成请求
+         * @description ScriptDialogueRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         script_type: 字段 `script_type` 的业务含义。
+         *         characters: 字段 `characters` 的业务含义。
+         *         scene_description: 字段 `scene_description` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
          */
         ScriptDialogueRequest: {
             /**
@@ -1654,7 +2185,15 @@ export interface components {
         };
         /**
          * ScriptOutlineRequest
-         * @description 脚本大纲生成请求
+         * @description ScriptOutlineRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         script_type: 字段 `script_type` 的业务含义。
+         *         title: 字段 `title` 的业务含义。
+         *         theme: 字段 `theme` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
+         *         duration: 字段 `duration` 的业务含义。
+         *         target_audience: 字段 `target_audience` 的业务含义。
          */
         ScriptOutlineRequest: {
             /**
@@ -1690,7 +2229,15 @@ export interface components {
         };
         /**
          * ScriptSceneRequest
-         * @description 场景脚本生成请求
+         * @description ScriptSceneRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         script_type: 字段 `script_type` 的业务含义。
+         *         scene_number: 字段 `scene_number` 的业务含义。
+         *         scene_description: 字段 `scene_description` 的业务含义。
+         *         characters: 字段 `characters` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
+         *         outline: 字段 `outline` 的业务含义。
          */
         ScriptSceneRequest: {
             /**
@@ -1727,7 +2274,12 @@ export interface components {
         };
         /**
          * ScriptStoryboardRequest
-         * @description 分镜脚本生成请求
+         * @description ScriptStoryboardRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         script_type: 字段 `script_type` 的业务含义。
+         *         scene_description: 字段 `scene_description` 的业务含义。
+         *         style: 字段 `style` 的业务含义。
          */
         ScriptStoryboardRequest: {
             /**
@@ -1746,7 +2298,21 @@ export interface components {
              */
             style?: string | null;
         };
-        /** SearchRequest */
+        /**
+         * SearchRequest
+         * @description SearchRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         query: 字段 `query` 的业务含义。
+         *         top_k: 字段 `top_k` 的业务含义。
+         *         knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。
+         *         enable_query_rewrite: 字段 `enable_query_rewrite` 的业务含义。
+         *         enable_exact_phrase: 字段 `enable_exact_phrase` 的业务含义。
+         *         enable_sparse_keyword: 字段 `enable_sparse_keyword` 的业务含义。
+         *         enable_dense_vector: 字段 `enable_dense_vector` 的业务含义。
+         *         enable_fusion_rank: 字段 `enable_fusion_rank` 的业务含义。
+         *         enable_rerank: 字段 `enable_rerank` 的业务含义。
+         */
         SearchRequest: {
             /**
              * Query
@@ -1764,6 +2330,42 @@ export interface components {
              * @description 限定搜索的知识库 ID
              */
             knowledge_base_id?: string | null;
+            /**
+             * Enable Query Rewrite
+             * @description 是否启用 query rewrite
+             * @default true
+             */
+            enable_query_rewrite: boolean;
+            /**
+             * Enable Exact Phrase
+             * @description 是否启用 exact phrase 检索
+             * @default true
+             */
+            enable_exact_phrase: boolean;
+            /**
+             * Enable Sparse Keyword
+             * @description 是否启用 sparse keyword 检索
+             * @default true
+             */
+            enable_sparse_keyword: boolean;
+            /**
+             * Enable Dense Vector
+             * @description 是否启用 dense vector 检索
+             * @default true
+             */
+            enable_dense_vector: boolean;
+            /**
+             * Enable Fusion Rank
+             * @description 是否启用 fusion rank
+             * @default true
+             */
+            enable_fusion_rank: boolean;
+            /**
+             * Enable Rerank
+             * @description 是否启用 rerank
+             * @default true
+             */
+            enable_rerank: boolean;
         };
         /**
          * SuccessResponse[BatchUploadResponse]
@@ -2129,7 +2731,17 @@ export interface components {
             /** Timestamp */
             timestamp?: string;
         };
-        /** TokenResponse */
+        /**
+         * TokenResponse
+         * @description TokenResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         access_token: 字段 `access_token` 的业务含义。
+         *         refresh_token: 字段 `refresh_token` 的业务含义。
+         *         token_type: 字段 `token_type` 的业务含义。
+         *         user_id: 字段 `user_id` 的业务含义。
+         *         username: 字段 `username` 的业务含义。
+         */
         TokenResponse: {
             /**
              * Access Token
@@ -2160,17 +2772,11 @@ export interface components {
         };
         /**
          * ToolDetailResponse
-         * @description 工具详情响应
-         * @example {
-         *       "data": {
-         *         "category": "language",
-         *         "description": "多语言翻译工具",
-         *         "name": "translation",
-         *         "parameters": [],
-         *         "timeout": 30
-         *       },
-         *       "success": true
-         *     }
+         * @description ToolDetailResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         success: 字段 `success` 的业务含义。
+         *         data: 字段 `data` 的业务含义。
          */
         ToolDetailResponse: {
             /**
@@ -2184,7 +2790,10 @@ export interface components {
         };
         /**
          * ToolExecuteRequest
-         * @description 工具执行请求
+         * @description ToolExecuteRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         parameters: 字段 `parameters` 的业务含义。
          * @example {
          *       "parameters": {
          *         "source_lang": "en",
@@ -2204,10 +2813,23 @@ export interface components {
         };
         /**
          * ToolExecuteResponse
-         * @description 工具执行响应
+         * @description ToolExecuteResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         success: 字段 `success` 的业务含义。
+         *         data: 字段 `data` 的业务含义。
+         *         error: 字段 `error` 的业务含义。
+         *         error_code: 字段 `error_code` 的业务含义。
+         *         error_type: 字段 `error_type` 的业务含义。
+         *         metadata: 字段 `metadata` 的业务含义。
          * @example {
          *       "data": {
          *         "translated_text": "你好，世界！"
+         *       },
+         *       "metadata": {
+         *         "execution_id": "exec_xxx",
+         *         "tool_call_id": "call_xxx",
+         *         "tool_name": "translation"
          *       },
          *       "success": true
          *     }
@@ -2230,23 +2852,53 @@ export interface components {
              * @description 错误信息
              */
             error?: string | null;
+            /**
+             * Error Code
+             * @description 稳定错误码
+             */
+            error_code?: string | null;
+            /**
+             * Error Type
+             * @description 错误分类
+             */
+            error_type?: string | null;
+            /**
+             * Metadata
+             * @description 附加元数据
+             */
+            metadata?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * ToolInfo
-         * @description 工具信息
+         * @description ToolInfo 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         name: 字段 `name` 的业务含义。
+         *         description: 字段 `description` 的业务含义。
+         *         category: 字段 `category` 的业务含义。
+         *         transport_protocol: 字段 `transport_protocol` 的业务含义。
+         *         tool_origin: 字段 `tool_origin` 的业务含义。
+         *         mcp_server: 字段 `mcp_server` 的业务含义。
+         *         parameters: 字段 `parameters` 的业务含义。
+         *         timeout: 字段 `timeout` 的业务含义。
          * @example {
          *       "category": "language",
          *       "description": "多语言翻译工具",
+         *       "mcp_server": "builtin",
          *       "name": "translation",
          *       "parameters": [
          *         {
-         *           "description": "要翻译的文本",
+         *           "description": "输入文本",
          *           "name": "text",
          *           "required": true,
          *           "type": "string"
          *         }
          *       ],
-         *       "timeout": 30
+         *       "timeout": 30,
+         *       "tool_origin": "local",
+         *       "transport_protocol": "mcp"
          *     }
          */
         ToolInfo: {
@@ -2262,9 +2914,24 @@ export interface components {
             description: string;
             /**
              * Category
-             * @description 工具分类
+             * @description 业务分类
              */
             category: string;
+            /**
+             * Transport Protocol
+             * @description 运行时协议
+             */
+            transport_protocol: string;
+            /**
+             * Tool Origin
+             * @description 工具来源，local/external
+             */
+            tool_origin: string;
+            /**
+             * Mcp Server
+             * @description 绑定的 MCP Server
+             */
+            mcp_server?: string | null;
             /**
              * Parameters
              * @description 参数列表
@@ -2280,12 +2947,12 @@ export interface components {
         };
         /**
          * ToolListResponse
-         * @description 工具列表响应
-         * @example {
-         *       "data": [],
-         *       "success": true,
-         *       "total": 9
-         *     }
+         * @description ToolListResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         success: 字段 `success` 的业务含义。
+         *         data: 字段 `data` 的业务含义。
+         *         total: 字段 `total` 的业务含义。
          */
         ToolListResponse: {
             /**
@@ -2305,7 +2972,14 @@ export interface components {
              */
             total: number;
         };
-        /** UpdateConversationRequest */
+        /**
+         * UpdateConversationRequest
+         * @description UpdateConversationRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         title: 字段 `title` 的业务含义。
+         *         description: 字段 `description` 的业务含义。
+         */
         UpdateConversationRequest: {
             /**
              * Title
@@ -2318,7 +2992,19 @@ export interface components {
              */
             description?: string | null;
         };
-        /** UserProfileResponse */
+        /**
+         * UserProfileResponse
+         * @description UserProfileResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         user_id: 字段 `user_id` 的业务含义。
+         *         username: 字段 `username` 的业务含义。
+         *         email: 字段 `email` 的业务含义。
+         *         full_name: 字段 `full_name` 的业务含义。
+         *         avatar_url: 字段 `avatar_url` 的业务含义。
+         *         is_active: 字段 `is_active` 的业务含义。
+         *         created_at: 字段 `created_at` 的业务含义。
+         */
         UserProfileResponse: {
             /** User Id */
             user_id: string;
@@ -2344,7 +3030,19 @@ export interface components {
             /** Error Type */
             type: string;
         };
-        /** VectorRebuildItem */
+        /**
+         * VectorRebuildItem
+         * @description VectorRebuildItem 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         document_id: 字段 `document_id` 的业务含义。
+         *         file_name: 字段 `file_name` 的业务含义。
+         *         missing_before: 字段 `missing_before` 的业务含义。
+         *         vectorized_now: 字段 `vectorized_now` 的业务含义。
+         *         missing_after: 字段 `missing_after` 的业务含义。
+         *         success: 字段 `success` 的业务含义。
+         *         error: 字段 `error` 的业务含义。
+         */
         VectorRebuildItem: {
             /** Document Id */
             document_id: string;
@@ -2361,7 +3059,13 @@ export interface components {
             /** Error */
             error?: string | null;
         };
-        /** VectorRebuildRequest */
+        /**
+         * VectorRebuildRequest
+         * @description VectorRebuildRequest 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。
+         */
         VectorRebuildRequest: {
             /**
              * Knowledge Base Id
@@ -2369,7 +3073,20 @@ export interface components {
              */
             knowledge_base_id?: string | null;
         };
-        /** VectorRebuildResponse */
+        /**
+         * VectorRebuildResponse
+         * @description VectorRebuildResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         total_documents: 字段 `total_documents` 的业务含义。
+         *         processed_documents: 字段 `processed_documents` 的业务含义。
+         *         succeeded_documents: 字段 `succeeded_documents` 的业务含义。
+         *         failed_documents: 字段 `failed_documents` 的业务含义。
+         *         total_missing_chunks_before: 字段 `total_missing_chunks_before` 的业务含义。
+         *         total_vectorized_chunks_now: 字段 `total_vectorized_chunks_now` 的业务含义。
+         *         total_missing_chunks_after: 字段 `total_missing_chunks_after` 的业务含义。
+         *         details: 字段 `details` 的业务含义。
+         */
         VectorRebuildResponse: {
             /** Total Documents */
             total_documents: number;
@@ -2496,7 +3213,13 @@ export interface components {
         };
         /**
          * AskResponse
-         * @description 用户提问响应（非流式）
+         * @description AskResponse 相关的数据结构定义。
+         *
+         *     Attributes:
+         *         conversation_id: 字段 `conversation_id` 的业务含义。
+         *         message_id: 字段 `message_id` 的业务含义。
+         *         answer: 字段 `answer` 的业务含义。
+         *         execution_id: 字段 `execution_id` 的业务含义。
          */
         AskResponse: {
             /**
@@ -2520,6 +3243,1724 @@ export interface components {
              * @default null
              */
             execution_id: string | null;
+            /**
+             * Citations
+             * @description 引用列表
+             */
+            citations?: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * ChatResultPayload
+         * @description Chat SSE `result` event payload contract.
+         */
+        ChatResultPayload: {
+            /**
+             * Status
+             * @description 工作流或结果状态
+             * @default null
+             */
+            status: string | null;
+            /**
+             * Final Step Key
+             * @description 最终步骤标识
+             * @default null
+             */
+            final_step_key: string | null;
+            /**
+             * Final Content
+             * @description 最终文本内容
+             * @default null
+             */
+            final_content: string | null;
+            /**
+             * Step Count
+             * @description 步骤数量
+             * @default null
+             */
+            step_count: number | null;
+            /**
+             * Execution Id
+             * @description 执行ID
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Citations
+             * @description 引用列表
+             */
+            citations?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @description 路由决策
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Retrieval Results
+             * @description 检索结果
+             */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @description 工具结果
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Metadata
+             * @description 扩展元数据
+             * @default null
+             */
+            metadata: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * ChatDonePayload
+         * @description Chat SSE `done` event payload contract.
+         */
+        ChatDonePayload: {
+            /**
+             * Status
+             * @description 工作流或结果状态
+             * @default null
+             */
+            status: string | null;
+            /**
+             * Final Step Key
+             * @description 最终步骤标识
+             * @default null
+             */
+            final_step_key: string | null;
+            /**
+             * Final Content
+             * @description 最终文本内容
+             * @default null
+             */
+            final_content: string | null;
+            /**
+             * Step Count
+             * @description 步骤数量
+             * @default null
+             */
+            step_count: number | null;
+            /**
+             * Execution Id
+             * @description 执行ID
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Citations
+             * @description 引用列表
+             */
+            citations?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @description 路由决策
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Retrieval Results
+             * @description 检索结果
+             */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @description 工具结果
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Metadata
+             * @description 扩展元数据
+             * @default null
+             */
+            metadata: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Conversation Id
+             * @description 会话ID
+             * @default null
+             */
+            conversation_id: string | null;
+            /**
+             * Assistant Message Id
+             * @description 助手消息ID
+             * @default null
+             */
+            assistant_message_id: string | null;
+        };
+        /** WorkflowContextSchema */
+        WorkflowContextSchema: {
+            /** Step Results */
+            step_results?: {
+                [key: string]: unknown;
+            };
+            /** Step Config */
+            step_config?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Previous Output
+             * @default null
+             */
+            previous_output: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * AgentInputSchema
+         * @example {
+         *       "content": "请总结这份资料",
+         *       "conversation_history": [
+         *         {
+         *           "content": "上一轮问题",
+         *           "role": "user"
+         *         }
+         *       ],
+         *       "conversation_id": "conv_123",
+         *       "document_id": "doc_123",
+         *       "enable_knowledge_base": true,
+         *       "execution_id": "exec_parent_123",
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [
+         *         {
+         *           "content": "知识片段",
+         *           "id": "chunk_1"
+         *         }
+         *       ],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "tool_results": [
+         *         {
+         *           "success": true,
+         *           "tool_name": "weather"
+         *         }
+         *       ],
+         *       "user_id": "user_123",
+         *       "workflow_context": {
+         *         "previous_output": null,
+         *         "step_config": {},
+         *         "step_results": {}
+         *       }
+         *     }
+         */
+        AgentInputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Execution Id
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Enable Knowledge Base
+             * @default null
+             */
+            enable_knowledge_base: boolean | null;
+            /** Conversation History */
+            conversation_history?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Tool Results */
+            tool_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** @default null */
+            workflow_context: components["schemas"]["WorkflowContextSchema"] | null;
+        };
+        /**
+         * RouterAgentInputSchema
+         * @example {
+         *       "content": "请总结这份资料",
+         *       "conversation_history": [
+         *         {
+         *           "content": "上一轮问题",
+         *           "role": "user"
+         *         }
+         *       ],
+         *       "conversation_id": "conv_123",
+         *       "document_id": "doc_123",
+         *       "enable_knowledge_base": true,
+         *       "execution_id": "exec_parent_123",
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [
+         *         {
+         *           "content": "知识片段",
+         *           "id": "chunk_1"
+         *         }
+         *       ],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "tool_results": [
+         *         {
+         *           "success": true,
+         *           "tool_name": "weather"
+         *         }
+         *       ],
+         *       "user_id": "user_123",
+         *       "workflow_context": {
+         *         "previous_output": null,
+         *         "step_config": {},
+         *         "step_results": {}
+         *       }
+         *     }
+         */
+        RouterAgentInputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Execution Id
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Enable Knowledge Base
+             * @default null
+             */
+            enable_knowledge_base: boolean | null;
+            /** Conversation History */
+            conversation_history?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Tool Results */
+            tool_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** @default null */
+            workflow_context: components["schemas"]["WorkflowContextSchema"] | null;
+            /** Available Agents */
+            available_agents?: string[];
+        };
+        /**
+         * RetrievalAgentInputSchema
+         * @example {
+         *       "content": "请总结这份资料",
+         *       "conversation_history": [
+         *         {
+         *           "content": "上一轮问题",
+         *           "role": "user"
+         *         }
+         *       ],
+         *       "conversation_id": "conv_123",
+         *       "document_id": "doc_123",
+         *       "enable_knowledge_base": true,
+         *       "execution_id": "exec_parent_123",
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [
+         *         {
+         *           "content": "知识片段",
+         *           "id": "chunk_1"
+         *         }
+         *       ],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "tool_results": [
+         *         {
+         *           "success": true,
+         *           "tool_name": "weather"
+         *         }
+         *       ],
+         *       "user_id": "user_123",
+         *       "workflow_context": {
+         *         "previous_output": null,
+         *         "step_config": {},
+         *         "step_results": {}
+         *       }
+         *     }
+         */
+        RetrievalAgentInputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Execution Id
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Enable Knowledge Base
+             * @default null
+             */
+            enable_knowledge_base: boolean | null;
+            /** Conversation History */
+            conversation_history?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Tool Results */
+            tool_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** @default null */
+            workflow_context: components["schemas"]["WorkflowContextSchema"] | null;
+            /** Vector Search Filter */
+            vector_search_filter?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Top K
+             * @default 5
+             */
+            top_k: number;
+            /**
+             * Enable Rerank
+             * @default true
+             */
+            enable_rerank: boolean;
+            /**
+             * Rerank Top K
+             * @default null
+             */
+            rerank_top_k: number | null;
+            /**
+             * Keyword Top K
+             * @default null
+             */
+            keyword_top_k: number | null;
+            /**
+             * Enable Exact Phrase
+             * @default null
+             */
+            enable_exact_phrase: boolean | null;
+            /**
+             * Enable Sparse Keyword
+             * @default null
+             */
+            enable_sparse_keyword: boolean | null;
+            /**
+             * Enable Dense Vector
+             * @default null
+             */
+            enable_dense_vector: boolean | null;
+            /**
+             * Enable Fusion Rank
+             * @default null
+             */
+            enable_fusion_rank: boolean | null;
+        };
+        /**
+         * GenerationAgentInputSchema
+         * @example {
+         *       "content": "请总结这份资料",
+         *       "conversation_history": [
+         *         {
+         *           "content": "上一轮问题",
+         *           "role": "user"
+         *         }
+         *       ],
+         *       "conversation_id": "conv_123",
+         *       "document_id": "doc_123",
+         *       "enable_knowledge_base": true,
+         *       "execution_id": "exec_parent_123",
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [
+         *         {
+         *           "content": "知识片段",
+         *           "id": "chunk_1"
+         *         }
+         *       ],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "tool_results": [
+         *         {
+         *           "success": true,
+         *           "tool_name": "weather"
+         *         }
+         *       ],
+         *       "user_id": "user_123",
+         *       "workflow_context": {
+         *         "previous_output": null,
+         *         "step_config": {},
+         *         "step_results": {}
+         *       }
+         *     }
+         */
+        GenerationAgentInputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Execution Id
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Enable Knowledge Base
+             * @default null
+             */
+            enable_knowledge_base: boolean | null;
+            /** Conversation History */
+            conversation_history?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Tool Results */
+            tool_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** @default null */
+            workflow_context: components["schemas"]["WorkflowContextSchema"] | null;
+            /**
+             * Context
+             * @default null
+             */
+            context: string | null;
+            /** Sources */
+            sources?: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * ToolAgentInputSchema
+         * @example {
+         *       "content": "请总结这份资料",
+         *       "conversation_history": [
+         *         {
+         *           "content": "上一轮问题",
+         *           "role": "user"
+         *         }
+         *       ],
+         *       "conversation_id": "conv_123",
+         *       "document_id": "doc_123",
+         *       "enable_knowledge_base": true,
+         *       "execution_id": "exec_parent_123",
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [
+         *         {
+         *           "content": "知识片段",
+         *           "id": "chunk_1"
+         *         }
+         *       ],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "tool_results": [
+         *         {
+         *           "success": true,
+         *           "tool_name": "weather"
+         *         }
+         *       ],
+         *       "user_id": "user_123",
+         *       "workflow_context": {
+         *         "previous_output": null,
+         *         "step_config": {},
+         *         "step_results": {}
+         *       }
+         *     }
+         */
+        ToolAgentInputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Execution Id
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Enable Knowledge Base
+             * @default null
+             */
+            enable_knowledge_base: boolean | null;
+            /** Conversation History */
+            conversation_history?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Tool Results */
+            tool_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** @default null */
+            workflow_context: components["schemas"]["WorkflowContextSchema"] | null;
+            /** Available Tools */
+            available_tools?: string[];
+            /**
+             * Tool Timeout
+             * @default null
+             */
+            tool_timeout: number | null;
+            /**
+             * Tool Name
+             * @default null
+             */
+            tool_name: string | null;
+            /** Tool Params */
+            tool_params?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * FileProcessorAgentInputSchema
+         * @example {
+         *       "content": "请总结这份资料",
+         *       "conversation_history": [
+         *         {
+         *           "content": "上一轮问题",
+         *           "role": "user"
+         *         }
+         *       ],
+         *       "conversation_id": "conv_123",
+         *       "document_id": "doc_123",
+         *       "enable_knowledge_base": true,
+         *       "execution_id": "exec_parent_123",
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [
+         *         {
+         *           "content": "知识片段",
+         *           "id": "chunk_1"
+         *         }
+         *       ],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "tool_results": [
+         *         {
+         *           "success": true,
+         *           "tool_name": "weather"
+         *         }
+         *       ],
+         *       "user_id": "user_123",
+         *       "workflow_context": {
+         *         "previous_output": null,
+         *         "step_config": {},
+         *         "step_results": {}
+         *       }
+         *     }
+         */
+        FileProcessorAgentInputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** User Id */
+            user_id: string;
+            /** Conversation Id */
+            conversation_id: string;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Execution Id
+             * @default null
+             */
+            execution_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Enable Knowledge Base
+             * @default null
+             */
+            enable_knowledge_base: boolean | null;
+            /** Conversation History */
+            conversation_history?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Tool Results */
+            tool_results?: {
+                [key: string]: unknown;
+            }[];
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** @default null */
+            workflow_context: components["schemas"]["WorkflowContextSchema"] | null;
+            /**
+             * File Id
+             * @default null
+             */
+            file_id: string | null;
+            /**
+             * File Path
+             * @default null
+             */
+            file_path: string | null;
+            /**
+             * File Type
+             * @default null
+             */
+            file_type: string | null;
+            /** File Metadata */
+            file_metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * AgentOutputSchema
+         * @example {
+         *       "agent_name": "router_agent",
+         *       "agent_type": "router",
+         *       "content": "",
+         *       "conversation_id": "conv_123",
+         *       "document_id": null,
+         *       "error_message": null,
+         *       "execution_id": "exec_123",
+         *       "execution_time_ms": 38,
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "status": "success",
+         *       "tool_result": null
+         *     }
+         */
+        AgentOutputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** Execution Id */
+            execution_id: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Agent Type */
+            agent_type: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Status
+             * @default success
+             * @enum {string}
+             */
+            status: "success" | "failed" | "partial";
+            /**
+             * Error Message
+             * @default null
+             */
+            error_message: string | null;
+            /**
+             * Execution Time Ms
+             * @default 0
+             */
+            execution_time_ms: number;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Conversation Id
+             * @default null
+             */
+            conversation_id: string | null;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * RouterAgentOutputSchema
+         * @example {
+         *       "agent_name": "router_agent",
+         *       "agent_type": "router",
+         *       "content": "",
+         *       "conversation_id": "conv_123",
+         *       "document_id": null,
+         *       "error_message": null,
+         *       "execution_id": "exec_123",
+         *       "execution_time_ms": 38,
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "status": "success",
+         *       "tool_result": null
+         *     }
+         */
+        RouterAgentOutputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** Execution Id */
+            execution_id: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Agent Type */
+            agent_type: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Status
+             * @default success
+             * @enum {string}
+             */
+            status: "success" | "failed" | "partial";
+            /**
+             * Error Message
+             * @default null
+             */
+            error_message: string | null;
+            /**
+             * Execution Time Ms
+             * @default 0
+             */
+            execution_time_ms: number;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Conversation Id
+             * @default null
+             */
+            conversation_id: string | null;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Confidence
+             * @default null
+             */
+            confidence: number | null;
+            /**
+             * Reasoning
+             * @default null
+             */
+            reasoning: string | null;
+            /** Suggested Agents */
+            suggested_agents?: string[];
+            /** Suggested Tools */
+            suggested_tools?: string[];
+        };
+        /**
+         * RetrievalAgentOutputSchema
+         * @example {
+         *       "agent_name": "router_agent",
+         *       "agent_type": "router",
+         *       "content": "",
+         *       "conversation_id": "conv_123",
+         *       "document_id": null,
+         *       "error_message": null,
+         *       "execution_id": "exec_123",
+         *       "execution_time_ms": 38,
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "status": "success",
+         *       "tool_result": null
+         *     }
+         */
+        RetrievalAgentOutputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** Execution Id */
+            execution_id: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Agent Type */
+            agent_type: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Status
+             * @default success
+             * @enum {string}
+             */
+            status: "success" | "failed" | "partial";
+            /**
+             * Error Message
+             * @default null
+             */
+            error_message: string | null;
+            /**
+             * Execution Time Ms
+             * @default 0
+             */
+            execution_time_ms: number;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Conversation Id
+             * @default null
+             */
+            conversation_id: string | null;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Rewrite Info
+             * @default null
+             */
+            rewrite_info: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * GenerationAgentOutputSchema
+         * @example {
+         *       "agent_name": "router_agent",
+         *       "agent_type": "router",
+         *       "content": "",
+         *       "conversation_id": "conv_123",
+         *       "document_id": null,
+         *       "error_message": null,
+         *       "execution_id": "exec_123",
+         *       "execution_time_ms": 38,
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "status": "success",
+         *       "tool_result": null
+         *     }
+         */
+        GenerationAgentOutputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** Execution Id */
+            execution_id: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Agent Type */
+            agent_type: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Status
+             * @default success
+             * @enum {string}
+             */
+            status: "success" | "failed" | "partial";
+            /**
+             * Error Message
+             * @default null
+             */
+            error_message: string | null;
+            /**
+             * Execution Time Ms
+             * @default 0
+             */
+            execution_time_ms: number;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Conversation Id
+             * @default null
+             */
+            conversation_id: string | null;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Citations */
+            citations?: {
+                [key: string]: unknown;
+            }[];
+            /** Sources */
+            sources?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Has Hallucination
+             * @default false
+             */
+            has_hallucination: boolean;
+            /**
+             * Token Count
+             * @default null
+             */
+            token_count: number | null;
+        };
+        /**
+         * ToolAgentOutputSchema
+         * @example {
+         *       "agent_name": "router_agent",
+         *       "agent_type": "router",
+         *       "content": "",
+         *       "conversation_id": "conv_123",
+         *       "document_id": null,
+         *       "error_message": null,
+         *       "execution_id": "exec_123",
+         *       "execution_time_ms": 38,
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "status": "success",
+         *       "tool_result": null
+         *     }
+         */
+        ToolAgentOutputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** Execution Id */
+            execution_id: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Agent Type */
+            agent_type: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Status
+             * @default success
+             * @enum {string}
+             */
+            status: "success" | "failed" | "partial";
+            /**
+             * Error Message
+             * @default null
+             */
+            error_message: string | null;
+            /**
+             * Execution Time Ms
+             * @default 0
+             */
+            execution_time_ms: number;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Conversation Id
+             * @default null
+             */
+            conversation_id: string | null;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Tool Name
+             * @default null
+             */
+            tool_name: string | null;
+            /** Tool Params */
+            tool_params?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Interpreted Result
+             * @default null
+             */
+            interpreted_result: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Tool Call Id
+             * @default null
+             */
+            tool_call_id: string | null;
+            /** Tool Calls */
+            tool_calls?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * No Tool Needed
+             * @default null
+             */
+            no_tool_needed: boolean | null;
+            /**
+             * Reasoning
+             * @default null
+             */
+            reasoning: string | null;
+            /**
+             * Route Action
+             * @default null
+             */
+            route_action: string | null;
+            /**
+             * Total Calls
+             * @default 0
+             */
+            total_calls: number;
+            /**
+             * Successful Calls
+             * @default 0
+             */
+            successful_calls: number;
+            /**
+             * Failed Calls
+             * @default 0
+             */
+            failed_calls: number;
+        };
+        /**
+         * FileProcessorAgentOutputSchema
+         * @example {
+         *       "agent_name": "router_agent",
+         *       "agent_type": "router",
+         *       "content": "",
+         *       "conversation_id": "conv_123",
+         *       "document_id": null,
+         *       "error_message": null,
+         *       "execution_id": "exec_123",
+         *       "execution_time_ms": 38,
+         *       "knowledge_base_id": "kb_123",
+         *       "message_id": "msg_123",
+         *       "metadata": {
+         *         "debug": true
+         *       },
+         *       "protocol_version": "2.0.0",
+         *       "request_id": "req_123",
+         *       "retrieval_results": [],
+         *       "route_decision": {
+         *         "action": "retrieval"
+         *       },
+         *       "status": "success",
+         *       "tool_result": null
+         *     }
+         */
+        FileProcessorAgentOutputSchema: {
+            /**
+             * Protocol Version
+             * @default 2.0.0
+             */
+            protocol_version: string;
+            /** Execution Id */
+            execution_id: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Agent Type */
+            agent_type: string;
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /**
+             * Status
+             * @default success
+             * @enum {string}
+             */
+            status: "success" | "failed" | "partial";
+            /**
+             * Error Message
+             * @default null
+             */
+            error_message: string | null;
+            /**
+             * Execution Time Ms
+             * @default 0
+             */
+            execution_time_ms: number;
+            /**
+             * Request Id
+             * @default null
+             */
+            request_id: string | null;
+            /**
+             * Conversation Id
+             * @default null
+             */
+            conversation_id: string | null;
+            /**
+             * Message Id
+             * @default null
+             */
+            message_id: string | null;
+            /**
+             * Knowledge Base Id
+             * @default null
+             */
+            knowledge_base_id: string | null;
+            /**
+             * Document Id
+             * @default null
+             */
+            document_id: string | null;
+            /**
+             * Route Decision
+             * @default null
+             */
+            route_decision: {
+                [key: string]: unknown;
+            } | null;
+            /** Retrieval Results */
+            retrieval_results?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Tool Result
+             * @default null
+             */
+            tool_result: {
+                [key: string]: unknown;
+            } | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * File Id
+             * @default null
+             */
+            file_id: string | null;
+            /**
+             * Chunk Count
+             * @default null
+             */
+            chunk_count: number | null;
+            /**
+             * Summary
+             * @default null
+             */
+            summary: string | null;
+            /**
+             * Extracted Text
+             * @default null
+             */
+            extracted_text: string | null;
+            /** Extracted Images */
+            extracted_images?: string[];
+            /** Extracted Tables */
+            extracted_tables?: {
+                [key: string]: unknown;
+            }[];
+            /** File Metadata */
+            file_metadata?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Page Count
+             * @default null
+             */
+            page_count: number | null;
         };
         /**
          * SuccessResponse[AskResponse]

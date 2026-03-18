@@ -259,23 +259,28 @@ class ScriptGeneratorTool(BaseTool):
         duration: Optional[int],
         target_audience: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         type_name = self._get_type_name(script_type)
         style_name = self._get_style_name(style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.script_generator_outline_prompt",
-            title=title or "未命名脚本",
-            type_name=type_name,
-            style_name=style_name,
-            duration=duration or "未指定",
-            target_audience=target_audience or "泛受众",
-            theme=theme or "请生成完整脚本大纲",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.script_generator_outline_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "title": title or "未命名脚本",
+                "type_name": type_name,
+                "style_name": style_name,
+                "duration": duration or "未指定",
+                "target_audience": target_audience or "泛受众",
+                "theme": theme or "请生成完整脚本大纲",
+            },
+            temperature=0.8
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -299,23 +304,28 @@ class ScriptGeneratorTool(BaseTool):
         style: Optional[str],
         outline: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         type_name = self._get_type_name(script_type)
         style_name = self._get_style_name(style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.script_generator_scene_prompt",
-            type_name=type_name,
-            scene_number=scene_number,
-            scene_description=scene_description or "请根据项目目标生成场景",
-            characters=characters or "未指定角色",
-            style_name=style_name,
-            outline_text=outline or "请保持剧情连贯",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.script_generator_scene_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=3000):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "type_name": type_name,
+                "scene_number": scene_number,
+                "scene_description": scene_description or "请根据项目目标生成场景",
+                "characters": characters or "未指定角色",
+                "style_name": style_name,
+                "outline_text": outline or "请保持剧情连贯",
+            },
+            temperature=0.8, max_tokens=3000
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -336,21 +346,26 @@ class ScriptGeneratorTool(BaseTool):
         scene_description: Optional[str],
         style: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         type_name = self._get_type_name(script_type)
         style_name = self._get_style_name(style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.script_generator_dialogue_prompt",
-            type_name=type_name,
-            characters=characters or "未指定角色",
-            scene_description=scene_description or "请生成符合剧情的对白",
-            style_name=style_name,
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.script_generator_dialogue_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=2500):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "type_name": type_name,
+                "characters": characters or "未指定角色",
+                "scene_description": scene_description or "请生成符合剧情的对白",
+                "style_name": style_name,
+            },
+            temperature=0.8, max_tokens=2500
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -370,20 +385,25 @@ class ScriptGeneratorTool(BaseTool):
         scene_description: Optional[str],
         style: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         type_name = self._get_type_name(script_type)
         style_name = self._get_style_name(style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.script_generator_storyboard_prompt",
-            type_name=type_name,
-            scene_description=scene_description or "请拆分出完整分镜",
-            style_name=style_name,
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.script_generator_storyboard_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "type_name": type_name,
+                "scene_description": scene_description or "请拆分出完整分镜",
+                "style_name": style_name,
+            },
+            temperature=0.8
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -405,23 +425,28 @@ class ScriptGeneratorTool(BaseTool):
         duration: Optional[int],
         target_audience: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         type_name = self._get_type_name(script_type)
         style_name = self._get_style_name(style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.script_generator_complete_prompt",
-            title=title or "未命名脚本",
-            type_name=type_name,
-            style_name=style_name,
-            duration=duration or "未指定",
-            target_audience=target_audience or "泛受众",
-            theme=theme or "请生成完整脚本",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.script_generator_complete_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=4000):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "title": title or "未命名脚本",
+                "type_name": type_name,
+                "style_name": style_name,
+                "duration": duration or "未指定",
+                "target_audience": target_audience or "泛受众",
+                "theme": theme or "请生成完整脚本",
+            },
+            temperature=0.8, max_tokens=4000
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -441,24 +466,29 @@ class ScriptGeneratorTool(BaseTool):
                                theme: Optional[str], style: Optional[str],
                                duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
             style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.script_generator_outline_prompt",
-                title=title or "未命名脚本",
-                type_name=type_name,
-                style_name=style_name,
-                duration=duration or "未指定",
-                target_audience=target_audience or "泛受众",
-                theme=theme or "请生成完整脚本大纲"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.script_generator_outline_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "title": title or "未命名脚本",
+                    "type_name": type_name,
+                    "style_name": style_name,
+                    "duration": duration or "未指定",
+                    "target_audience": target_audience or "泛受众",
+                    "theme": theme or "请生成完整脚本大纲",
+                },
+                temperature=0.8,
+            )
 
             # 尝试解析JSON
             try:
@@ -497,24 +527,29 @@ class ScriptGeneratorTool(BaseTool):
                              scene_description: Optional[str], characters: Optional[str],
                              style: Optional[str], outline: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
             style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.script_generator_scene_prompt",
-                type_name=type_name,
-                scene_number=scene_number,
-                scene_description=scene_description or "请根据项目目标生成场景",
-                characters=characters or "未指定角色",
-                style_name=style_name,
-                outline_text=outline or "请保持剧情连贯"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.script_generator_scene_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=3000)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "type_name": type_name,
+                    "scene_number": scene_number,
+                    "scene_description": scene_description or "请根据项目目标生成场景",
+                    "characters": characters or "未指定角色",
+                    "style_name": style_name,
+                    "outline_text": outline or "请保持剧情连贯",
+                },
+                temperature=0.8, max_tokens=3000,
+            )
 
             self.logger.info(f"第{scene_number}场脚本生成完成")
 
@@ -539,22 +574,27 @@ class ScriptGeneratorTool(BaseTool):
     async def _generate_dialogue(self, script_type: str, characters: Optional[str],
                                 scene_description: Optional[str], style: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
             style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.script_generator_dialogue_prompt",
-                type_name=type_name,
-                scene_description=scene_description or "请生成符合剧情的对白",
-                characters=characters or "未指定角色",
-                style_name=style_name
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.script_generator_dialogue_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=2000)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "type_name": type_name,
+                    "scene_description": scene_description or "请生成符合剧情的对白",
+                    "characters": characters or "未指定角色",
+                    "style_name": style_name,
+                },
+                temperature=0.8, max_tokens=2000,
+            )
 
             self.logger.info("对白生成完成")
 
@@ -578,21 +618,26 @@ class ScriptGeneratorTool(BaseTool):
     async def _generate_storyboard(self, script_type: str, scene_description: Optional[str],
                                   style: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
             style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.script_generator_storyboard_prompt",
-                type_name=type_name,
-                scene_description=scene_description or "请生成分镜描述",
-                style_name=style_name
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.script_generator_storyboard_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "type_name": type_name,
+                    "scene_description": scene_description or "请生成分镜描述",
+                    "style_name": style_name,
+                },
+                temperature=0.8,
+            )
 
             # 尝试解析JSON
             try:
@@ -637,24 +682,29 @@ class ScriptGeneratorTool(BaseTool):
             if not outline_result["success"]:
                 return outline_result
 
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             type_name = self.SCRIPT_TYPES.get(script_type, script_type)
             style_name = self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
             outline_str = json.dumps(outline_result["data"]["outline"], ensure_ascii=False, indent=2)
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.script_generator_complete_prompt",
-                title=title or "未命名脚本",
-                type_name=type_name,
-                style_name=style_name,
-                duration=duration or "未指定",
-                outline_json=outline_str
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.script_generator_complete_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=4000)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "title": title or "未命名脚本",
+                    "type_name": type_name,
+                    "style_name": style_name,
+                    "duration": duration or "未指定",
+                    "outline_json": outline_str,
+                },
+                temperature=0.8, max_tokens=4000,
+            )
 
             self.logger.info("完整脚本生成完成")
 

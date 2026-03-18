@@ -1,4 +1,4 @@
 
-from backend.tools.mcp.base_mcp_tool import MCPTool
+from backend.tools.mcp.base_mcp_tool import BuiltinMCPTool
 
-__all__ = ["MCPTool"]
+__all__ = ["BuiltinMCPTool"]

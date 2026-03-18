@@ -1,11 +1,11 @@
 """用户仓储模块。"""
 
 from typing import Optional, List
-from datetime import datetime
 
 from backend.database.database_manager import DatabaseManager, get_database_manager
 from backend.models.user import User, UserUpdate
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -177,7 +177,7 @@ class UserRepository(BaseRepository):
             return False
 
         # 添加更新时间
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = utc_now()
 
         # 执行更新
         affected_rows = self.db.update_one(
@@ -212,7 +212,7 @@ class UserRepository(BaseRepository):
             # 软删除：设置is_active=False
             affected_rows = self.db.update_one(
                 table=self.TABLE_NAME,
-                data={"is_active": False, "updated_at": datetime.utcnow()},
+                data={"is_active": False, "updated_at": utc_now()},
                 where={"user_id": user_id}
             )
             logger.info(f"User soft deleted: user_id={user_id}")
@@ -238,7 +238,7 @@ class UserRepository(BaseRepository):
         """
         affected_rows = self.db.update_one(
             table=self.TABLE_NAME,
-            data={"last_login_at": datetime.utcnow()},
+            data={"last_login_at": utc_now()},
             where={"user_id": user_id}
         )
         return affected_rows > 0

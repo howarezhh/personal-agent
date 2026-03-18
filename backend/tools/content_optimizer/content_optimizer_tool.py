@@ -170,17 +170,22 @@ class ContentOptimizerTool(BaseTool):
             yield {"type": "error", "error": f"优化失败: {str(e)}"}
 
     async def _stream_polish(self, content: str, requirements: Optional[str]) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
-        prompt = self.prompt_manager.format_prompt(
-            "tool.content_optimizer_polish_prompt",
-            content=content,
-            requirements=requirements or "无额外要求",
+        llm_manager = get_langchain_model_manager()
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.content_optimizer_polish_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "content": content,
+                "requirements": requirements or "无额外要求",
+            },
+            temperature=0.7
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -196,17 +201,22 @@ class ContentOptimizerTool(BaseTool):
         }
 
     async def _stream_rewrite(self, content: str, requirements: Optional[str]) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
-        prompt = self.prompt_manager.format_prompt(
-            "tool.content_optimizer_rewrite_prompt",
-            content=content,
-            requirements=requirements or "保持核心信息不变",
+        llm_manager = get_langchain_model_manager()
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.content_optimizer_rewrite_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "content": content,
+                "requirements": requirements or "保持核心信息不变",
+            },
+            temperature=0.7
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -227,18 +237,23 @@ class ContentOptimizerTool(BaseTool):
         target_length: Optional[int],
         requirements: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
-        prompt = self.prompt_manager.format_prompt(
-            "tool.content_optimizer_expand_prompt",
-            content=content,
-            target_length=target_length or "自动扩写",
-            requirements=requirements or "补足必要细节",
+        llm_manager = get_langchain_model_manager()
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.content_optimizer_expand_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "content": content,
+                "target_length": target_length or "自动扩写",
+                "requirements": requirements or "补足必要细节",
+            },
+            temperature=0.7
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -260,18 +275,23 @@ class ContentOptimizerTool(BaseTool):
         target_length: Optional[int],
         requirements: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
-        prompt = self.prompt_manager.format_prompt(
-            "tool.content_optimizer_summarize_prompt",
-            content=content,
-            target_length=target_length or "自动摘要",
-            requirements=requirements or "保留关键信息",
+        llm_manager = get_langchain_model_manager()
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.content_optimizer_summarize_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.5):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "content": content,
+                "target_length": target_length or "自动摘要",
+                "requirements": requirements or "保留关键信息",
+            },
+            temperature=0.5
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -294,19 +314,24 @@ class ContentOptimizerTool(BaseTool):
         target_style: Optional[str],
         requirements: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         style_name = self._get_style_name(target_style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.content_optimizer_style_transfer_prompt",
-            content=content,
-            style_name=style_name,
-            requirements=requirements or "保持原意不变",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.content_optimizer_style_transfer_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "content": content,
+                "style_name": style_name,
+                "requirements": requirements or "保持原意不变",
+            },
+            temperature=0.7
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -323,16 +348,21 @@ class ContentOptimizerTool(BaseTool):
         }
 
     async def _stream_grammar_check(self, content: str) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
-        prompt = self.prompt_manager.format_prompt(
-            "tool.content_optimizer_grammar_check_prompt",
-            content=content,
+        llm_manager = get_langchain_model_manager()
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.content_optimizer_grammar_check_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.3):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "content": content,
+            },
+            temperature=0.3
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -351,18 +381,23 @@ class ContentOptimizerTool(BaseTool):
         keywords: Optional[str],
         requirements: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
-        prompt = self.prompt_manager.format_prompt(
-            "tool.content_optimizer_seo_prompt",
-            content=content,
-            keywords=keywords or "无关键词",
-            requirements=requirements or "提升搜索友好度",
+        llm_manager = get_langchain_model_manager()
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.content_optimizer_seo_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.7):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "content": content,
+                "keywords": keywords or "无关键词",
+                "requirements": requirements or "提升搜索友好度",
+            },
+            temperature=0.7
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -380,17 +415,22 @@ class ContentOptimizerTool(BaseTool):
 
     async def _polish_content(self, content: str, requirements: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.content_optimizer_polish_prompt",
-                content=content,
-                requirements=requirements or "无额外要求"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.content_optimizer_polish_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.7)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "content": content,
+                    "requirements": requirements or "无额外要求",
+                },
+                temperature=0.7,
+            )
 
             self.logger.info(f"内容润色完成，原文长度: {len(content)}, 润色后长度: {len(response)}")
 
@@ -415,17 +455,22 @@ class ContentOptimizerTool(BaseTool):
 
     async def _rewrite_content(self, content: str, requirements: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.content_optimizer_rewrite_prompt",
-                content=content,
-                requirements=requirements or "保持核心信息不变"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.content_optimizer_rewrite_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "content": content,
+                    "requirements": requirements or "保持核心信息不变",
+                },
+                temperature=0.8,
+            )
 
             self.logger.info(f"内容改写完成，原文长度: {len(content)}, 改写后长度: {len(response)}")
 
@@ -451,18 +496,23 @@ class ContentOptimizerTool(BaseTool):
     async def _expand_content(self, content: str, target_length: Optional[int],
                              requirements: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             max_tokens = target_length * 2 if target_length else 3000
-            prompt = self.prompt_manager.format_prompt(
-                "tool.content_optimizer_expand_prompt",
-                content=content,
-                target_length=target_length or "自动扩写",
-                requirements=requirements or "补足必要细节"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.content_optimizer_expand_prompt"
             )
-            response = await llm_manager.generate(prompt, temperature=0.7, max_tokens=max_tokens)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "content": content,
+                    "target_length": target_length or "自动扩写",
+                    "requirements": requirements or "补足必要细节",
+                },
+                temperature=0.7, max_tokens=max_tokens,
+            )
 
             self.logger.info(f"内容扩写完成，原文长度: {len(content)}, 扩写后长度: {len(response)}")
 
@@ -489,18 +539,23 @@ class ContentOptimizerTool(BaseTool):
     async def _summarize_content(self, content: str, target_length: Optional[int],
                                 requirements: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.content_optimizer_summarize_prompt",
-                content=content,
-                target_length=target_length or "自动摘要",
-                requirements=requirements or "保留关键信息"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.content_optimizer_summarize_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.5)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "content": content,
+                    "target_length": target_length or "自动摘要",
+                    "requirements": requirements or "保留关键信息",
+                },
+                temperature=0.5,
+            )
 
             self.logger.info(f"内容缩写完成，原文长度: {len(content)}, 缩写后长度: {len(response)}")
 
@@ -528,19 +583,24 @@ class ContentOptimizerTool(BaseTool):
     async def _transfer_style(self, content: str, target_style: Optional[str],
                              requirements: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             style_name = self.WRITING_STYLES.get(target_style, "默认") if target_style else "默认"
-            prompt = self.prompt_manager.format_prompt(
-                "tool.content_optimizer_style_transfer_prompt",
-                content=content,
-                style_name=style_name,
-                requirements=requirements or "保持原意不变"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.content_optimizer_style_transfer_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.7)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "content": content,
+                    "style_name": style_name,
+                    "requirements": requirements or "保持原意不变",
+                },
+                temperature=0.7,
+            )
 
             self.logger.info(f"风格转换完成，目标风格: {style_name}")
 
@@ -566,16 +626,21 @@ class ContentOptimizerTool(BaseTool):
 
     async def _check_grammar(self, content: str) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.content_optimizer_grammar_check_prompt",
-                content=content
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.content_optimizer_grammar_check_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.3)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "content": content,
+                },
+                temperature=0.3,
+            )
 
             self.logger.info("语法检查完成")
 
@@ -599,18 +664,23 @@ class ContentOptimizerTool(BaseTool):
     async def _optimize_seo(self, content: str, keywords: Optional[str],
                            requirements: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.content_optimizer_seo_prompt",
-                content=content,
-                keywords=keywords or "无关键词",
-                requirements=requirements or "提升搜索友好度"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.content_optimizer_seo_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.7)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "content": content,
+                    "keywords": keywords or "无关键词",
+                    "requirements": requirements or "提升搜索友好度",
+                },
+                temperature=0.7,
+            )
 
             self.logger.info("SEO优化完成")
 

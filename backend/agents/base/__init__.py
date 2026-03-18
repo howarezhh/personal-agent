@@ -1,42 +1,23 @@
+# -*- coding: utf-8 -*-
+"""`backend.agents.base` 包的统一导出入口。
 
-from backend.agents.base.base_agent import BaseAgent
-from backend.agents.base.agent_input import (
-    AgentInput,
-    RouterAgentInput,
-    RetrievalAgentInput,
-    GenerationAgentInput,
-    ToolAgentInput,
-    FileProcessorAgentInput
-)
-from backend.agents.base.agent_output import (
-    AgentOutput,
-    ExecutionStatus,
-    RouterAgentOutput,
-    RetrievalAgentOutput,
-    GenerationAgentOutput,
-    ToolAgentOutput,
-    FileProcessorAgentOutput
-)
-from backend.agents.base.stream_chunk import (
-    StreamChunk,
-    ChunkType,
-    StreamProgress,
-    StreamSession
-)
+这里改为惰性导出，避免调用方仅导入输入/输出模型时，
+在包初始化阶段额外拉起 `BaseAgent` 对配置与运行时的依赖。
+"""
+
+from importlib import import_module
+from typing import Any
+
 
 __all__ = [
-    # 基类
     "BaseAgent",
-
-    # 输入类
     "AgentInput",
+    "WorkflowContext",
     "RouterAgentInput",
     "RetrievalAgentInput",
     "GenerationAgentInput",
     "ToolAgentInput",
     "FileProcessorAgentInput",
-
-    # 输出类
     "AgentOutput",
     "ExecutionStatus",
     "RouterAgentOutput",
@@ -44,10 +25,40 @@ __all__ = [
     "GenerationAgentOutput",
     "ToolAgentOutput",
     "FileProcessorAgentOutput",
-
-    # 流式类
     "StreamChunk",
     "ChunkType",
     "StreamProgress",
-    "StreamSession"
+    "StreamSession",
 ]
+
+
+_EXPORT_MAP = {
+    "BaseAgent": ("backend.agents.base.base_agent", "BaseAgent"),
+    "AgentInput": ("backend.agents.base.agent_input", "AgentInput"),
+    "WorkflowContext": ("backend.agents.base.agent_input", "WorkflowContext"),
+    "RouterAgentInput": ("backend.agents.base.agent_input", "RouterAgentInput"),
+    "RetrievalAgentInput": ("backend.agents.base.agent_input", "RetrievalAgentInput"),
+    "GenerationAgentInput": ("backend.agents.base.agent_input", "GenerationAgentInput"),
+    "ToolAgentInput": ("backend.agents.base.agent_input", "ToolAgentInput"),
+    "FileProcessorAgentInput": ("backend.agents.base.agent_input", "FileProcessorAgentInput"),
+    "AgentOutput": ("backend.agents.base.agent_output", "AgentOutput"),
+    "ExecutionStatus": ("backend.agents.base.agent_output", "ExecutionStatus"),
+    "RouterAgentOutput": ("backend.agents.base.agent_output", "RouterAgentOutput"),
+    "RetrievalAgentOutput": ("backend.agents.base.agent_output", "RetrievalAgentOutput"),
+    "GenerationAgentOutput": ("backend.agents.base.agent_output", "GenerationAgentOutput"),
+    "ToolAgentOutput": ("backend.agents.base.agent_output", "ToolAgentOutput"),
+    "FileProcessorAgentOutput": ("backend.agents.base.agent_output", "FileProcessorAgentOutput"),
+    "StreamChunk": ("backend.agents.base.stream_chunk", "StreamChunk"),
+    "ChunkType": ("backend.agents.base.stream_chunk", "ChunkType"),
+    "StreamProgress": ("backend.agents.base.stream_chunk", "StreamProgress"),
+    "StreamSession": ("backend.agents.base.stream_chunk", "StreamSession"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """按需加载基础能力导出。"""
+    if name not in _EXPORT_MAP:
+        raise AttributeError(f"module 'backend.agents.base' has no attribute {name!r}")
+    module_name, attr_name = _EXPORT_MAP[name]
+    module = import_module(module_name)
+    return getattr(module, attr_name)

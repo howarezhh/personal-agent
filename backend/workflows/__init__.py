@@ -1,37 +1,42 @@
 """`backend.workflows` 包导出入口。
 
-该模块统一暴露工作流相关的核心能力，方便上层调用方以稳定接口访问：
-1. `WorkflowExecutor`：负责根据路由结果调度不同工作流；
-2. `WorkflowStateGraph`：负责维护工作流状态与状态转换规则；
-3. `MultiAgentWorkflow`：负责多 Agent 顺序/并行/分支协作；
-4. 预置模板与构建器：用于快速拼装标准工作流配置。
+这里改为惰性导出，避免导入单个工作流模块时把其它执行器与 Agent 依赖一并拉起。
 """
 
-from backend.workflows.workflow_executor import WorkflowExecutor
-from backend.workflows.state_graph import (
-    WorkflowState,
-    WorkflowAction,
-    WorkflowStateGraph,
-    get_state_graph,
-)
-from backend.workflows.multi_agent_workflow import (
-    MultiAgentWorkflow,
-    WorkflowBuilder,
-    get_workflow_template,
-    WORKFLOW_TEMPLATES,
-)
+from importlib import import_module
+from typing import Any
+
 
 __all__ = [
-    # 工作流执行入口。
     "WorkflowExecutor",
-    # 状态图相关能力。
     "WorkflowState",
     "WorkflowAction",
     "WorkflowStateGraph",
     "get_state_graph",
-    # 多 Agent 工作流相关能力。
     "MultiAgentWorkflow",
     "WorkflowBuilder",
     "get_workflow_template",
     "WORKFLOW_TEMPLATES",
 ]
+
+
+_EXPORT_MAP = {
+    "WorkflowExecutor": ("backend.workflows.workflow_executor", "WorkflowExecutor"),
+    "WorkflowState": ("backend.workflows.state_graph", "WorkflowState"),
+    "WorkflowAction": ("backend.workflows.state_graph", "WorkflowAction"),
+    "WorkflowStateGraph": ("backend.workflows.state_graph", "WorkflowStateGraph"),
+    "get_state_graph": ("backend.workflows.state_graph", "get_state_graph"),
+    "MultiAgentWorkflow": ("backend.workflows.multi_agent_workflow", "MultiAgentWorkflow"),
+    "WorkflowBuilder": ("backend.workflows.multi_agent_workflow", "WorkflowBuilder"),
+    "get_workflow_template": ("backend.workflows.multi_agent_workflow", "get_workflow_template"),
+    "WORKFLOW_TEMPLATES": ("backend.workflows.multi_agent_workflow", "WORKFLOW_TEMPLATES"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """按需导出工作流能力。"""
+    if name not in _EXPORT_MAP:
+        raise AttributeError(f"module 'backend.workflows' has no attribute {name!r}")
+    module_name, attr_name = _EXPORT_MAP[name]
+    module = import_module(module_name)
+    return getattr(module, attr_name)

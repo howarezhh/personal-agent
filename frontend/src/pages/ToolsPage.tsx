@@ -1,25 +1,32 @@
 /**
  * 工具管理页面
- * 显示所有可用工具，支持搜索和分类筛选
+ * 显示所有可用工具，支持搜索、分类和来源筛选。
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Row, Col, Tag, Input, Select, message, Spin, Modal, Form, Button } from 'antd';
 import { ToolOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
-import { getToolsList, getToolCategories, executeTool, normalizeToolParameters, Tool, ToolCategory } from '@/services/toolService';
+import {
+  getToolsList,
+  getToolCategories,
+  executeTool,
+  getToolExecutionErrorMessage,
+  normalizeToolParameters,
+  Tool,
+  ToolCategory,
+} from '@/services/toolService';
 import { MainLayout } from '@/components/layout/MainLayout';
 import './ToolsPage.css';
 
-const { Search } = Input;
+const { Search, TextArea } = Input;
 const { Option } = Select;
-const { TextArea } = Input;
 
 const ToolsPage: React.FC = () => {
   const [tools, setTools] = useState<Tool[]>([]);
   const [filteredTools, setFilteredTools] = useState<Tool[]>([]);
   const [categories, setCategories] = useState<ToolCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedToolType, setSelectedToolType] = useState<string>('all'); // 新增：工具类型筛选
+  const [selectedToolType, setSelectedToolType] = useState<string>('all');
   const [searchText, setSearchText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [executeModalVisible, setExecuteModalVisible] = useState<boolean>(false);
@@ -28,20 +35,19 @@ const ToolsPage: React.FC = () => {
   const [form] = Form.useForm();
 
   useEffect(() => {
-    loadTools();
-    loadCategories();
+    void loadTools();
+    void loadCategories();
   }, []);
 
   useEffect(() => {
     filterTools();
-  }, [tools, selectedCategory, selectedToolType, searchText]); // 添加selectedToolType依赖
+  }, [tools, selectedCategory, selectedToolType, searchText]);
 
   const loadTools = async () => {
     setLoading(true);
     try {
       const data = await getToolsList();
       setTools(data);
-      console.log('工具列表加载成功:', data.length);
     } catch (error) {
       message.error('加载工具列表失败');
       console.error('加载工具列表失败:', error);
@@ -54,7 +60,6 @@ const ToolsPage: React.FC = () => {
     try {
       const data = await getToolCategories();
       setCategories(data);
-      console.log('工具分类加载成功:', data.length);
     } catch (error) {
       console.error('加载分类失败:', error);
     }
@@ -63,22 +68,19 @@ const ToolsPage: React.FC = () => {
   const filterTools = () => {
     let filtered = tools;
 
-    // 按工具类型筛选（新增）
     if (selectedToolType === 'local') {
-      filtered = filtered.filter(tool => tool.category !== 'mcp');
+      filtered = filtered.filter((tool) => tool.toolOrigin === 'local');
     } else if (selectedToolType === 'mcp') {
-      filtered = filtered.filter(tool => tool.category === 'mcp');
+      filtered = filtered.filter((tool) => tool.toolOrigin === 'external');
     }
 
-    // 按分类筛选
     if (selectedCategory !== 'all') {
-      filtered = filtered.filter(tool => tool.category === selectedCategory);
+      filtered = filtered.filter((tool) => tool.category === selectedCategory);
     }
 
-    // 按搜索文本筛选
     if (searchText) {
       const lowerSearchText = searchText.toLowerCase();
-      filtered = filtered.filter(tool =>
+      filtered = filtered.filter((tool) =>
         tool.name.toLowerCase().includes(lowerSearchText) ||
         tool.description.toLowerCase().includes(lowerSearchText)
       );
@@ -89,11 +91,17 @@ const ToolsPage: React.FC = () => {
 
   const getCategoryColor = (category: string): string => {
     const colors: Record<string, string> = {
-      'language': 'blue',
-      'utility': 'green',
-      'creative': 'purple',
-      'calculation': 'orange',
-      'search': 'cyan'
+      language: 'blue',
+      utility: 'green',
+      creative: 'purple',
+      calculation: 'orange',
+      search: 'cyan',
+      weather: 'geekblue',
+      news: 'gold',
+      knowledge: 'purple',
+      finance: 'volcano',
+      network: 'magenta',
+      data: 'lime',
     };
     return colors[category] || 'default';
   };
@@ -111,28 +119,25 @@ const ToolsPage: React.FC = () => {
       const values = await form.validateFields();
       setExecuting(true);
 
-      // 构造参数对象
       const parameters = normalizeToolParameters(selectedTool, values);
-
-      console.log('执行工具:', selectedTool.name, '参数:', parameters);
-
       const result = await executeTool(selectedTool.name, parameters);
 
       if (result.success) {
+        const modalPayload = result.metadata ? { data: result.data, metadata: result.metadata } : result.data;
         Modal.success({
           title: '执行成功',
           content: (
             <div>
               <pre style={{ maxHeight: '400px', overflow: 'auto' }}>
-                {JSON.stringify(result.data, null, 2)}
+                {JSON.stringify(modalPayload, null, 2)}
               </pre>
             </div>
           ),
-          width: 600
+          width: 600,
         });
         setExecuteModalVisible(false);
       } else {
-        message.error(result.error || '执行失败');
+        message.error(getToolExecutionErrorMessage(result));
       }
     } catch (error: any) {
       if (error.errorFields) {
@@ -165,7 +170,7 @@ const ToolsPage: React.FC = () => {
       return (
         <TextArea
           rows={4}
-          placeholder={param.type === 'array' ? '请输入JSON数组，例如：[1,2,3]' : '请输入JSON对象，例如：{"key":"value"}'}
+          placeholder={param.type === 'array' ? '请输入 JSON 数组，例如：[1,2,3]' : '请输入 JSON 对象，例如：{"key":"value"}'}
         />
       );
     }
@@ -191,7 +196,7 @@ const ToolsPage: React.FC = () => {
       <div className="tools-page">
         <div className="tools-header">
           <h1><ToolOutlined /> 工具管理</h1>
-          <p>探索和使用系统中的所有AI工具</p>
+          <p>统一展示所有经标准 MCP 封装后的工具能力</p>
         </div>
 
         <Card className="tools-filters-card">
@@ -209,14 +214,14 @@ const ToolsPage: React.FC = () => {
             <Col xs={12} sm={6} md={7}>
               <Select
                 style={{ width: '100%' }}
-                placeholder="工具类型"
+                placeholder="工具来源"
                 value={selectedToolType}
                 onChange={setSelectedToolType}
                 size="large"
               >
                 <Option value="all">全部工具</Option>
-                <Option value="local">本地工具</Option>
-                <Option value="mcp">MCP工具</Option>
+                <Option value="local">本地能力</Option>
+                <Option value="mcp">外部集成</Option>
               </Select>
             </Col>
             <Col xs={12} sm={6} md={7}>
@@ -229,7 +234,7 @@ const ToolsPage: React.FC = () => {
                 suffixIcon={<FilterOutlined />}
               >
                 <Option value="all">全部分类 ({tools.length})</Option>
-                {categories.map(cat => (
+                {categories.map((cat) => (
                   <Option key={cat.category} value={cat.category}>
                     {cat.category} ({cat.count})
                   </Option>
@@ -241,7 +246,7 @@ const ToolsPage: React.FC = () => {
 
         <Spin spinning={loading} tip="加载工具列表...">
           <Row gutter={[16, 16]} className="tools-grid">
-            {filteredTools.map(tool => (
+            {filteredTools.map((tool) => (
               <Col key={tool.name} xs={24} sm={12} md={8} lg={6}>
                 <Card
                   hoverable
@@ -251,12 +256,11 @@ const ToolsPage: React.FC = () => {
                   <div className="tool-card-header">
                     <h3><ToolOutlined /> {tool.name}</h3>
                     <div>
-                      <Tag color={getCategoryColor(tool.category)}>
-                        {tool.category}
+                      <Tag color={getCategoryColor(tool.category)}>{tool.category}</Tag>
+                      {tool.transportProtocol === 'mcp' && <Tag color="orange">MCP</Tag>}
+                      <Tag color={tool.toolOrigin === 'external' ? 'purple' : 'green'}>
+                        {tool.toolOrigin === 'external' ? '外部' : '本地'}
                       </Tag>
-                      {tool.name.endsWith('_mcp') && (
-                        <Tag color="orange">MCP</Tag>
-                      )}
                     </div>
                   </div>
                   <p className="tool-description">{tool.description}</p>
@@ -276,48 +280,45 @@ const ToolsPage: React.FC = () => {
           </div>
         )}
 
-        {/* 工具执行对话框 */}
         <Modal
-          title={`执行工具: ${selectedTool?.name}`}
+          title={selectedTool ? `执行工具：${selectedTool.name}` : '执行工具'}
           open={executeModalVisible}
           onCancel={() => setExecuteModalVisible(false)}
           footer={[
             <Button key="cancel" onClick={() => setExecuteModalVisible(false)}>
               取消
             </Button>,
-            <Button
-              key="execute"
-              type="primary"
-              loading={executing}
-              onClick={handleExecuteTool}
-            >
+            <Button key="execute" type="primary" loading={executing} onClick={handleExecuteTool}>
               执行
-            </Button>
+            </Button>,
           ]}
-          width={600}
+          width={720}
         >
           {selectedTool && (
-            <div>
-              <p className="tool-modal-description">{selectedTool.description}</p>
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <Tag color={getCategoryColor(selectedTool.category)}>{selectedTool.category}</Tag>
+                <Tag color="orange">{selectedTool.transportProtocol.toUpperCase()}</Tag>
+                <Tag color={selectedTool.toolOrigin === 'external' ? 'purple' : 'green'}>
+                  {selectedTool.toolOrigin === 'external' ? '外部集成' : '本地能力'}
+                </Tag>
+                {selectedTool.mcpServer && <Tag>{selectedTool.mcpServer}</Tag>}
+              </div>
+
               <Form form={form} layout="vertical">
-                {selectedTool.parameters.map(param => (
+                {selectedTool.parameters.map((param) => (
                   <Form.Item
                     key={param.name}
-                    label={param.description}
                     name={param.name}
-                    rules={[
-                      {
-                        required: param.required,
-                        message: `请输入${param.description}`
-                      }
-                    ]}
-                    initialValue={param.default}
+                    label={param.name}
+                    extra={param.description}
+                    rules={[{ required: param.required, message: `请填写参数 ${param.name}` }]}
                   >
                     {renderParameterInput(param)}
                   </Form.Item>
                 ))}
               </Form>
-            </div>
+            </>
           )}
         </Modal>
       </div>

@@ -1,15 +1,34 @@
+﻿# -*- coding: utf-8 -*-
+"""Agent 输出模型定义。
 
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Literal
-from datetime import datetime
+本模块统一定义多 Agent 体系中的标准输出结构，作用包括：
+- 固化所有 Agent 共享的运行时输出字段；
+- 为不同类型的 Agent 提供专用输出扩展；
+- 统一字典序列化与安全读取逻辑；
+- 为上层 API、工作流和日志系统提供稳定数据载体。
+
+说明：
+- 协议字段、默认值和序列化规则统一以下沉到 `backend.contracts.agent_io` 为准；
+- 本文件只保留运行时 dataclass 与便捷行为方法。
+"""
+
+from copy import deepcopy
+from dataclasses import asdict, dataclass, field, fields
+from typing import Any, Dict, List, Optional
 import uuid
 
-
-ExecutionStatus = Literal["success", "failed", "partial"]
+from backend.contracts.agent_io import (
+    AGENT_IO_PROTOCOL_VERSION,
+    AgentExecutionStatus as ExecutionStatus,
+    normalize_agent_output_payload,
+)
 
 
 @dataclass
 class AgentOutput:
+    """所有 Agent 共享的标准输出基类。"""
+
+    protocol_version: str = AGENT_IO_PROTOCOL_VERSION
     execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     agent_name: str = ""
     agent_type: str = ""
@@ -17,219 +36,149 @@ class AgentOutput:
     status: ExecutionStatus = "success"
     error_message: Optional[str] = None
     execution_time_ms: int = 0
+    request_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+    message_id: Optional[str] = None
+    knowledge_base_id: Optional[str] = None
+    document_id: Optional[str] = None
+    route_decision: Optional[Dict[str, Any]] = None
+    retrieval_results: Optional[List[Dict[str, Any]]] = None
+    tool_result: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> dict:
-        return {
-            "execution_id": self.execution_id,
-            "agent_name": self.agent_name,
-            "agent_type": self.agent_type,
-            "content": self.content,
-            "status": self.status,
-            "error_message": self.error_message,
-            "execution_time_ms": self.execution_time_ms,
-            "metadata": self.metadata,
-        }
+        """将输出对象转换为统一协议字典。"""
+        return normalize_agent_output_payload(asdict(self), type(self))
 
     @classmethod
     def from_dict(cls, data: dict) -> "AgentOutput":
-        return cls(
-            execution_id=data.get("execution_id", str(uuid.uuid4())),
-            agent_name=data.get("agent_name", ""),
-            agent_type=data.get("agent_type", ""),
-            content=data.get("content", ""),
-            status=data.get("status", "success"),
-            error_message=data.get("error_message"),
-            execution_time_ms=data.get("execution_time_ms", 0),
-            metadata=data.get("metadata"),
-        )
+        """从字典恢复输出对象。"""
+        if not isinstance(data, dict):
+            raise TypeError(f"{cls.__name__}.from_dict expects a dict")
+
+        normalized = normalize_agent_output_payload(data, cls)
+        init_data: Dict[str, Any] = {}
+        for field_info in fields(cls):
+            if field_info.name not in normalized:
+                continue
+            init_data[field_info.name] = deepcopy(normalized.get(field_info.name))
+        return cls(**init_data)
+
+    def to_payload(self) -> Dict[str, Any]:
+        """提取适合继续传递给后续步骤的载荷字段。"""
+        payload = self.to_dict()
+        excluded_fields = {
+            "protocol_version",
+            "agent_name",
+            "agent_type",
+            "status",
+            "error_message",
+            "execution_time_ms",
+            "metadata",
+        }
+        return {
+            key: value
+            for key, value in payload.items()
+            if key not in excluded_fields and value is not None
+        }
 
     def set_metadata(self, key: str, value: Any):
+        """写入单个 metadata 字段。"""
         if self.metadata is None:
             self.metadata = {}
         self.metadata[key] = value
 
     def get_metadata(self, key: str, default: Any = None) -> Any:
+        """读取单个 metadata 字段。"""
         if self.metadata is None:
             return default
         return self.metadata.get(key, default)
 
+    def get_route_decision(self) -> Optional[Dict[str, Any]]:
+        """返回路由决策的深拷贝。"""
+        if isinstance(self.route_decision, dict):
+            return deepcopy(self.route_decision)
+        return None
+
+    def get_retrieval_results(self) -> Optional[List[Dict[str, Any]]]:
+        """返回检索结果列表的深拷贝。"""
+        if isinstance(self.retrieval_results, list):
+            return deepcopy(self.retrieval_results)
+        return None
+
+    def get_tool_result(self) -> Optional[Dict[str, Any]]:
+        """返回工具结果的深拷贝。"""
+        if isinstance(self.tool_result, dict):
+            return deepcopy(self.tool_result)
+        return None
+
     def is_success(self) -> bool:
+        """判断当前输出是否为成功态。"""
         return self.status == "success"
 
     def is_failed(self) -> bool:
+        """判断当前输出是否为失败态。"""
         return self.status == "failed"
 
     def __repr__(self) -> str:
+        """返回带内容摘要的调试文本。"""
         preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
         return f"AgentOutput(agent_name='{self.agent_name}', status='{self.status}', content='{preview}')"
 
 
 @dataclass
 class RouterAgentOutput(AgentOutput):
-    decision_type: str = ""
-    confidence: float = 0.0
-    reasoning: str = ""
+    """路由 Agent 的输出模型。"""
+
+    confidence: Optional[float] = None
+    reasoning: Optional[str] = None
     suggested_agents: Optional[List[str]] = None
     suggested_tools: Optional[List[str]] = None
-
-    def to_dict(self) -> dict:
-        data = super().to_dict()
-        data["decision_type"] = self.decision_type
-        data["confidence"] = self.confidence
-        data["reasoning"] = self.reasoning
-        data["suggested_agents"] = self.suggested_agents
-        data["suggested_tools"] = self.suggested_tools
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "RouterAgentOutput":
-        base_output = AgentOutput.from_dict(data)
-        return cls(
-            execution_id=base_output.execution_id,
-            agent_name=base_output.agent_name,
-            agent_type=base_output.agent_type,
-            content=base_output.content,
-            status=base_output.status,
-            error_message=base_output.error_message,
-            execution_time_ms=base_output.execution_time_ms,
-            metadata=base_output.metadata,
-            decision_type=data.get("decision_type", ""),
-            confidence=data.get("confidence", 0.0),
-            reasoning=data.get("reasoning", ""),
-            suggested_agents=data.get("suggested_agents"),
-            suggested_tools=data.get("suggested_tools"),
-        )
 
 
 @dataclass
 class RetrievalAgentOutput(AgentOutput):
-    retrieval_results: List[Dict[str, Any]] = field(default_factory=list)
-    total_results: int = 0
-    reranked: bool = False
+    """检索 Agent 的输出模型。"""
 
-    def to_dict(self) -> dict:
-        data = super().to_dict()
-        data["retrieval_results"] = self.retrieval_results
-        data["total_results"] = self.total_results
-        data["reranked"] = self.reranked
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "RetrievalAgentOutput":
-        base_output = AgentOutput.from_dict(data)
-        return cls(
-            execution_id=base_output.execution_id,
-            agent_name=base_output.agent_name,
-            agent_type=base_output.agent_type,
-            content=base_output.content,
-            status=base_output.status,
-            error_message=base_output.error_message,
-            execution_time_ms=base_output.execution_time_ms,
-            metadata=base_output.metadata,
-            retrieval_results=data.get("retrieval_results", []),
-            total_results=data.get("total_results", 0),
-            reranked=data.get("reranked", False),
-        )
+    rewrite_info: Optional[Dict[str, Any]] = None
 
 
 @dataclass
 class GenerationAgentOutput(AgentOutput):
-    sources: Optional[List[str]] = None
+    """生成 Agent 的输出模型。"""
+
+    citations: Optional[List[Dict[str, Any]]] = None
+    sources: Optional[List[Dict[str, Any]]] = None
     has_hallucination: bool = False
     token_count: Optional[int] = None
-
-    def to_dict(self) -> dict:
-        data = super().to_dict()
-        data["sources"] = self.sources
-        data["has_hallucination"] = self.has_hallucination
-        data["token_count"] = self.token_count
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "GenerationAgentOutput":
-        base_output = AgentOutput.from_dict(data)
-        return cls(
-            execution_id=base_output.execution_id,
-            agent_name=base_output.agent_name,
-            agent_type=base_output.agent_type,
-            content=base_output.content,
-            status=base_output.status,
-            error_message=base_output.error_message,
-            execution_time_ms=base_output.execution_time_ms,
-            metadata=base_output.metadata,
-            sources=data.get("sources"),
-            has_hallucination=data.get("has_hallucination", False),
-            token_count=data.get("token_count"),
-        )
 
 
 @dataclass
 class ToolAgentOutput(AgentOutput):
+    """工具 Agent 的输出模型。"""
+
+    tool_name: Optional[str] = None
+    tool_params: Optional[Dict[str, Any]] = None
+    interpreted_result: Optional[Dict[str, Any]] = None
+    tool_call_id: Optional[str] = None
     tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    no_tool_needed: Optional[bool] = None
+    reasoning: Optional[str] = None
+    route_action: Optional[str] = None
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
 
-    def to_dict(self) -> dict:
-        data = super().to_dict()
-        data["tool_calls"] = self.tool_calls
-        data["total_calls"] = self.total_calls
-        data["successful_calls"] = self.successful_calls
-        data["failed_calls"] = self.failed_calls
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ToolAgentOutput":
-        base_output = AgentOutput.from_dict(data)
-        return cls(
-            execution_id=base_output.execution_id,
-            agent_name=base_output.agent_name,
-            agent_type=base_output.agent_type,
-            content=base_output.content,
-            status=base_output.status,
-            error_message=base_output.error_message,
-            execution_time_ms=base_output.execution_time_ms,
-            metadata=base_output.metadata,
-            tool_calls=data.get("tool_calls", []),
-            total_calls=data.get("total_calls", 0),
-            successful_calls=data.get("successful_calls", 0),
-            failed_calls=data.get("failed_calls", 0),
-        )
-
 
 @dataclass
 class FileProcessorAgentOutput(AgentOutput):
+    """文件处理 Agent 的输出模型。"""
+
+    file_id: Optional[str] = None
+    chunk_count: Optional[int] = None
+    summary: Optional[str] = None
     extracted_text: str = ""
     extracted_images: Optional[List[str]] = None
     extracted_tables: Optional[List[Dict[str, Any]]] = None
     file_metadata: Optional[Dict[str, Any]] = None
     page_count: Optional[int] = None
-
-    def to_dict(self) -> dict:
-        data = super().to_dict()
-        data["extracted_text"] = self.extracted_text
-        data["extracted_images"] = self.extracted_images
-        data["extracted_tables"] = self.extracted_tables
-        data["file_metadata"] = self.file_metadata
-        data["page_count"] = self.page_count
-        return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "FileProcessorAgentOutput":
-        base_output = AgentOutput.from_dict(data)
-        return cls(
-            execution_id=base_output.execution_id,
-            agent_name=base_output.agent_name,
-            agent_type=base_output.agent_type,
-            content=base_output.content,
-            status=base_output.status,
-            error_message=base_output.error_message,
-            execution_time_ms=base_output.execution_time_ms,
-            metadata=base_output.metadata,
-            extracted_text=data.get("extracted_text", ""),
-            extracted_images=data.get("extracted_images"),
-            extracted_tables=data.get("extracted_tables"),
-            file_metadata=data.get("file_metadata"),
-            page_count=data.get("page_count"),
-        )

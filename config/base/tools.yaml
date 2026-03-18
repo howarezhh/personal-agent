@@ -1,69 +1,108 @@
 registry:
   calculator:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.calculator.calculator_tool.CalculatorTool
+    implementation:
+      class_path: backend.tools.calculator.calculator_tool.CalculatorTool
   web_search:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.web_search.web_search_tool.WebSearchTool
+    implementation:
+      class_path: backend.tools.web_search.web_search_tool.WebSearchTool
   database_query:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.database_query.database_query_tool.DatabaseQueryTool
+    implementation:
+      class_path: backend.tools.database_query.database_query_tool.DatabaseQueryTool
   translation:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.translation.translation_tool.TranslationTool
+    implementation:
+      class_path: backend.tools.translation.translation_tool.TranslationTool
   datetime:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.datetime.datetime_tool.DateTimeTool
+    implementation:
+      class_path: backend.tools.datetime.datetime_tool.DateTimeTool
   novel_generator:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.novel_generator.novel_generator_tool.NovelGeneratorTool
+    implementation:
+      class_path: backend.tools.novel_generator.novel_generator_tool.NovelGeneratorTool
   script_generator:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.script_generator.script_generator_tool.ScriptGeneratorTool
+    implementation:
+      class_path: backend.tools.script_generator.script_generator_tool.ScriptGeneratorTool
   content_optimizer:
     enabled: true
-    type: local
+    transport_protocol: mcp
+    tool_origin: local
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.content_optimizer.content_optimizer_tool.ContentOptimizerTool
+    implementation:
+      class_path: backend.tools.content_optimizer.content_optimizer_tool.ContentOptimizerTool
   weather_mcp:
     enabled: true
-    type: mcp
+    transport_protocol: mcp
+    tool_origin: external
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.mcp.weather_mcp.WeatherMCP
+    implementation:
+      class_path: backend.tools.mcp.weather_mcp.WeatherMCP
   news_mcp:
     enabled: true
-    type: mcp
+    transport_protocol: mcp
+    tool_origin: external
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.mcp.news_mcp.NewsMCP
+    implementation:
+      class_path: backend.tools.mcp.news_mcp.NewsMCP
   wikipedia_mcp:
     enabled: true
-    type: mcp
+    transport_protocol: mcp
+    tool_origin: external
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.mcp.wikipedia_mcp.WikipediaMCP
+    implementation:
+      class_path: backend.tools.mcp.wikipedia_mcp.WikipediaMCP
   exchange_rate_mcp:
     enabled: true
-    type: mcp
+    transport_protocol: mcp
+    tool_origin: external
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.mcp.exchange_rate_mcp.ExchangeRateMCP
+    implementation:
+      class_path: backend.tools.mcp.exchange_rate_mcp.ExchangeRateMCP
   ip_lookup_mcp:
     enabled: true
-    type: mcp
+    transport_protocol: mcp
+    tool_origin: external
+    mcp_server: builtin
     expose_to_agent: true
-    class_path: backend.tools.mcp.ip_lookup_mcp.IPLookupMCP
+    implementation:
+      class_path: backend.tools.mcp.ip_lookup_mcp.IPLookupMCP
 
 common:
   default_timeout: 30
@@ -84,9 +123,29 @@ database:
   timeout: 30
 
 mcp:
+  protocol_version: "2025-11-25"
   timeout: 10
   max_retries: 3
   retry_delay: 1.0
+  servers:
+    builtin:
+      enabled: true
+      transport: stdio
+      module: backend.tools.mcp.builtin_server
 
 news_mcp:
+  api_endpoint: https://newsapi.org/v2/top-headlines
   api_key: ""
+
+weather_mcp:
+  api_endpoint: https://api.open-meteo.com/v1/forecast
+
+wikipedia_mcp:
+  api_endpoint_zh: https://zh.wikipedia.org/w/api.php
+  api_endpoint_en: https://en.wikipedia.org/w/api.php
+
+exchange_rate_mcp:
+  api_endpoint: https://open.er-api.com/v6/latest
+
+ip_lookup_mcp:
+  api_endpoint: https://ipapi.co

@@ -1,58 +1,41 @@
+﻿# -*- coding: utf-8 -*-
 
 from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from backend.database.repositories.user_repository import get_user_repository
-from backend.infrastructure.security import get_token_revocation_store
+from backend.api.app_services import get_auth_application_service
+from backend.application.services import AuthApplicationService
+from backend.contracts.errors import ErrorCode, AppException, forbidden, not_found, unauthorized
 from backend.models.user import User
-from backend.utils.jwt_utils import get_jwt_manager
 from backend.utils.logger import get_logger
 
 
 logger = get_logger(__name__)
-
 security = HTTPBearer()
 
 
 async def get_current_token_payload(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
-    token = credentials.credentials
-    jwt_manager = get_jwt_manager()
-    token_revocation_store = get_token_revocation_store()
+    auth_service: AuthApplicationService = get_auth_application_service()
 
-    is_valid, payload, error = jwt_manager.verify_token(token)
-    if not is_valid or not payload:
+    try:
+        return await auth_service.validate_access_token(access_token=credentials.credentials)
+    except ValueError as error:
         logger.warning("Invalid bearer token: %s", error)
-        normalized_error = (error or "").lower()
-        error_detail = "token expired" if "expired" in normalized_error or "过期" in normalized_error else "invalid token"
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=error_detail,
+        normalized_error = str(error).lower()
+        error_detail = "token expired" if "expired" in normalized_error else "invalid token"
+        error_code = ErrorCode.AUTH_TOKEN_EXPIRED if "expired" in normalized_error else ErrorCode.AUTH_INVALID_TOKEN
+        raise unauthorized(
+            error_detail,
+            error_code=error_code,
+            error="InvalidBearerToken",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if payload.get("type") != "access":
-        logger.warning("Non-access token used for protected endpoint")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if token_revocation_store.is_session_revoked(payload.get("sid")):
-        logger.warning("Revoked session attempted to access protected endpoint: %s", payload.get("sid"))
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return payload
+        ) from error
 
 
 async def get_current_user_id(
@@ -62,9 +45,10 @@ async def get_current_user_id(
     user_id = payload.get("user_id")
     if not user_id:
         logger.warning("Token payload missing user_id")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="invalid token",
+        raise unauthorized(
+            "invalid token",
+            error_code=ErrorCode.AUTH_INVALID_TOKEN,
+            error="InvalidBearerToken",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -74,18 +58,16 @@ async def get_current_user_id(
 async def get_current_user(
     user_id: str = Depends(get_current_user_id),
 ) -> User:
-    user_repo = get_user_repository()
-    user = user_repo.get_user_by_id(user_id)
+    auth_service: AuthApplicationService = get_auth_application_service()
 
-    if not user:
+    try:
+        return await auth_service.get_active_user(user_id=user_id)
+    except LookupError as error:
         logger.warning("User not found: %s", user_id)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
-
-    if not user.is_active:
+        raise not_found("用户不存在", error_code=ErrorCode.USER_NOT_FOUND, error="UserNotFound") from error
+    except PermissionError as error:
         logger.warning("Inactive user attempted access: %s", user_id)
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="用户账号未激活")
-
-    return user
+        raise forbidden("用户账号未激活", error_code=ErrorCode.SYSTEM_FORBIDDEN, error="InactiveUser") from error
 
 
 async def get_optional_current_user_id(
@@ -96,7 +78,7 @@ async def get_optional_current_user_id(
 
     try:
         return await get_current_user_id(credentials)
-    except HTTPException:
+    except AppException:
         return None
 
 
@@ -110,12 +92,12 @@ def verify_user_access(
             current_user_id,
             resource_user_id,
         )
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="您没有权限访问此资源")
+        raise forbidden("您没有权限访问此资源", error_code=ErrorCode.SYSTEM_FORBIDDEN, error="UserAccessDenied")
 
 
 def require_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
     if not getattr(current_user, "is_admin", False):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要管理员权限")
+        raise forbidden("需要管理员权限", error_code=ErrorCode.SYSTEM_FORBIDDEN, error="AdminRequired")
     return current_user

@@ -4,10 +4,8 @@
 """
 
 from typing import Optional, List
-from datetime import datetime
 import json
 from backend.database.repositories.user_repository import BaseRepository
-from backend.database.database_manager import DatabaseManager, get_database_manager
 from backend.models.agent_execution import (
     AgentExecution,
     AgentExecutionCreate,
@@ -16,6 +14,7 @@ from backend.models.agent_execution import (
     ExecutionStatus,
 )
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -123,8 +122,8 @@ class AgentExecutionRepository(BaseRepository):
             status=status,
             error_message=error_message,
             execution_time_ms=execution_time_ms,
-            created_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            created_at=utc_now(),
+            completed_at=utc_now(),
             metadata=metadata or {}
         )
 
@@ -296,7 +295,7 @@ class AgentExecutionRepository(BaseRepository):
             status="success",
             output_data=output_data,
             execution_time_ms=execution_time_ms,
-            completed_at=datetime.utcnow(),
+            completed_at=utc_now(),
         )
         return self.update_execution(execution_id, update)
 
@@ -321,7 +320,7 @@ class AgentExecutionRepository(BaseRepository):
             status="failed",
             error_message=error_message,
             execution_time_ms=execution_time_ms,
-            completed_at=datetime.utcnow(),
+            completed_at=utc_now(),
         )
         return self.update_execution(execution_id, update)
 

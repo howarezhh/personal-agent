@@ -1,72 +1,43 @@
 /**
- * MCP服务API
- * 提供MCP服务的查询和调用功能
+ * MCP 集成服务 API
+ * 基于统一 Tool 契约，筛选外部来源的 MCP 工具。
  */
 
-import api from './api';
+import {
+  executeTool,
+  getToolCategories,
+  getToolDetail,
+  getToolsList,
+  type Tool,
+  type ToolCategory,
+  type ToolExecuteResponse,
+} from './toolService';
 
-const API_BASE_URL = '/api/v1/tools';
+export type MCPService = Tool;
+export type MCPExecuteRequest = {
+  parameters: Record<string, unknown>;
+};
+export type MCPExecuteResponse = ToolExecuteResponse;
 
-// MCP服务接口
-export interface MCPService {
-  name: string;
-  description: string;
-  category: string;
-  version: string;
-  parameters: {
-    type: string;
-    properties: Record<string, any>;
-    required: string[];
-  };
-}
-
-// MCP执行请求
-export interface MCPExecuteRequest {
-  parameters: Record<string, any>;
-}
-
-// MCP执行响应
-export interface MCPExecuteResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
-}
-
-/**
- * 获取MCP服务列表
- */
 export const getMCPList = async (category?: string): Promise<MCPService[]> => {
-  const response = await api.get(`${API_BASE_URL}`, {
-    params: { category }
-  });
-  return (response.data.data || []).filter((tool: MCPService) => tool.category === 'mcp');
+  const tools = await getToolsList(category);
+  return tools.filter((tool) => tool.transportProtocol === 'mcp' && tool.toolOrigin === 'external');
 };
 
-/**
- * 获取MCP服务详情
- */
 export const getMCPDetail = async (mcpName: string): Promise<MCPService> => {
-  const response = await api.get(`${API_BASE_URL}/${mcpName}`);
-  return response.data.data;
+  return getToolDetail(mcpName);
 };
 
-/**
- * 执行MCP服务
- */
 export const executeMCP = async (
   mcpName: string,
-  parameters: Record<string, any>
+  parameters: Record<string, unknown>
 ): Promise<MCPExecuteResponse> => {
-  const response = await api.post(`${API_BASE_URL}/${mcpName}/execute`, {
-    parameters
-  });
-  return response.data;
+  return executeTool(mcpName, parameters);
 };
 
-/**
- * 获取MCP分类列表
- */
-export const getMCPCategories = async (): Promise<Array<{ category: string; count: number; tools: string[] }>> => {
-  const response = await api.get(`${API_BASE_URL}/categories/list`);
-  return (response.data.data || []).filter((item: { category: string }) => item.category === 'mcp');
+export const getMCPCategories = async (): Promise<ToolCategory[]> => {
+  const categories = await getToolCategories();
+  const tools = await getMCPList();
+  const allowed = new Set(tools.map((tool) => tool.category));
+  return categories.filter((item) => allowed.has(item.category));
 };

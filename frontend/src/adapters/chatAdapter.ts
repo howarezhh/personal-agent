@@ -1,4 +1,11 @@
-import type { AskRequestContract, AskResponseContract, MessageContract, SSEEventContract } from '@/contracts/chat';
+import type {
+  AskRequestContract,
+  AskResponseContract,
+  ChatDonePayloadContract,
+  ChatResultPayloadContract,
+  MessageContract,
+  SSEEventContract,
+} from '@/contracts/chat';
 
 export interface Message {
   messageId: string;
@@ -23,6 +30,7 @@ export interface AskResponse {
   messageId: string;
   answer: string;
   executionId?: string;
+  citations?: Citation[];
 }
 
 export interface SSEEvent {
@@ -37,6 +45,8 @@ export interface SSEEvent {
   executionId?: string;
 }
 
+export type StreamStatus = 'idle' | 'connecting' | 'streaming' | 'completed' | 'error' | 'cancelled';
+
 export interface Citation {
   source: string;
   content: string;
@@ -50,15 +60,56 @@ export interface ThinkingStep {
   timestamp: string;
 }
 
+export interface WorkflowTrace {
+  workflowEngine?: string;
+  workflowPath?: string[];
+  fallbackReason?: string;
+  errorCode?: string;
+  errorType?: string;
+  toolName?: string;
+  requestId?: string;
+  executionId?: string;
+  knowledgeBaseId?: string;
+  documentId?: string;
+}
+
 export interface StreamEventMetadata {
   streamId?: string;
+  workflowEngine?: string;
+  workflowPath?: string[];
+  fallbackReason?: string;
+  errorCode?: string;
+  errorType?: string;
+  toolName?: string;
+  status?: string;
+  resultScope?: string;
+  stepKey?: string;
+  stepName?: string;
+  toolCallId?: string;
+  requestId?: string;
+  executionId?: string;
+  knowledgeBaseId?: string;
+  documentId?: string;
   [key: string]: unknown;
 }
 
-export interface DoneEventContent {
-  conversationId?: string;
+export interface ResultEventContent {
+  status?: string;
+  finalStepKey?: string;
+  finalContent?: string;
+  stepCount?: number;
+  executionId?: string;
+  toolName?: string;
+  routeDecision?: Record<string, unknown>;
+  retrievalResults?: Record<string, unknown>[];
+  toolResult?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   citations?: Citation[];
-  [key: string]: unknown;
+}
+
+export interface DoneEventContent extends ResultEventContent {
+  conversationId?: string;
+  assistantMessageId?: string;
 }
 
 const normalizeMessageType = (messageType: string): Message['messageType'] => {
@@ -101,6 +152,9 @@ export const adaptAskResponse = (response: AskResponseContract): AskResponse => 
   messageId: response.message_id,
   answer: response.answer,
   executionId: response.execution_id ?? undefined,
+  citations: Array.isArray(response.citations)
+    ? response.citations.map((citation) => adaptCitation(citation))
+    : undefined,
 });
 
 export const adaptSSEEvent = (event: SSEEventContract): SSEEvent => ({
@@ -139,14 +193,52 @@ const adaptCitation = (citation: unknown): Citation => {
   };
 };
 
-export const adaptDoneEventContent = (content: unknown): DoneEventContent => {
+export const adaptDoneEventContent = (
+  content: ChatResultPayloadContract | ChatDonePayloadContract | unknown
+): DoneEventContent => {
   if (!content || typeof content !== 'object') {
     return {};
   }
 
-  const normalized = camelizeKeys(content) as DoneEventContent & { citations?: unknown[] };
+  const normalized = camelizeKeys(content) as {
+    status?: unknown;
+    finalStepKey?: unknown;
+    finalContent?: unknown;
+    stepCount?: unknown;
+    executionId?: unknown;
+    toolName?: unknown;
+    routeDecision?: unknown;
+    retrievalResults?: unknown;
+    toolResult?: unknown;
+    metadata?: unknown;
+    citations?: unknown[];
+    conversationId?: unknown;
+    assistantMessageId?: unknown;
+  };
+
   return {
-    ...normalized,
+    status: typeof normalized.status === 'string' ? normalized.status : undefined,
+    finalStepKey: typeof normalized.finalStepKey === 'string' ? normalized.finalStepKey : undefined,
+    finalContent: typeof normalized.finalContent === 'string' ? normalized.finalContent : undefined,
+    stepCount: typeof normalized.stepCount === 'number' ? normalized.stepCount : undefined,
+    executionId: typeof normalized.executionId === 'string' ? normalized.executionId : undefined,
+    toolName: typeof normalized.toolName === 'string' ? normalized.toolName : undefined,
+    routeDecision: normalized.routeDecision && typeof normalized.routeDecision === 'object'
+      ? normalized.routeDecision as Record<string, unknown>
+      : undefined,
+    retrievalResults: Array.isArray(normalized.retrievalResults)
+      ? normalized.retrievalResults.filter(
+        (item): item is Record<string, unknown> => !!item && typeof item === 'object'
+      )
+      : undefined,
+    toolResult: normalized.toolResult && typeof normalized.toolResult === 'object'
+      ? normalized.toolResult as Record<string, unknown>
+      : undefined,
+    metadata: normalized.metadata && typeof normalized.metadata === 'object'
+      ? normalized.metadata as Record<string, unknown>
+      : undefined,
+    conversationId: typeof normalized.conversationId === 'string' ? normalized.conversationId : undefined,
+    assistantMessageId: typeof normalized.assistantMessageId === 'string' ? normalized.assistantMessageId : undefined,
     citations: Array.isArray(normalized.citations)
       ? normalized.citations.map((citation) => adaptCitation(citation))
       : undefined,

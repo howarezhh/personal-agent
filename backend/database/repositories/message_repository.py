@@ -4,12 +4,11 @@
 """
 
 from typing import Optional, List
-from datetime import datetime
 import json
 from backend.database.repositories.user_repository import BaseRepository
-from backend.database.database_manager import DatabaseManager, get_database_manager
 from backend.models.message import Message, MessageCreate, MessageUpdate, MessageType
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -48,7 +47,7 @@ class MessageRepository(BaseRepository):
 
         # 创建消息对象
         message = message_create.to_message()
-        message.created_at = datetime.utcnow()
+        message.created_at = utc_now()
 
         # 插入数据库
         data = {

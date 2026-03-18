@@ -1,14 +1,38 @@
+# -*- coding: utf-8 -*-
+
 
 from typing import List, Dict, Any, Optional
+"""
+幻觉检查模块，负责评估生成答案与检索上下文之间的一致性与风险。
+"""
+
 from backend.utils.logger import get_logger
-from backend.utils.llm_client import get_llm_client
+from backend.core.llm_manager import get_langchain_model_manager
 from backend.core.prompt_manager import get_prompt_manager
+from langchain_core.prompts import PromptTemplate
+from pydantic import BaseModel, Field
+
+
+class HallucinationCheckStructuredResult(BaseModel):
+    """Structured result for hallucination checks."""
+
+    has_hallucination: bool = False
+    consistency_score: float = 0.5
+    hallucination_points: List[str] = Field(default_factory=list)
+    reasoning: str = ""
 
 
 class HallucinationChecker:
+    """
+    幻觉检查器，通过规则方法与大模型评估相结合的方式判断答案风险。
+    """
     def __init__(self):
+        """
+        初始化幻觉检查器，准备 LLM 客户端、风险阈值和规则检查所需的基础配置。
+        """
         self.logger = get_logger(self.__class__.__name__)
-        self.llm_client = get_llm_client()
+        # 初始化 LLM 客户端，在规则检查不足时用于执行更细粒度的一致性评估。
+        self.model_manager = get_langchain_model_manager()
         self.prompt_manager = get_prompt_manager()
 
         # 幻觉检查的阈值
@@ -21,6 +45,9 @@ class HallucinationChecker:
         retrieval_results: List[Dict[str, Any]],
         user_question: str
     ) -> Dict[str, Any]:
+        """
+        执行完整的幻觉检查流程，先做规则检查，再视情况调用 LLM 进行辅助评估。
+        """
         if not generated_content or not retrieval_results:
             return {
                 "has_hallucination": False,
@@ -63,6 +90,9 @@ class HallucinationChecker:
         generated_content: str,
         retrieval_results: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
+        """
+        基于规则快速检查生成内容是否存在明显超出上下文支撑的风险信号。
+        """
         import re
 
         # 检查是否包含引用标记
@@ -108,38 +138,52 @@ class HallucinationChecker:
         retrieval_results: List[Dict[str, Any]],
         user_question: str
     ) -> Dict[str, Any]:
+        """
+        通过大模型从语义层面评估答案与上下文的一致性。
+        """
         try:
             # 构建检查上下文
             context = self._format_retrieval_context(retrieval_results)
 
-            # 使用提示词管理器获取幻觉检查提示词
-            check_prompt = self.prompt_manager.format_prompt(
-                "generation.hallucination_check_prompt",
-                question=user_question,
-                context=context,
-                answer=generated_content
+            # Prefer the configured hallucination-check prompt.
+            check_prompt_source = self.prompt_manager.get_prompt(
+                "generation.hallucination_check_prompt"
             )
 
-            if not check_prompt:
-                # 降级到硬编码提示词
+            if not check_prompt_source:
+                # Fall back to the built-in prompt when config is missing.
                 self.logger.warning("Hallucination check prompt not found, using fallback")
-                check_prompt = self._build_fallback_prompt(user_question, context, generated_content)
+                fallback_prompt = self._build_fallback_prompt(user_question, context, generated_content)
+                # Keep structured-output constraints in the fallback path as well.
+                result_model = await self.model_manager.with_structured_output(
+                    HallucinationCheckStructuredResult
+                ).invoke_prompt_template(
+                    PromptTemplate.from_template("{prompt_text}"),
+                    {"prompt_text": fallback_prompt},
+                    temperature=0.1,
+                    max_tokens=500,
+                )
+            else:
+                check_prompt_template = self.prompt_manager.get_prompt_template(
+                    "generation.hallucination_check_prompt"
+                )
+                result_model = await self.model_manager.with_structured_output(
+                    HallucinationCheckStructuredResult
+                ).invoke_prompt_template(
+                    check_prompt_template,
+                    {
+                        "question": user_question,
+                        "context": context,
+                        "answer": generated_content,
+                    },
+                    system_prompt="You are a factual consistency checker. Judge the answer strictly by the provided context.",
+                    temperature=0.1,
+                    max_tokens=500,
+                )
 
-            # 调用LLM
-            messages = [
-                {"role": "system", "content": "你是一个专业的内容一致性检查助手，擅长识别文本中的幻觉内容。"},
-                {"role": "user", "content": check_prompt}
-            ]
-
-            response = await self.llm_client.chat_completion(
-                messages=messages,
-                temperature=0.1,  # 使用较低的温度以获得更确定的结果
-                max_tokens=500
-            )
-
-            # 解析LLM返回的结果
-            import json
-            result = self._parse_llm_response(response)
+            # Convert the structured result to dict and append check type.
+            result = result_model.model_dump()
+            result = result_model.model_dump()
             result["check_type"] = "llm_based"
 
             return result
@@ -154,6 +198,9 @@ class HallucinationChecker:
             }
 
     def _build_fallback_prompt(self, user_question: str, context: str, generated_content: str) -> str:
+        """
+        构建用于 LLM 幻觉检查的充底 Prompt。
+        """
         return f"""请检查以下生成的回答是否基于提供的上下文，是否存在幻觉（即编造的、不在上下文中的信息）。
 
 用户问题：
@@ -180,6 +227,9 @@ class HallucinationChecker:
 """
 
     def _parse_llm_response(self, response: str) -> Dict[str, Any]:
+        """
+        解析 LLM 返回的结构化幻觉检查结果。
+        """
         import json
 
         try:
@@ -219,6 +269,9 @@ class HallucinationChecker:
         llm_based_result: Dict[str, Any]
     ) -> Dict[str, Any]:
         # 计算综合一致性分数（规则检查权重0.4，LLM检查权重0.6）
+        """
+        合并规则检查与 LLM 检查的结果，生成最终判定。
+        """
         rule_score = rule_based_result.get("consistency_score", 0.5)
         llm_score = llm_based_result.get("consistency_score", 0.5)
         combined_score = rule_score * 0.4 + llm_score * 0.6
@@ -249,6 +302,9 @@ class HallucinationChecker:
         consistency_score: float,
         has_hallucination: bool
     ) -> str:
+        """
+        根据幻觉风险级别生成处理建议。
+        """
         if not has_hallucination and consistency_score >= 0.9:
             return "内容质量良好，与检索结果高度一致"
         elif not has_hallucination and consistency_score >= 0.7:
@@ -259,6 +315,9 @@ class HallucinationChecker:
             return "内容与检索结果一致性较低，强烈建议重新生成"
 
     def _format_retrieval_context(self, retrieval_results: List[Dict[str, Any]]) -> str:
+        """
+        将检索结果格式化为适合幻觉检查的上下文文本。
+        """
         if not retrieval_results:
             return ""
 
@@ -274,5 +333,8 @@ class HallucinationChecker:
         generated_content: str,
         retrieval_results: List[Dict[str, Any]]
     ) -> bool:
+        """
+        执行不依赖 LLM 的快速预检，便于在轻量场景下快速评估风险。
+        """
         result = self._rule_based_check(generated_content, retrieval_results)
         return result["consistency_score"] >= self.consistency_threshold

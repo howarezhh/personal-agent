@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from backend.core.config_manager import get_config_manager
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -83,14 +84,14 @@ class JWTManager:
             JWT token字符串
         """
         # 计算过期时间
-        expire = datetime.utcnow() + timedelta(hours=self.access_token_expire_hours)
+        expire = utc_now() + timedelta(hours=self.access_token_expire_hours)
 
         # 构建payload
         payload = {
             "user_id": user_id,
             "username": username,
             "exp": expire,
-            "iat": datetime.utcnow(),
+            "iat": utc_now(),
             "iss": self.issuer,
             "type": "access"
         }
@@ -122,14 +123,14 @@ class JWTManager:
             JWT refresh token字符串
         """
         # 计算过期时间
-        expire = datetime.utcnow() + timedelta(days=self.refresh_token_expire_days)
+        expire = utc_now() + timedelta(days=self.refresh_token_expire_days)
 
         # 构建payload
         payload = {
             "user_id": user_id,
             "username": username,
             "exp": expire,
-            "iat": datetime.utcnow(),
+            "iat": utc_now(),
             "iss": self.issuer,
             "type": "refresh",
             "jti": str(uuid4()),
@@ -296,7 +297,7 @@ class JWTManager:
         """
         expiration = self.get_token_expiration(token)
         if expiration:
-            return datetime.utcnow() > expiration
+            return utc_now() > expiration
         return True
 
 

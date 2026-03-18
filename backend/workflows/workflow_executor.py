@@ -1,18 +1,9 @@
-﻿"""工作流执行器。
+"""工作流执行器。
 
-本模块负责整个问答链路中的“工作流编排”职责，核心目标有两个：
-1. 先规划：根据输入、路由结果和业务开关，决定当前请求应该走哪条主分支；
-2. 再执行：调用对应 Agent，并把流式输出统一透传给上层调用者。
-
-当前实现采用“LangGraph 优先 + 内置规划兜底”的方式：
-- 如果运行环境安装了 `langgraph`，则使用带状态图的方式做路径规划；
-- 如果没有安装，则退回到本文件内置的顺序规划器；
-- 无论规划方式如何，真正的流式执行入口都统一为 `execute_workflow()`。
-
-这样设计的意义是：
-- 在引入 LangGraph 后，复杂场景下的路径控制会更清晰；
-- 但即便缺少 LangGraph 依赖，也不会影响系统可用性；
-- 规划逻辑与执行逻辑分离，便于维护与排障。
+本模块负责整个问答链路中的工作流编排，统一使用 LangGraph 完成：
+1. 规划：根据输入、路由结果和业务开关决定主分支；
+2. 执行：根据规划结果进入对应执行节点；
+3. 流式：通过 LangGraph 自定义流式写入器输出项目内部 `StreamChunk`。
 """
 
 from __future__ import annotations
@@ -22,25 +13,20 @@ import re
 from copy import deepcopy
 from typing import Any, AsyncGenerator, Dict, TypedDict
 
-from backend.agents.base.agent_input import AgentInput
+from backend.agents.base.agent_input import AgentInput, GenerationAgentInput, ToolAgentInput
 from backend.agents.base.stream_chunk import StreamChunk
-from backend.agents.generation.generation_agent import GenerationAgent
-from backend.agents.registry.agent_registry import get_agent_registry
-from backend.agents.retrieval.retrieval_agent import RetrievalAgent
-from backend.agents.router.router_agent import RouterAgent
-from backend.agents.tool.tool_agent import ToolAgent
 from backend.contracts.errors import ErrorCode
 from backend.utils.logger import get_logger
 from backend.workflows.multi_agent_workflow import MultiAgentWorkflow, get_workflow_template
+from langgraph.config import get_stream_writer
+from langgraph.graph import END, START, StateGraph
 
-try:
-    # LangGraph 只参与“路径规划”阶段，不直接取代下面各分支中的真实流式执行逻辑。
-    # 这样可以把“规划”与“执行”解耦，同时支持缺依赖时平滑降级。
-    from langgraph.graph import END, StateGraph
-except ImportError:
-    # 使用占位常量保证后续代码结构统一；当 StateGraph 为 None 时不会进入 LangGraph 分支。
-    END = "__end__"
-    StateGraph = None
+
+def _get_agent_registry():
+    """延迟加载 Agent 注册表，避免模块导入阶段耦合到具体 Agent 实现。"""
+    from backend.agents.registry.agent_registry import get_agent_registry as _registry_factory
+
+    return _registry_factory()
 
 # =========================
 # 路由动作常量
@@ -109,7 +95,7 @@ class _WorkflowPlanState(TypedDict, total=False):
     execution_action: str
     # 当前已规划出的阶段路径。
     execution_path: list[str]
-    # 当前使用的规划引擎：langgraph / builtin。
+    # 当前使用的规划引擎：langgraph。
     workflow_engine: str
     # 如果发生了回退或降级，这里记录原因。
     fallback_reason: str | None
@@ -119,6 +105,16 @@ class _WorkflowPlanState(TypedDict, total=False):
     error_type: str | None
     # 规划阶段错误消息。
     error_message: str | None
+
+
+class _WorkflowExecutionState(TypedDict, total=False):
+    """工作流“执行阶段”共享状态。"""
+
+    agent_input: AgentInput
+    working_input: AgentInput
+    history_messages: list
+    knowledge_enabled: bool
+    plan_state: _WorkflowPlanState
 
 
 class _WorkflowPlanner:
@@ -141,8 +137,8 @@ class _WorkflowPlanner:
         self.executor = executor
         self.logger = executor.logger
         self.router_agent = executor.router_agent
-        # 若环境已安装 LangGraph，则提前构建并编译状态图；否则后续走内置规划逻辑。
-        self._compiled_graph = self._build_graph() if StateGraph is not None else None
+        # 规划阶段统一强制使用 LangGraph，不再保留手写规划兜底逻辑。
+        self._compiled_graph = self._build_graph()
 
     async def plan(self, agent_input: AgentInput) -> _WorkflowPlanState:
         """对本次请求进行工作流路径规划。
@@ -153,15 +149,8 @@ class _WorkflowPlanner:
         # 先构造规划阶段的初始状态，确保后续所有节点消费的是统一状态对象。
         state = self._build_initial_state(agent_input)
 
-        # 优先走 LangGraph 状态图规划。
-        if self._compiled_graph is not None:
-            planned_state = await self._compiled_graph.ainvoke(state)
-            planned_state.setdefault("workflow_engine", "langgraph")
-            return planned_state
-
-        # 未安装 LangGraph 时，退回到本地内置规划逻辑。
-        planned_state = await self._run_builtin(state)
-        planned_state.setdefault("workflow_engine", "builtin")
+        planned_state = await self._compiled_graph.ainvoke(state)
+        planned_state["workflow_engine"] = planned_state.get("workflow_engine") or "langgraph"
         return planned_state
 
     def _build_graph(self):
@@ -179,7 +168,7 @@ class _WorkflowPlanner:
         graph.add_node("intent_recognition", self._intent_recognition_node)
         graph.add_node("retrieval_stage", self._retrieval_stage_node)
         graph.add_node("tool_stage", self._tool_stage_node)
-        graph.add_node("generation_stage", self._generation_stage_node)
+        graph.add_node("answer_generation_stage", self._generation_stage_node)
         graph.add_node("multi_agent_stage", self._multi_agent_stage_node)
 
         # 指定图的起点：任何请求都必须先做输入校验。
@@ -200,7 +189,7 @@ class _WorkflowPlanner:
             self._route_after_intent,
             {
                 "error": END,
-                ACTION_DIRECT_ANSWER: "generation_stage",
+                ACTION_DIRECT_ANSWER: "answer_generation_stage",
                 ACTION_RETRIEVAL: "retrieval_stage",
                 ACTION_TOOL_CALL: "tool_stage",
                 ACTION_MULTI_AGENT: "multi_agent_stage",
@@ -208,45 +197,13 @@ class _WorkflowPlanner:
         )
 
         # 检索与工具分支最终都要进入生成阶段，形成“先取上下文，再生成答案”的链路。
-        graph.add_edge("retrieval_stage", "generation_stage")
-        graph.add_edge("tool_stage", "generation_stage")
+        graph.add_edge("retrieval_stage", "answer_generation_stage")
+        graph.add_edge("tool_stage", "answer_generation_stage")
 
         # 生成分支与多 Agent 分支到此结束规划。
-        graph.add_edge("generation_stage", END)
+        graph.add_edge("answer_generation_stage", END)
         graph.add_edge("multi_agent_stage", END)
         return graph.compile()
-
-    async def _run_builtin(self, state: _WorkflowPlanState) -> _WorkflowPlanState:
-        """内置规划器。
-
-        该方法用于在没有 LangGraph 依赖时，按与状态图一致的顺序完成规划。
-        本质上是对 `_build_graph()` 执行顺序的一种手工实现。
-        """
-        # 第一步：校验输入，失败则直接返回错误状态。
-        state = await self._validate_input_node(state)
-        if state.get("error_code"):
-            return state
-
-        # 第二步：调用 Router 识别主分支。
-        state = await self._intent_recognition_node(state)
-        if state.get("error_code"):
-            return state
-
-        # 第三步：根据最终 execution_action 规划路径。
-        action = state.get("execution_action", ACTION_DIRECT_ANSWER)
-        if action == ACTION_RETRIEVAL:
-            state = await self._retrieval_stage_node(state)
-            return await self._generation_stage_node(state)
-
-        if action == ACTION_TOOL_CALL:
-            state = await self._tool_stage_node(state)
-            return await self._generation_stage_node(state)
-
-        if action == ACTION_MULTI_AGENT:
-            return await self._multi_agent_stage_node(state)
-
-        # direct_answer 或未知情况，最终都规划到 generation。
-        return await self._generation_stage_node(state)
 
     def _build_initial_state(self, agent_input: AgentInput) -> _WorkflowPlanState:
         """构建规划阶段的初始状态。
@@ -304,9 +261,7 @@ class _WorkflowPlanner:
             )
             return state
 
-        router_metadata = router_output.metadata or {}
-        # Router 规范上应把决策放入 metadata.decision；若结构异常则退回空对象。
-        decision = router_metadata.get("decision", {}) if isinstance(router_metadata, dict) else {}
+        decision = router_output.get_route_decision() or {}
         router_action = decision.get("action", ACTION_DIRECT_ANSWER)
         if router_action not in KNOWN_ACTIONS:
             # 未知动作一律降级为直接回答，保证主链路稳定可用。
@@ -321,6 +276,7 @@ class _WorkflowPlanner:
 
         # 保存规划结果，供执行器入口统一消费。
         state["decision"] = decision
+        state["working_input"] = working_input.clone_with(route_decision=decision)
         state["router_action"] = decision.get("action", ACTION_DIRECT_ANSWER)
         state["execution_action"] = execution_action
         state["execution_path"] = [WORKFLOW_STAGE_INTENT]
@@ -339,9 +295,9 @@ class _WorkflowPlanner:
         if suggested_tools:
             # 这里只修改 working_input 副本，不修改原始输入对象。
             # 这样 ToolAgent 可以感知候选工具缩小范围，但不会污染外部调用上下文。
-            state["working_input"] = self.executor._clone_agent_input(
+            state["working_input"] = self.executor._create_tool_agent_input(
                 state["working_input"],
-                metadata_updates={"available_tools": suggested_tools},
+                available_tools=suggested_tools,
             )
         return state
 
@@ -353,6 +309,13 @@ class _WorkflowPlanner:
     async def _multi_agent_stage_node(self, state: _WorkflowPlanState) -> _WorkflowPlanState:
         """在规划路径中追加 multi_agent 阶段。"""
         state["execution_path"] = [*state.get("execution_path", []), WORKFLOW_STAGE_MULTI_AGENT]
+        decision = state.get("decision", {})
+        suggested_tools = decision.get("suggested_tools", []) if isinstance(decision, dict) else []
+        if suggested_tools:
+            state["working_input"] = self.executor._create_tool_agent_input(
+                state["working_input"],
+                available_tools=suggested_tools,
+            )
         return state
 
     @staticmethod
@@ -384,16 +347,23 @@ class WorkflowExecutor:
         """初始化执行器和各类 Agent 依赖。"""
         self.logger = get_logger(self.__class__.__name__)
 
-        registry = get_agent_registry()
-        # 优先从注册表获取 Agent，便于后续扩展和替换实现。
-        # 若注册表不存在对应实现，则使用默认内置 Agent 兜底。
-        self.router_agent = registry.create("router") or RouterAgent()
-        self.generation_agent = registry.create("generation") or GenerationAgent()
-        self.retrieval_agent = registry.create("retrieval") or RetrievalAgent()
-        self.tool_agent = registry.create("tool") or ToolAgent()
+        registry = _get_agent_registry()
+        # 执行器只依赖注册表中的标准 Agent，不再回退到散落的默认实例化逻辑。
+        self.router_agent = self._require_agent(registry, "router")
+        self.generation_agent = self._require_agent(registry, "generation")
+        self.retrieval_agent = self._require_agent(registry, "retrieval")
+        self.tool_agent = self._require_agent(registry, "tool")
         self.multi_agent_workflow = MultiAgentWorkflow()
-        # 规划器按需懒加载，避免执行器初始化时就强依赖 LangGraph。
         self.workflow_planner: _WorkflowPlanner | None = None
+        self._compiled_execution_graph = self._build_execution_graph()
+
+    @staticmethod
+    def _require_agent(registry: Any, agent_type: str) -> Any:
+        """从注册表获取必需 Agent，缺失时直接失败。"""
+        agent = registry.create(agent_type)
+        if agent is None:
+            raise RuntimeError(f"Agent 未注册: {agent_type}")
+        return agent
 
     @staticmethod
     def _truncate_text(value: Any, max_length: int = 120) -> str:
@@ -487,25 +457,13 @@ class WorkflowExecutor:
 
     @staticmethod
     def _get_conversation_history(agent_input: AgentInput) -> list:
-        """统一读取多轮对话历史。
-
-        兼容两种来源：
-        - `agent_input.conversation_history`
-        - `agent_input.metadata["conversation_history"]`
-        """
-        if getattr(agent_input, "conversation_history", None):
-            return agent_input.conversation_history or []
-        if agent_input.metadata:
-            return agent_input.metadata.get("conversation_history", []) or []
-        return []
+        """获取对话历史的安全副本。"""
+        return deepcopy(agent_input.get_conversation_history())
 
     def _ensure_metadata(self, agent_input: AgentInput) -> Dict[str, Any]:
-        """保证 metadata 可用，并补齐 conversation_history。"""
-        metadata = deepcopy(agent_input.metadata) if agent_input.metadata else {}
-        history_messages = self._get_conversation_history(agent_input)
-        if history_messages and "conversation_history" not in metadata:
-            metadata["conversation_history"] = deepcopy(history_messages)
-        return metadata
+        """复制 metadata，避免后续流程原地修改。"""
+        return deepcopy(agent_input.metadata) if agent_input.metadata else {}
+
 
     def _clone_agent_input(
         self,
@@ -521,41 +479,76 @@ class WorkflowExecutor:
         """
         metadata = self._ensure_metadata(agent_input)
         conversation_history = deepcopy(self._get_conversation_history(agent_input))
+        workflow_context = agent_input.get_workflow_context()
 
         if metadata_updates:
             for key, value in metadata_updates.items():
                 metadata[key] = deepcopy(value)
 
-        return AgentInput(
-            user_id=agent_input.user_id,
-            conversation_id=agent_input.conversation_id,
-            content=agent_input.content,
-            message_id=agent_input.message_id,
+        return AgentInput.from_agent_input(
+            agent_input,
             conversation_history=conversation_history,
             metadata=metadata,
+            workflow_context=workflow_context.to_dict() if workflow_context else None,
         )
+
+    def _create_tool_agent_input(
+        self,
+        agent_input: AgentInput,
+        available_tools: list[str] | None = None,
+    ) -> ToolAgentInput:
+        metadata = self._ensure_metadata(agent_input)
+        workflow_context = deepcopy(agent_input.get_workflow_context())
+        return ToolAgentInput.from_agent_input(
+            agent_input,
+            conversation_history=self._get_conversation_history(agent_input),
+            metadata=metadata,
+            workflow_context=workflow_context,
+            available_tools=deepcopy(available_tools),
+            tool_timeout=getattr(agent_input, "tool_timeout", self.tool_agent.tool_timeout),
+        )
+
+    def _create_generation_agent_input(
+        self,
+        agent_input: AgentInput,
+        *,
+        retrieval_results: list[dict[str, Any]] | None = None,
+        tool_result: dict[str, Any] | None = None,
+    ) -> GenerationAgentInput:
+        metadata = self._ensure_metadata(agent_input)
+        workflow_context = deepcopy(agent_input.get_workflow_context())
+        tool_results = [deepcopy(tool_result)] if tool_result is not None else None
+        return GenerationAgentInput.from_agent_input(
+            agent_input,
+            conversation_history=self._get_conversation_history(agent_input),
+            metadata=metadata,
+            workflow_context=workflow_context,
+            retrieval_results=deepcopy(retrieval_results),
+            tool_results=tool_results,
+        )
+
+    @staticmethod
+    def _extract_execution_id(payload: Any) -> str | None:
+        if isinstance(payload, StreamChunk):
+            if isinstance(payload.metadata, dict) and payload.metadata.get("execution_id"):
+                return str(payload.metadata["execution_id"])
+            return WorkflowExecutor._extract_execution_id(payload.content)
+
+        if isinstance(payload, dict) and payload.get("execution_id"):
+            return str(payload["execution_id"])
+
+        return None
 
     def _is_knowledge_enabled(self, agent_input: AgentInput) -> bool:
         """判断知识库能力是否开启。
 
         设计为默认开启，只有显式传入 `False` 时才关闭。
         """
-        metadata = agent_input.metadata or {}
-        return bool(metadata.get("enable_knowledge_base", True))
+        return agent_input.is_knowledge_enabled(default=True)
 
     def _is_valid_workflow_config(self, workflow_config: Any) -> bool:
         """委托多 Agent 工作流对象校验配置是否合法。"""
         return self.multi_agent_workflow.is_valid_workflow_config(workflow_config)
-
-    def _get_safe_default_multi_agent_workflow_config(self, agent_input: AgentInput) -> Dict[str, Any]:
-        """根据当前业务开关返回安全的多 Agent 兜底配置。"""
-        if not self._is_knowledge_enabled(agent_input):
-            return {
-                "steps": [
-                    {"name": "生成回答", "agent_type": "generation", "config": {}},
-                ]
-            }
-        return self._get_default_multi_agent_workflow_config()
 
     def _sanitize_multi_agent_workflow_config(
         self,
@@ -609,7 +602,7 @@ class WorkflowExecutor:
             return None, changed
 
         if not sanitized_steps:
-            return self._get_safe_default_multi_agent_workflow_config(agent_input), True
+            return None, True
 
         sanitized_config = deepcopy(workflow_config)
         sanitized_config["steps"] = sanitized_steps
@@ -619,46 +612,33 @@ class WorkflowExecutor:
         self,
         agent_input: AgentInput,
         decision: Dict[str, Any],
-    ) -> tuple[Dict[str, Any], str | None]:
+    ) -> tuple[Dict[str, Any] | None, str | None]:
         """解析并收敛多 Agent 工作流配置。"""
 
-        fallback_reasons: list[str] = []
+        resolution_notes: list[str] = []
         workflow_config = decision.get("workflow_config")
 
-        if not self._is_valid_workflow_config(workflow_config):
-            template_name = decision.get("workflow_template", "retrieval_then_tool")
-            self.logger.info(f"使用工作流模板: {template_name}")
-            workflow_config = get_workflow_template(template_name)
-            fallback_reasons.append(f"workflow_template:{template_name}")
+        template_name = decision.get("workflow_template")
+        if not self._is_valid_workflow_config(workflow_config) and template_name:
+            template_config = get_workflow_template(template_name)
+            if self._is_valid_workflow_config(template_config):
+                self.logger.info(f"使用工作流模板: {template_name}")
+                workflow_config = template_config
+                resolution_notes.append(f"workflow_template:{template_name}")
 
         if not self._is_valid_workflow_config(workflow_config):
-            self.logger.warning("[FLOW][MULTI_AGENT] invalid workflow_config, use default config")
-            workflow_config = self._get_safe_default_multi_agent_workflow_config(agent_input)
-            fallback_reasons.append("default_workflow_config")
+            self.logger.warning("[FLOW][MULTI_AGENT] invalid workflow_config")
+            return None, "invalid_workflow_config"
 
         sanitized_config, sanitized = self._sanitize_multi_agent_workflow_config(workflow_config, agent_input)
         if sanitized_config is None or not self._is_valid_workflow_config(sanitized_config):
-            workflow_config = self._get_safe_default_multi_agent_workflow_config(agent_input)
-            fallback_reasons.append("workflow_policy_fallback")
-        else:
-            workflow_config = sanitized_config
-            if sanitized:
-                fallback_reasons.append("workflow_policy_sanitized")
+            self.logger.warning("[FLOW][MULTI_AGENT] workflow_config rejected by runtime policy")
+            return None, "workflow_policy_invalid"
 
-        return workflow_config, ",".join(fallback_reasons) if fallback_reasons else None
+        if sanitized:
+            resolution_notes.append("workflow_policy_sanitized")
 
-    def _get_default_multi_agent_workflow_config(self) -> Dict[str, Any]:
-        """给出多 Agent 工作流的默认兜底配置。"""
-        return {
-            "steps": [
-                {"name": "检索知识库", "agent_type": "retrieval"},
-                {
-                    "name": "生成回答",
-                    "agent_type": "generation",
-                    "config": {"use_previous_output": True},
-                },
-            ]
-        }
+        return sanitized_config, ",".join(resolution_notes) if resolution_notes else None
 
     def _get_workflow_planner(self) -> _WorkflowPlanner:
         """按需获取规划器实例。"""
@@ -674,13 +654,15 @@ class WorkflowExecutor:
         这里会把 user_id / conversation_id / message_id / request_id 等追踪字段补齐，
         便于 SSE 层和日志层统一消费。
         """
-        source_metadata = agent_input.metadata or {}
+        input_metadata = self._ensure_metadata(agent_input)
         metadata: Dict[str, Any] = {
             "user_id": agent_input.user_id or None,
             "conversation_id": agent_input.conversation_id or None,
             "message_id": agent_input.message_id or None,
-            "request_id": source_metadata.get("request_id"),
-            "knowledge_base_id": source_metadata.get("knowledge_base_id"),
+            "request_id": agent_input.get_request_id() or input_metadata.get("request_id"),
+            "execution_id": agent_input.get_execution_id() or input_metadata.get("execution_id"),
+            "knowledge_base_id": agent_input.get_knowledge_base_id() or input_metadata.get("knowledge_base_id"),
+            "document_id": agent_input.get_document_id() or input_metadata.get("document_id"),
         }
 
         # extra 中的值优先级更高，用于补充 error_code、workflow_path 等执行期信息。
@@ -693,19 +675,27 @@ class WorkflowExecutor:
 
     def _augment_chunk(self, chunk: StreamChunk, agent_input: AgentInput, **extra: Any) -> StreamChunk:
         """为下游 Agent 返回的 chunk 补充统一链路元数据。"""
+        extra = dict(extra)
+        if extra.get("execution_id") is None:
+            extra["execution_id"] = self._extract_execution_id(chunk)
+
         trace_metadata = self._build_trace_metadata(agent_input, **extra)
         metadata = deepcopy(chunk.metadata) if chunk.metadata else {}
         for key, value in trace_metadata.items():
-            metadata.setdefault(key, value)
+            metadata[key] = value
 
-        # 如果没有新增任何元数据，则直接返回原 chunk，避免不必要拷贝。
-        if metadata == (chunk.metadata or {}):
+        content = chunk.content
+        if chunk.chunk_type == "error":
+            content = self._safe_error_message(chunk.content, fallback="工作流执行失败")
+
+        # 如果没有新增任何元数据，也没有发生内容脱敏，则直接返回原 chunk。
+        if metadata == (chunk.metadata or {}) and content == chunk.content:
             return chunk
 
         return StreamChunk(
             chunk_id=chunk.chunk_id,
             chunk_type=chunk.chunk_type,
-            content=chunk.content,
+            content=content,
             metadata=metadata or None,
             timestamp=chunk.timestamp,
         )
@@ -733,18 +723,155 @@ class WorkflowExecutor:
         """创建统一结构的 thinking chunk。"""
         return StreamChunk.create_thinking(content, **self._build_trace_metadata(agent_input, **extra))
 
-    async def execute_workflow(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
-        """执行完整工作流。
+    def _build_execution_graph(self):
+        """构建工作流执行图。"""
+        graph = StateGraph(_WorkflowExecutionState)
+        graph.add_node("plan", self._execution_plan_node)
+        graph.add_node("plan_error", self._execution_plan_error_node)
+        graph.add_node(ACTION_DIRECT_ANSWER, self._execution_direct_answer_node)
+        graph.add_node(ACTION_RETRIEVAL, self._execution_retrieval_node)
+        graph.add_node(ACTION_TOOL_CALL, self._execution_tool_node)
+        graph.add_node(ACTION_MULTI_AGENT, self._execution_multi_agent_node)
 
-        这是整个文件最核心的入口，整体执行顺序如下：
-        1. 克隆输入，保护原始上下文；
-        2. 记录日志并做入口参数校验；
-        3. 调用规划器决定应该走哪条主分支；
-        4. 根据 execution_action 进入对应执行分支；
-        5. 给所有产出的 chunk 统一补充链路元数据；
-        6. 若任一阶段发生异常，则统一产出结构化错误块。
-        """
-        # 整个工作流都基于 working_input 副本运行，避免污染原始请求对象。
+        graph.add_edge(START, "plan")
+        graph.add_conditional_edges(
+            "plan",
+            self._route_after_execution_plan,
+            {
+                "plan_error": "plan_error",
+                ACTION_DIRECT_ANSWER: ACTION_DIRECT_ANSWER,
+                ACTION_RETRIEVAL: ACTION_RETRIEVAL,
+                ACTION_TOOL_CALL: ACTION_TOOL_CALL,
+                ACTION_MULTI_AGENT: ACTION_MULTI_AGENT,
+            },
+        )
+        graph.add_edge("plan_error", END)
+        graph.add_edge(ACTION_DIRECT_ANSWER, END)
+        graph.add_edge(ACTION_RETRIEVAL, END)
+        graph.add_edge(ACTION_TOOL_CALL, END)
+        graph.add_edge(ACTION_MULTI_AGENT, END)
+        return graph.compile()
+
+    async def _execution_plan_node(self, state: _WorkflowExecutionState) -> _WorkflowExecutionState:
+        """规划并把结果写入执行状态。"""
+        writer = get_stream_writer()
+        working_input = state["agent_input"]
+        writer(self._create_thinking_chunk(working_input, "正在分析问题类型..."))
+
+        plan_state = await self._get_workflow_planner().plan(working_input)
+        if plan_state.get("error_code"):
+            plan_state["error_message"] = self._safe_error_message(
+                plan_state.get("error_message"),
+                fallback="工作流执行失败",
+            )
+            self.logger.error(
+                "[FLOW] workflow_plan_failed: "
+                f"error_code={plan_state.get('error_code')}, error={plan_state.get('error_message')}"
+            )
+            return {**state, "plan_state": plan_state}
+
+        action = plan_state.get("execution_action")
+        if action not in KNOWN_ACTIONS:
+            plan_state["error_code"] = ErrorCode.WORKFLOW_EXECUTION_ERROR.value
+            plan_state["error_type"] = "workflow_error"
+            plan_state["error_message"] = f"未知工作流动作: {action}"
+            self.logger.error(f"[FLOW] workflow_plan_invalid_action: action={action}")
+            return {**state, "plan_state": plan_state}
+
+        self.logger.info(
+            "[FLOW] workflow_plan_ready: "
+            f"engine={plan_state.get('workflow_engine')}, "
+            f"router_action={plan_state.get('router_action', action)}, execution_action={action}, "
+            f"path={plan_state.get('execution_path', [])}, "
+            f"decision={self._summarize_payload(plan_state.get('decision', {}))}"
+        )
+        if plan_state.get("fallback_reason"):
+            self.logger.info(f"[FLOW] workflow_plan_fallback: reason={plan_state.get('fallback_reason')}")
+        return {**state, "plan_state": plan_state}
+
+    @staticmethod
+    def _route_after_execution_plan(state: _WorkflowExecutionState) -> str:
+        """根据规划结果决定进入哪个执行节点。"""
+        plan_state = state.get("plan_state", {})
+        if plan_state.get("error_code"):
+            return "plan_error"
+        return str(plan_state.get("execution_action", ACTION_DIRECT_ANSWER))
+
+    async def _execution_plan_error_node(self, state: _WorkflowExecutionState) -> _WorkflowExecutionState:
+        """输出规划阶段错误。"""
+        writer = get_stream_writer()
+        plan_state = state.get("plan_state", {})
+        planned_input = plan_state.get("working_input") or state["agent_input"]
+        writer(
+            self._create_error_chunk(
+                planned_input,
+                plan_state.get("error_message") or "工作流执行失败",
+                plan_state.get("error_code") or ErrorCode.WORKFLOW_EXECUTION_ERROR.value,
+                plan_state.get("error_type") or "workflow_error",
+                workflow_engine=plan_state.get("workflow_engine"),
+                workflow_path=plan_state.get("execution_path"),
+                fallback_reason=plan_state.get("fallback_reason"),
+            )
+        )
+        return state
+
+    async def _stream_planned_execution_chunks(
+        self,
+        state: _WorkflowExecutionState,
+        chunk_stream: AsyncGenerator[StreamChunk, None],
+    ) -> _WorkflowExecutionState:
+        """把执行分支产出的 chunk 统一补齐链路元数据后写回流。"""
+        writer = get_stream_writer()
+        plan_state = state.get("plan_state", {})
+        planned_input = plan_state.get("working_input") or state["agent_input"]
+        extra = {
+            "workflow_engine": plan_state.get("workflow_engine"),
+            "workflow_path": plan_state.get("execution_path"),
+            "fallback_reason": plan_state.get("fallback_reason"),
+        }
+        async for chunk in chunk_stream:
+            writer(self._augment_chunk(chunk, planned_input, **extra))
+        return state
+
+    async def _execution_direct_answer_node(self, state: _WorkflowExecutionState) -> _WorkflowExecutionState:
+        """执行直接回答分支。"""
+        plan_state = state.get("plan_state", {})
+        planned_input = plan_state.get("working_input") or state["agent_input"]
+        return await self._stream_planned_execution_chunks(
+            state,
+            self._execute_direct_answer_workflow(planned_input),
+        )
+
+    async def _execution_retrieval_node(self, state: _WorkflowExecutionState) -> _WorkflowExecutionState:
+        """执行检索增强分支。"""
+        plan_state = state.get("plan_state", {})
+        planned_input = plan_state.get("working_input") or state["agent_input"]
+        return await self._stream_planned_execution_chunks(
+            state,
+            self._execute_retrieval_workflow(planned_input),
+        )
+
+    async def _execution_tool_node(self, state: _WorkflowExecutionState) -> _WorkflowExecutionState:
+        """执行工具调用分支。"""
+        plan_state = state.get("plan_state", {})
+        planned_input = plan_state.get("working_input") or state["agent_input"]
+        return await self._stream_planned_execution_chunks(
+            state,
+            self._execute_tool_call_workflow(planned_input),
+        )
+
+    async def _execution_multi_agent_node(self, state: _WorkflowExecutionState) -> _WorkflowExecutionState:
+        """执行多 Agent 分支。"""
+        plan_state = state.get("plan_state", {})
+        planned_input = plan_state.get("working_input") or state["agent_input"]
+        decision = plan_state.get("decision", {})
+        return await self._stream_planned_execution_chunks(
+            state,
+            self._execute_multi_agent_workflow(planned_input, decision),
+        )
+
+    async def execute_workflow(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
+        """执行完整工作流。"""
         working_input = self._clone_agent_input(agent_input)
         history_messages = self._get_conversation_history(working_input)
         knowledge_enabled = self._is_knowledge_enabled(working_input)
@@ -759,109 +886,18 @@ class WorkflowExecutor:
             f"knowledge_enabled={knowledge_enabled}"
         )
 
+        initial_state: _WorkflowExecutionState = {
+            "agent_input": working_input,
+            "working_input": working_input,
+            "history_messages": history_messages,
+            "knowledge_enabled": knowledge_enabled,
+        }
+
         try:
-            # 先向上游告知“开始分析问题类型”，给前端及时反馈。
-            yield self._create_thinking_chunk(working_input, "正在分析问题类型...")
-
-            # 先规划，再执行：这一步只决定“走哪条路”，不真正进入 Retrieval / Tool / Generation。
-            plan_state = await self._get_workflow_planner().plan(working_input)
-            if plan_state.get("error_code"):
-                error_message = self._safe_error_message(
-                    plan_state.get("error_message"),
-                    fallback="工作流执行失败",
-                )
-                self.logger.error(
-                    "[FLOW] workflow_plan_failed: "
-                    f"error_code={plan_state.get('error_code')}, error={error_message}"
-                )
-                yield self._create_error_chunk(
-                    working_input,
-                    error_message,
-                    plan_state["error_code"],
-                    plan_state.get("error_type") or "workflow_error",
-                    workflow_engine=plan_state.get("workflow_engine"),
-                    workflow_path=plan_state.get("execution_path"),
-                )
-                return
-
-            # 从规划状态中提取执行所需的关键变量。
-            decision = plan_state.get("decision", {})
-            action = plan_state.get("execution_action", ACTION_DIRECT_ANSWER)
-            router_action = plan_state.get("router_action", action)
-            workflow_engine = plan_state.get("workflow_engine")
-            workflow_path = plan_state.get("execution_path", [])
-            fallback_reason = plan_state.get("fallback_reason")
-            planned_input = plan_state.get("working_input", working_input)
-
-            self.logger.info(
-                "[FLOW] workflow_plan_ready: "
-                f"engine={workflow_engine}, router_action={router_action}, execution_action={action}, "
-                f"path={workflow_path}, decision={self._summarize_payload(decision)}"
-            )
-            if fallback_reason:
-                self.logger.info(f"[FLOW] workflow_plan_fallback: reason={fallback_reason}")
-
-            # 分支 1：直接回答。
-            if action == ACTION_DIRECT_ANSWER:
-                async for chunk in self._execute_direct_answer_workflow(planned_input):
-                    yield self._augment_chunk(
-                        chunk,
-                        planned_input,
-                        workflow_engine=workflow_engine,
-                        workflow_path=workflow_path,
-                        fallback_reason=fallback_reason,
-                    )
-                return
-
-            # 分支 2：检索增强回答。
-            if action == ACTION_RETRIEVAL:
-                async for chunk in self._execute_retrieval_workflow(planned_input):
-                    yield self._augment_chunk(
-                        chunk,
-                        planned_input,
-                        workflow_engine=workflow_engine,
-                        workflow_path=workflow_path,
-                        fallback_reason=fallback_reason,
-                    )
-                return
-
-            # 分支 3：工具调用后生成回答。
-            if action == ACTION_TOOL_CALL:
-                async for chunk in self._execute_tool_call_workflow(planned_input):
-                    yield self._augment_chunk(
-                        chunk,
-                        planned_input,
-                        workflow_engine=workflow_engine,
-                        workflow_path=workflow_path,
-                        fallback_reason=fallback_reason,
-                    )
-                return
-
-            # 分支 4：多 Agent 工作流。
-            if action == ACTION_MULTI_AGENT:
-                async for chunk in self._execute_multi_agent_workflow(planned_input, decision):
-                    yield self._augment_chunk(
-                        chunk,
-                        planned_input,
-                        workflow_engine=workflow_engine,
-                        workflow_path=workflow_path,
-                        fallback_reason=fallback_reason,
-                    )
-                return
-
-            # 正常情况下不会进入这里；这是最后一道保护性回退。
-            self.logger.warning(f"未知动作: {action}，回退到直接回答")
-            async for chunk in self._execute_direct_answer_workflow(planned_input):
-                yield self._augment_chunk(
-                    chunk,
-                    planned_input,
-                    workflow_engine=workflow_engine,
-                    workflow_path=workflow_path,
-                    fallback_reason="unknown_execution_action",
-                )
-
+            async for event in self._compiled_execution_graph.astream(initial_state, stream_mode="custom"):
+                if isinstance(event, StreamChunk):
+                    yield event
         except Exception as error:
-            # 兜底异常保护：避免整个 SSE 链路直接中断而没有标准错误输出。
             safe_error = self._safe_error_message(error)
             self.logger.error(f"工作流执行失败: {safe_error}")
             yield self._create_error_chunk(
@@ -961,11 +997,9 @@ class WorkflowExecutor:
 
         # 生成阶段只需要历史消息等通用上下文，不把 retrieval_results 塞进 metadata，
         # 而是作为显式参数传给 generate_with_context_stream，避免 metadata 承载主流程数据。
-        generation_input = self._clone_agent_input(
+        generation_input = self._create_generation_agent_input(
             agent_input,
-            metadata_updates={
-                "conversation_history": self._get_conversation_history(agent_input),
-            },
+            retrieval_results=retrieval_results,
         )
 
         self.logger.info(
@@ -1022,17 +1056,24 @@ class WorkflowExecutor:
                 continue
 
             if chunk.chunk_type == "error":
-                # 工具阶段硬错误直接结束，不再继续进入生成分支。
+                # 工具阶段出现硬错误时，优先降级到普通生成，避免整条回答链路直接失败。
+                safe_error = self._safe_error_message(chunk.content, fallback="工具调用失败")
+                error_code = (chunk.metadata or {}).get("error_code") or ErrorCode.WORKFLOW_EXECUTION_ERROR.value
+                error_type = (chunk.metadata or {}).get("error_type") or "tool_error"
                 self.logger.error(
                     "[FLOW][TOOL] error_chunk="
-                    f"{self._summarize_payload(chunk.content)}"
+                    f"{self._summarize_payload(safe_error)}"
                 )
-                yield self._augment_chunk(
-                    chunk,
+                yield self._create_thinking_chunk(
                     agent_input,
-                    error_code=(chunk.metadata or {}).get("error_code") or ErrorCode.WORKFLOW_EXECUTION_ERROR.value,
-                    error_type=(chunk.metadata or {}).get("error_type") or "tool_error",
+                    f"工具调用失败: {safe_error}，使用通用知识回答...",
+                    error_code=error_code,
+                    error_type=error_type,
+                    tool_name=tool_name,
+                    fallback_reason="tool_error_fallback",
                 )
+                async for gen_chunk in self.generation_agent.execute_stream(agent_input):
+                    yield gen_chunk
                 return
 
             if chunk.chunk_type == "result":
@@ -1109,11 +1150,9 @@ class WorkflowExecutor:
             return
 
         # 工具成功时，只把通用上下文放进 metadata，真正的 tool_result 通过显式参数传递。
-        generation_input = self._clone_agent_input(
+        generation_input = self._create_generation_agent_input(
             agent_input,
-            metadata_updates={
-                "conversation_history": self._get_conversation_history(agent_input),
-            },
+            tool_result=tool_result,
         )
 
         self.logger.info(
@@ -1142,14 +1181,25 @@ class WorkflowExecutor:
             f"decision={self._summarize_payload(decision)}"
         )
 
-        workflow_config, config_fallback_reason = self._resolve_multi_agent_workflow_config(agent_input, decision)
+        workflow_config, config_resolution_note = self._resolve_multi_agent_workflow_config(agent_input, decision)
+
+        if workflow_config is None:
+            self.logger.error("[FLOW][MULTI_AGENT] workflow_config_resolution_failed")
+            yield self._create_error_chunk(
+                agent_input,
+                "多 Agent 工作流配置无效",
+                ErrorCode.WORKFLOW_INVALID_INPUT.value,
+                "workflow_config_error",
+                workflow_type=ACTION_MULTI_AGENT,
+            )
+            return
 
         self.logger.info(
             "[FLOW][MULTI_AGENT] workflow_config="
             f"{self._summarize_payload(workflow_config)}"
         )
-        if config_fallback_reason:
-            self.logger.info(f"[FLOW][MULTI_AGENT] config_fallback={config_fallback_reason}")
+        if config_resolution_note:
+            self.logger.info(f"[FLOW][MULTI_AGENT] config_resolution={config_resolution_note}")
 
         async for chunk in self.multi_agent_workflow.execute(agent_input, workflow_config):
             # 多 Agent 流程通常更复杂，因此对 result / error / tool_call 等关键块额外记日志。

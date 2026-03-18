@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import List, Optional
 
 from backend.database.database_manager import DatabaseManager, get_database_manager
 from backend.database.repositories.user_repository import BaseRepository
 from backend.models.knowledge_base import KnowledgeBase, KnowledgeBaseCreate
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -82,14 +82,14 @@ class KnowledgeBaseRepository(BaseRepository):
     def clear_default(self, user_id: str) -> int:
         return self.db.update_one(
             table=self.TABLE_NAME,
-            data={"is_default": 0, "updated_at": datetime.utcnow()},
+            data={"is_default": 0, "updated_at": utc_now()},
             where={"user_id": user_id, "is_active": 1},
         )
 
     def set_default_by_id(self, knowledge_base_id: str, user_id: str) -> bool:
         affected = self.db.update_one(
             table=self.TABLE_NAME,
-            data={"is_default": 1, "updated_at": datetime.utcnow()},
+            data={"is_default": 1, "updated_at": utc_now()},
             where={"knowledge_base_id": knowledge_base_id, "user_id": user_id, "is_active": 1},
         )
         return affected > 0
@@ -97,7 +97,7 @@ class KnowledgeBaseRepository(BaseRepository):
     def soft_delete_knowledge_base(self, knowledge_base_id: str, user_id: str) -> bool:
         affected = self.db.update_one(
             table=self.TABLE_NAME,
-            data={"is_active": 0, "is_default": 0, "updated_at": datetime.utcnow()},
+            data={"is_active": 0, "is_default": 0, "updated_at": utc_now()},
             where={"knowledge_base_id": knowledge_base_id, "user_id": user_id, "is_active": 1},
         )
         return affected > 0

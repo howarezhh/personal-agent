@@ -14,9 +14,25 @@ import copy
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
-from backend.api.chat import AskResponse
+from backend.contracts.api.chat import AskResponse, ChatDonePayload, ChatResultPayload
+from backend.contracts.agent_io import (
+    AGENT_IO_PROTOCOL_VERSION,
+    AgentInputSchema,
+    AgentOutputSchema,
+    FileProcessorAgentInputSchema,
+    FileProcessorAgentOutputSchema,
+    GenerationAgentInputSchema,
+    GenerationAgentOutputSchema,
+    RetrievalAgentInputSchema,
+    RetrievalAgentOutputSchema,
+    RouterAgentInputSchema,
+    RouterAgentOutputSchema,
+    ToolAgentInputSchema,
+    ToolAgentOutputSchema,
+    WorkflowContextSchema,
+)
 from backend.contracts.responses import ErrorDetail, ErrorResponse, SuccessResponse
-from backend.contracts.sse import SSEEvent
+from backend.contracts.sse import SSEEvent, StreamChunkSchema
 
 
 def _register_schema(components: dict, name: str, model) -> None:
@@ -58,7 +74,23 @@ def build_custom_openapi(app: FastAPI):
     _register_schema(components, "ErrorDetail", ErrorDetail)
     _register_schema(components, "ErrorResponse", ErrorResponse)
     _register_schema(components, "SSEEvent", SSEEvent)
+    _register_schema(components, "StreamChunkSchema", StreamChunkSchema)
     _register_schema(components, "AskResponse", AskResponse)
+    _register_schema(components, "ChatResultPayload", ChatResultPayload)
+    _register_schema(components, "ChatDonePayload", ChatDonePayload)
+    _register_schema(components, "WorkflowContextSchema", WorkflowContextSchema)
+    _register_schema(components, "AgentInputSchema", AgentInputSchema)
+    _register_schema(components, "RouterAgentInputSchema", RouterAgentInputSchema)
+    _register_schema(components, "RetrievalAgentInputSchema", RetrievalAgentInputSchema)
+    _register_schema(components, "GenerationAgentInputSchema", GenerationAgentInputSchema)
+    _register_schema(components, "ToolAgentInputSchema", ToolAgentInputSchema)
+    _register_schema(components, "FileProcessorAgentInputSchema", FileProcessorAgentInputSchema)
+    _register_schema(components, "AgentOutputSchema", AgentOutputSchema)
+    _register_schema(components, "RouterAgentOutputSchema", RouterAgentOutputSchema)
+    _register_schema(components, "RetrievalAgentOutputSchema", RetrievalAgentOutputSchema)
+    _register_schema(components, "GenerationAgentOutputSchema", GenerationAgentOutputSchema)
+    _register_schema(components, "ToolAgentOutputSchema", ToolAgentOutputSchema)
+    _register_schema(components, "FileProcessorAgentOutputSchema", FileProcessorAgentOutputSchema)
     _register_schema(components, "SuccessResponse_AskResponse_", SuccessResponse[AskResponse])
 
     # 统一错误响应模板，便于在多条路由中重复复用。
@@ -103,6 +135,11 @@ def build_custom_openapi(app: FastAPI):
                 # 使用扩展字段补充 SSE 事件契约，方便前端和文档工具读取。
                 operation["x-sse-event-schema"] = {"$ref": "#/components/schemas/SSEEvent"}
                 operation["x-stream-response"] = True
+                operation["x-agent-io-protocol-version"] = AGENT_IO_PROTOCOL_VERSION
+                operation["x-agent-input-schema"] = {"$ref": "#/components/schemas/AgentInputSchema"}
+                operation["x-agent-output-schema"] = {"$ref": "#/components/schemas/AgentOutputSchema"}
+                operation["x-chat-result-payload-schema"] = {"$ref": "#/components/schemas/ChatResultPayload"}
+                operation["x-chat-done-payload-schema"] = {"$ref": "#/components/schemas/ChatDonePayload"}
 
             # 以下内容生成接口同样支持普通响应与流式响应，因此对 200 响应做同样的增强。
             if path in {

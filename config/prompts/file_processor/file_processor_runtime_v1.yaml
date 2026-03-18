@@ -1,0 +1,214 @@
+name: Runtime prompts for file processor agent
+version: v1
+agent: file_processor
+scene: runtime_defaults
+input_variables: []
+output_requirements: []
+applicable_models: []
+change_log:
+- version: v1
+  date: '2026-03-18'
+summary: Migrated file_processor_prompts.yaml into versioned prompt schema.
+prompts:
+  file_processor_system_prompt: '你是一个专业的文档分析助手，负责为上传的文档生成简洁、准确的摘要。
+
+
+    核心原则：
+
+    1. 准确性：准确提取文档的核心内容
+
+    2. 简洁性：摘要应简洁明了，不超过200字
+
+    3. 结构化：使用清晰的结构组织摘要
+
+    4. 客观性：保持客观中立，不添加主观评价
+
+
+    摘要要求：
+
+    - 提取文档的主题和核心观点
+
+    - 突出关键信息和数据
+
+    - 使用简洁的语言
+
+    - 保持逻辑清晰
+
+    '
+  summary_generation_prompt: '请为以下文档生成一个简洁的摘要（不超过200字）。
+
+
+    文档信息：
+
+    - 文件名：{filename}
+
+    - 文件类型：{file_type}
+
+    - 总页数：{total_pages}
+
+    - 文本块数：{chunk_count}
+
+
+    文档内容（前1000字）：
+
+    {content_preview}
+
+
+    请生成摘要，要求：
+
+    1. 概括文档的主要内容和目的
+
+    2. 提取关键信息点
+
+    3. 保持简洁（不超过200字）
+
+    4. 使用客观的语言
+
+    '
+  file_type_detection_prompt: "请识别以下文件的类型和用途。\n\n文件名：{filename}\n文件扩展名：{extension}\n\
+    文件大小：{file_size}\n\n返回JSON格式：\n{\n  \"file_type\": \"文件类型\",\n  \"category\":\
+    \ \"文档/表格/代码/其他\",\n  \"description\": \"文件用途描述\",\n  \"suggested_parser\": \"\
+    建议使用的解析器\"\n}\n"
+  document_quality_prompt: "请评估以下文档的质量和可读性。\n\n文档信息：\n- 文件名：{filename}\n- 总字数：{total_chars}\n\
+    - 段落数：{paragraph_count}\n- 表格数：{table_count}\n\n内容预览：\n{content_preview}\n\n返回JSON格式：\n\
+    {\n  \"readability_score\": 0.85,\n  \"structure_score\": 0.9,\n  \"completeness_score\"\
+    : 0.8,\n  \"overall_score\": 0.85,\n  \"issues\": [\"发现的问题列表\"],\n  \"suggestions\"\
+    : [\"改进建议\"]\n}\n"
+  chunking_strategy_prompt: "根据文档特征，建议最佳的分块策略。\n\n文档特征：\n- 文档类型：{file_type}\n- 总字数：{total_chars}\n\
+    - 段落数：{paragraph_count}\n- 是否有章节：{has_sections}\n\n返回JSON格式：\n{\n  \"chunk_size\"\
+    : 1000,\n  \"chunk_overlap\": 100,\n  \"strategy\": \"按段落/按页/按章节\",\n  \"reasoning\"\
+    : \"选择理由\"\n}\n"
+  error_handling:
+    file_too_large: '文件大小超过限制（{max_size}MB）。
+
+      当前文件大小：{current_size}MB
+
+
+      建议：
+
+      - 压缩文件后重新上传
+
+      - 分割成多个小文件
+
+      - 联系管理员提高限制
+
+      '
+    unsupported_format: '不支持的文件格式：{file_format}
+
+
+      当前支持的格式：
+
+      {supported_formats}
+
+
+      建议：
+
+      - 转换为支持的格式
+
+      - 使用其他工具处理
+
+      '
+    corrupted_file: '文件可能已损坏，无法正常解析。
+
+
+      建议：
+
+      - 检查文件完整性
+
+      - 重新下载或导出文件
+
+      - 尝试使用修复工具
+
+      '
+    parsing_failed: '文件解析失败：{error_message}
+
+
+      可能原因：
+
+      - 文件格式异常
+
+      - 文件内容加密
+
+      - 文件结构复杂
+
+
+      建议：
+
+      - 检查文件是否正常打开
+
+      - 尝试另存为标准格式
+
+      - 联系技术支持
+
+      '
+    vectorization_failed: '文档向量化失败，但文件已成功解析和分块。
+
+
+      影响：
+
+      - 文档无法被智能检索
+
+      - 仍可查看文档内容和分块
+
+
+      建议：
+
+      - 稍后重试向量化
+
+      - 检查向量数据库状态
+
+      '
+  success_messages:
+    processing_completed: '✅ 文件处理完成
+
+
+      📄 文件信息：
+
+      - 文件名：{filename}
+
+      - 文件类型：{file_type}
+
+      - 文件大小：{file_size}
+
+
+      📊 处理结果：
+
+      - 文本块数：{chunk_count}
+
+      - 总字数：{total_chars}
+
+      - 处理时间：{processing_time}ms
+
+
+      📝 摘要：
+
+      {summary}
+
+      '
+    batch_processing_completed: '✅ 批量处理完成
+
+
+      📊 处理统计：
+
+      - 总文件数：{total_files}
+
+      - 成功：{success_count}
+
+      - 失败：{failed_count}
+
+      - 总耗时：{total_time}ms
+
+
+      详细结果：
+
+      {results_summary}
+
+      '
+  progress_messages:
+    parsing: 正在解析文件：{filename}...
+    chunking: 正在分割文档（{chunk_count}个文本块）...
+    vectorizing: 正在向量化文档...
+    saving: 正在保存处理结果...
+    generating_summary: 正在生成文档摘要...
+  conversation_history_format: '{role}: {content}'
+  no_history_placeholder: （这是新对话的第一条消息）

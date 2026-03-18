@@ -29,7 +29,7 @@ from backend.tools.tool_registry import (
     get_tool_definitions
 )
 from backend.tools.tool_config import get_tool_config, ToolConfig
-from backend.tools.tool_initializer import initialize_tools, ensure_tools_initialized
+from backend.tools.tool_initializer import initialize_tools, ensure_tools_initialized, close_initialized_tool_clients
 
 # 统一声明本包允许对外暴露的符号。
 # 这样既能控制导出边界，也能明确哪些对象属于稳定公共接口。
@@ -53,4 +53,5 @@ __all__ = [
     "ToolConfig",
     "initialize_tools",
     "ensure_tools_initialized",
+    "close_initialized_tool_clients",
 ]

@@ -4,12 +4,11 @@
 """
 
 from typing import List, Optional
-from datetime import datetime
 import json
 from backend.database.repositories.user_repository import BaseRepository
-from backend.database.database_manager import DatabaseManager, get_database_manager
-from backend.models.file import File, FileCreate, FileUpdate, FileType, ProcessingStatus
+from backend.models.file import File, FileCreate, FileUpdate, ProcessingStatus
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -106,7 +105,7 @@ class FileRepository(BaseRepository):
             update_data["metadata"] = json.dumps(update_data["metadata"], ensure_ascii=False)
 
         # 添加更新时间
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = utc_now()
 
         # 执行更新
         affected_rows = self.db.update_one(

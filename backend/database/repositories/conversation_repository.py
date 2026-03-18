@@ -4,12 +4,11 @@
 """
 
 from typing import Optional, List
-from datetime import datetime
 import json
 from backend.database.repositories.user_repository import BaseRepository
-from backend.database.database_manager import DatabaseManager, get_database_manager
 from backend.models.conversation import Conversation, ConversationCreate, ConversationUpdate, ConversationSummary
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
@@ -42,8 +41,8 @@ class ConversationRepository(BaseRepository):
         """
         # 创建会话对象
         conversation = conversation_create.to_conversation()
-        conversation.created_at = datetime.utcnow()
-        conversation.updated_at = datetime.utcnow()
+        conversation.created_at = utc_now()
+        conversation.updated_at = utc_now()
 
         # 插入数据库
         data = {
@@ -215,7 +214,7 @@ class ConversationRepository(BaseRepository):
             return False
 
         # 添加更新时间
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = utc_now()
 
         # 执行更新
         affected_rows = self.db.update_one(
@@ -250,7 +249,7 @@ class ConversationRepository(BaseRepository):
 
         affected_rows = self.db.execute_update(
             sql,
-            (increment, datetime.utcnow(), conversation_id)
+            (increment, utc_now(), conversation_id)
         )
 
         if affected_rows == 0:
@@ -278,7 +277,7 @@ class ConversationRepository(BaseRepository):
 
         affected_rows = self.db.execute_update(
             sql,
-            (datetime.utcnow(), conversation_id)
+            (utc_now(), conversation_id)
         )
 
         if affected_rows == 0:
@@ -325,7 +324,7 @@ class ConversationRepository(BaseRepository):
             # 软删除：设置is_active=False
             affected_rows = self.db.update_one(
                 table=self.TABLE_NAME,
-                data={"is_active": False, "updated_at": datetime.utcnow()},
+                data={"is_active": False, "updated_at": utc_now()},
                 where={"conversation_id": conversation_id}
             )
             logger.info(f"Conversation soft deleted: conversation_id={conversation_id}")
@@ -412,7 +411,7 @@ class ConversationRepository(BaseRepository):
                 SET is_active = %s, updated_at = %s
                 WHERE user_id = %s
             """
-            affected_rows = self.db.execute_update(sql, (False, datetime.utcnow(), user_id))
+            affected_rows = self.db.execute_update(sql, (False, utc_now(), user_id))
             logger.info(f"User conversations soft deleted: user_id={user_id}, count={affected_rows}")
         else:
             # 硬删除：物理删除记录

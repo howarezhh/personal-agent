@@ -1,17 +1,20 @@
+﻿# -*- coding: utf-8 -*-
 
 from __future__ import annotations
 
-from typing import Optional
+from fastapi import APIRouter, Depends, Query, status
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
-
+from backend.api.app_services import get_conversation_application_service
 from backend.api.dependencies import get_current_user_id
-from backend.api.models import MessageResponse, PaginatedResponse, SuccessResponse
-from backend.application.services import ConversationApplicationService
-from backend.database.repositories.conversation_repository import get_conversation_repository
-from backend.database.repositories.message_repository import get_message_repository
-from backend.infrastructure.persistence import ConversationRepositoryAdapter, MessageRepositoryAdapter
+from backend.contracts.api.conversations import (
+    ConversationMessageItem,
+    ConversationResponse,
+    ConversationSummaryResponse,
+    CreateConversationRequest,
+    UpdateConversationRequest,
+)
+from backend.contracts.errors import ErrorCode, internal_server_error, not_found
+from backend.contracts.responses import MessageResponse, PaginatedResponse, SuccessResponse
 from backend.utils.logger import get_logger
 
 
@@ -19,50 +22,7 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
 
-def get_conversation_application_service() -> ConversationApplicationService:
-    return ConversationApplicationService(
-        conversation_repo=ConversationRepositoryAdapter(repository=get_conversation_repository()),
-        message_repo=MessageRepositoryAdapter(repository=get_message_repository()),
-    )
-
-
-class ConversationResponse(BaseModel):
-    conversation_id: str = Field(..., description="会话 ID")
-    user_id: str = Field(..., description="用户 ID")
-    title: str = Field(..., description="会话标题")
-    description: Optional[str] = Field(default=None, description="会话描述")
-    message_count: int = Field(default=0, description="消息数量")
-    is_active: bool = Field(default=True, description="是否激活")
-    created_at: str = Field(..., description="创建时间")
-    updated_at: str = Field(..., description="更新时间")
-
-
-class ConversationSummaryResponse(BaseModel):
-    conversation_id: str = Field(..., description="会话 ID")
-    title: str = Field(..., description="会话标题")
-    message_count: int = Field(default=0, description="消息数量")
-    last_message_preview: Optional[str] = Field(default=None, description="最后一条消息预览")
-    updated_at: str = Field(..., description="更新时间")
-
-
-class ConversationMessageItem(BaseModel):
-    message_id: str = Field(..., description="消息 ID")
-    conversation_id: str = Field(..., description="会话 ID")
-    message_type: str = Field(..., description="消息类型")
-    content: str = Field(..., description="消息内容")
-    sequence_number: int = Field(..., description="序号")
-    parent_message_id: Optional[str] = Field(default=None, description="父消息 ID")
-    created_at: str = Field(..., description="创建时间")
-
-
-class CreateConversationRequest(BaseModel):
-    title: Optional[str] = Field(default=None, max_length=200, description="会话标题")
-    description: Optional[str] = Field(default=None, max_length=500, description="会话描述")
-
-
-class UpdateConversationRequest(BaseModel):
-    title: Optional[str] = Field(default=None, max_length=200, description="会话标题")
-    description: Optional[str] = Field(default=None, max_length=500, description="会话描述")
+CONVERSATION_NOT_FOUND_MESSAGE = "会话不存在或无权访问"
 
 
 def _iso(value) -> str:
@@ -104,6 +64,14 @@ def _serialize_message(message) -> ConversationMessageItem:
     )
 
 
+def _conversation_not_found() -> Exception:
+    return not_found(
+        CONVERSATION_NOT_FOUND_MESSAGE,
+        error_code=ErrorCode.CONVERSATION_NOT_FOUND,
+        error="ConversationNotFound",
+    )
+
+
 @router.get("", response_model=PaginatedResponse[ConversationSummaryResponse])
 async def get_conversations(
     page: int = Query(default=1, ge=1, description="页码"),
@@ -125,8 +93,10 @@ async def get_conversations(
             page_size=page_size,
         )
     except Exception as error:
+        if getattr(error, "status_code", None):
+            raise
         logger.error("Failed to list conversations: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取会话列表失败")
+        raise internal_server_error("获取会话列表失败") from error
 
 
 @router.get("/{conversation_id}", response_model=SuccessResponse[ConversationResponse])
@@ -137,13 +107,13 @@ async def get_conversation(conversation_id: str, user_id: str = Depends(get_curr
             conversation_id=conversation_id,
         )
         if not conversation:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在或无权访问")
+            raise _conversation_not_found()
         return SuccessResponse.create(data=_serialize_conversation(conversation))
-    except HTTPException:
-        raise
     except Exception as error:
+        if getattr(error, "status_code", None):
+            raise
         logger.error("Failed to get conversation: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取会话详情失败")
+        raise internal_server_error("获取会话详情失败") from error
 
 
 @router.get("/{conversation_id}/messages", response_model=PaginatedResponse[ConversationMessageItem])
@@ -161,18 +131,18 @@ async def get_conversation_messages(
             page_size=page_size,
         )
         if total is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在或无权访问")
+            raise _conversation_not_found()
         return PaginatedResponse.create(
             data=[_serialize_message(message) for message in messages],
             total=total,
             page=page,
             page_size=page_size,
         )
-    except HTTPException:
-        raise
     except Exception as error:
+        if getattr(error, "status_code", None):
+            raise
         logger.error("Failed to get conversation messages: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取消息列表失败")
+        raise internal_server_error("获取消息列表失败") from error
 
 
 @router.post("", response_model=SuccessResponse[ConversationResponse], status_code=status.HTTP_201_CREATED)
@@ -185,8 +155,10 @@ async def create_conversation(request: CreateConversationRequest, user_id: str =
         )
         return SuccessResponse.create(data=_serialize_conversation(conversation), message="Conversation created successfully")
     except Exception as error:
+        if getattr(error, "status_code", None):
+            raise
         logger.error("Failed to create conversation: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="创建会话失败")
+        raise internal_server_error("创建会话失败") from error
 
 
 @router.put("/{conversation_id}", response_model=SuccessResponse[ConversationResponse])
@@ -203,13 +175,13 @@ async def update_conversation(
             description=request.description,
         )
         if not conversation:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在或无权访问")
+            raise _conversation_not_found()
         return SuccessResponse.create(data=_serialize_conversation(conversation), message="Conversation updated successfully")
-    except HTTPException:
-        raise
     except Exception as error:
+        if getattr(error, "status_code", None):
+            raise
         logger.error("Failed to update conversation: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新会话失败")
+        raise internal_server_error("更新会话失败") from error
 
 
 @router.delete("/{conversation_id}", response_model=MessageResponse)
@@ -220,10 +192,10 @@ async def delete_conversation(conversation_id: str, user_id: str = Depends(get_c
             conversation_id=conversation_id,
         )
         if not deleted:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在或无权访问")
+            raise _conversation_not_found()
         return MessageResponse.create(message="Conversation deleted successfully")
-    except HTTPException:
-        raise
     except Exception as error:
+        if getattr(error, "status_code", None):
+            raise
         logger.error("Failed to delete conversation: %s", error, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="删除会话失败")
+        raise internal_server_error("删除会话失败") from error

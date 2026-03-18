@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional
 import uuid
 
+from backend.utils.time_utils import utc_now
+
 
 @dataclass
 class KnowledgeBase:
@@ -61,7 +63,7 @@ class KnowledgeBaseCreate:
         return True, None
 
     def to_knowledge_base(self) -> KnowledgeBase:
-        now = datetime.utcnow()
+        now = utc_now()
         return KnowledgeBase(
             knowledge_base_id=self.knowledge_base_id or str(uuid.uuid4()),
             user_id=self.user_id,

@@ -7,15 +7,44 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 import json
 from backend.database.repositories.user_repository import BaseRepository
-from backend.database.database_manager import DatabaseManager, get_database_manager
 from backend.models.tool_call import ToolCall, ToolCallCreate, ToolCallUpdate, ToolCallStatus
 from backend.utils.logger import get_logger
+from backend.utils.time_utils import utc_now
 
 
 logger = get_logger(__name__)
 
 
 class ToolCallRepository(BaseRepository):
+    _table_schema_cache: Optional[Dict[str, str]] = None
+
+    def _get_table_schema(self) -> Dict[str, str]:
+        if self._table_schema_cache is None:
+            rows = self.db.execute_query(f"SHOW COLUMNS FROM {self.TABLE_NAME}") or []
+            self._table_schema_cache = {
+                row.get("Field"): row.get("Type", "")
+                for row in rows
+                if isinstance(row, dict) and row.get("Field")
+            }
+        return self._table_schema_cache
+
+    def _filter_supported_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        schema = self._get_table_schema()
+        filtered = {key: value for key, value in data.items() if key in schema}
+        unsupported_fields = sorted(set(data.keys()) - set(filtered.keys()))
+        if unsupported_fields:
+            logger.warning("Tool call table missing columns, dropping fields: %s", unsupported_fields)
+        return filtered
+
+    def _normalize_status(self, status: Optional[str]) -> Optional[str]:
+        if status is None:
+            return None
+        status_type = str(self._get_table_schema().get("status", ""))
+        if status == "timeout" and "timeout" not in status_type:
+            logger.warning("Tool call table status enum missing 'timeout', fallback to 'failed'")
+            return "failed"
+        return status
+
     """
     工具调用仓储类
 
@@ -67,7 +96,8 @@ class ToolCallRepository(BaseRepository):
             "metadata": json.dumps(tool_call.metadata, ensure_ascii=False) if tool_call.metadata else None,
         }
 
-        self.db.insert_one(self.TABLE_NAME, data, return_id=False)
+        data["status"] = self._normalize_status(data.get("status"))
+        self.db.insert_one(self.TABLE_NAME, self._filter_supported_data(data), return_id=False)
 
         logger.info(
             f"Tool call created: call_id={tool_call.call_id}, "
@@ -198,6 +228,11 @@ class ToolCallRepository(BaseRepository):
             return False
 
         # 执行更新
+        update_data["status"] = self._normalize_status(update_data.get("status"))
+        update_data = self._filter_supported_data(update_data)
+        if not update_data:
+            return False
+
         affected_rows = self.db.update_one(
             table=self.TABLE_NAME,
             data=update_data,
@@ -231,7 +266,7 @@ class ToolCallRepository(BaseRepository):
             tool_output=tool_output,
             status="success",
             execution_time_ms=execution_time_ms,
-            completed_at=datetime.utcnow()
+            completed_at=utc_now()
         )
         return self.update_tool_call(call_id, update)
 
@@ -256,7 +291,7 @@ class ToolCallRepository(BaseRepository):
             status="failed",
             error_message=error_message,
             execution_time_ms=execution_time_ms,
-            completed_at=datetime.utcnow()
+            completed_at=utc_now()
         )
         return self.update_tool_call(call_id, update)
 
@@ -279,7 +314,7 @@ class ToolCallRepository(BaseRepository):
             status="timeout",
             error_message="Tool call timeout",
             execution_time_ms=execution_time_ms,
-            completed_at=datetime.utcnow()
+            completed_at=utc_now()
         )
         return self.update_tool_call(call_id, update)
 

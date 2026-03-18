@@ -24,6 +24,8 @@ embedding_model:
   model_name: "BAAI/bge-small-zh-v1.5"
   local_model_path: "BAAI/bge-small-zh-v1.5"
   local_files_only: true
+  max_input_tokens: 512
+  reserved_tokens: 32
   dimension: 512
   batch_size: 32
   device: "cpu"

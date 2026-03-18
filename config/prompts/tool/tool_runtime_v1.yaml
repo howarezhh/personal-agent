@@ -1,0 +1,267 @@
+name: Runtime prompts for tool agent
+version: v1
+agent: tool
+scene: runtime_defaults
+input_variables: []
+output_requirements: []
+applicable_models: []
+change_log:
+- version: v1
+  date: '2026-03-18'
+summary: Migrated tool_prompts.yaml into versioned prompt schema.
+prompts:
+  tool_selection_prompt: "你是一个工具选择专家，负责为用户问题选择合适的工具。\n\n可用工具列表：\n{available_tools}\n\
+    \n用户问题：{question}\n\n对话历史：\n{conversation_history}\n\n请分析问题并选择最合适的工具。返回JSON格式：\n\
+    {\n  \"tool_name\": \"工具名称\",\n  \"tool_params\": {\n    \"param1\": \"value1\"\
+    \n  },\n  \"confidence\": 0.9,\n  \"reasoning\": \"选择理由\"\n}\n\n如果不需要工具或没有合适的工具，返回：\n\
+    {\n  \"tool_name\": null,\n  \"reasoning\": \"不需要工具的理由\"\n}\n\n额外规则：\n1. 如果用户明确提到“知识库”“文档”“资料”“上传的文件”等范围，不要选择任何工具，返回tool_name为null\n\
+    2. 只有明确需要联网实时信息时，才选择web_search或news_mcp\n"
+  tool_result_interpretation_prompt: '请将工具执行结果转换为用户友好的回答。
+
+
+    用户问题：{question}
+
+
+    使用的工具：{tool_name}
+
+
+    工具输入：{tool_input}
+
+
+    工具输出：{tool_output}
+
+
+    请生成一个自然、友好的回答，整合工具结果。
+
+    '
+  tool_descriptions:
+    web_search:
+      name: 网络搜索
+      description: 在互联网上搜索最新信息
+      parameters:
+        query:
+          type: string
+          description: 搜索关键词
+          required: true
+        num_results:
+          type: integer
+          description: 返回结果数量
+          default: 5
+      use_cases:
+      - 查询最新新闻
+      - 搜索技术文档
+      - 查找公开信息
+    calculator:
+      name: 计算器
+      description: 执行数学计算
+      parameters:
+        expression:
+          type: string
+          description: 数学表达式
+          required: true
+      use_cases:
+      - 数学计算
+      - 单位转换
+      - 统计分析
+    weather:
+      name: 天气查询
+      description: 查询指定城市的天气信息
+      parameters:
+        city:
+          type: string
+          description: 城市名称
+          required: true
+        units:
+          type: string
+          description: 温度单位（metric=摄氏度, imperial=华氏度）
+          default: metric
+      use_cases:
+      - 查询当前天气
+      - 查询天气预报
+      - 了解气象信息
+    database_query:
+      name: 数据库查询
+      description: 查询企业内部数据库，支持用户、会话、消息、智能体执行、工具调用、文件、内容生成等多种数据查询
+      parameters:
+        query_type:
+          type: string
+          description: 查询类型（user_count/user_info/active_users/conversation_count/user_conversations/conversation_detail/recent_messages/message_count/user_message_stats/agent_executions/agent_stats/failed_executions/tool_calls/tool_stats/user_files/file_detail/file_chunks/retrieval_results/content_generations/content_projects/project_chapters/system_stats/daily_activity）
+          required: true
+        params:
+          type: object
+          description: 查询参数（如user_id、conversation_id、limit等）
+      use_cases:
+      - 查询用户信息和统计
+      - 查询会话和消息记录
+      - 查询智能体执行情况
+      - 查询工具调用记录
+      - 查询文件和内容生成记录
+      - 系统数据统计分析
+    translation:
+      name: 翻译工具
+      description: 多语言翻译，支持中文、英语、日语、韩语等多种语言互译
+      parameters:
+        text:
+          type: string
+          description: 要翻译的文本
+          required: true
+        source_lang:
+          type: string
+          description: 源语言代码（auto=自动检测）
+          default: auto
+        target_lang:
+          type: string
+          description: 目标语言代码
+          required: true
+      use_cases:
+      - 文本翻译
+      - 多语言沟通
+      - 文档翻译
+    datetime:
+      name: 时间日期工具
+      description: 查询当前时间、日期计算、时区转换等
+      parameters:
+        action:
+          type: string
+          description: 操作类型
+          required: true
+        timezone:
+          type: string
+          description: 时区
+          default: Asia/Shanghai
+      use_cases:
+      - 查询当前时间
+      - 日期计算
+      - 时区转换
+      - 计算日期差
+    novel_generator:
+      name: 小说生成工具
+      description: AI自动生成小说大纲、章节、角色设定、世界观等
+      parameters:
+        action:
+          type: string
+          description: 操作类型（outline/chapter/character/worldview/continue）
+          required: true
+        genre:
+          type: string
+          description: 小说类型
+        title:
+          type: string
+          description: 小说标题
+        theme:
+          type: string
+          description: 小说主题
+      use_cases:
+      - 生成小说大纲
+      - 创作小说章节
+      - 设计角色
+      - 构建世界观
+      - 续写小说
+    script_generator:
+      name: 脚本生成工具
+      description: AI自动生成影视剧本、短视频脚本、广告脚本等
+      parameters:
+        action:
+          type: string
+          description: 操作类型（outline/scene/dialogue/storyboard/complete）
+          required: true
+        script_type:
+          type: string
+          description: 脚本类型
+          required: true
+        title:
+          type: string
+          description: 脚本标题
+        theme:
+          type: string
+          description: 脚本主题
+      use_cases:
+      - 生成影视剧本
+      - 创作短视频脚本
+      - 编写广告脚本
+      - 制作分镜脚本
+    content_optimizer:
+      name: 内容优化工具
+      description: 文本润色、改写、扩写、缩写、风格转换、语法纠错、SEO优化
+      parameters:
+        action:
+          type: string
+          description: 操作类型
+          required: true
+        content:
+          type: string
+          description: 要优化的内容
+          required: true
+        target_style:
+          type: string
+          description: 目标风格
+      use_cases:
+      - 文本润色
+      - 内容改写
+      - 文章扩写
+      - 内容缩写
+      - 风格转换
+      - 语法纠错
+      - SEO优化
+  tool_error_handling:
+    timeout: '工具执行超时。可能的原因：
+
+      - 网络连接问题
+
+      - 工具响应缓慢
+
+      - 请求参数过于复杂
+
+
+      建议：
+
+      - 简化查询条件
+
+      - 稍后重试
+
+      '
+    invalid_parameters: '工具参数无效。请检查：
+
+      - 参数格式是否正确
+
+      - 必填参数是否提供
+
+      - 参数值是否在有效范围内
+
+      '
+    tool_unavailable: '工具暂时不可用。可能的原因：
+
+      - 工具服务维护中
+
+      - API配额已用完
+
+      - 网络连接问题
+
+
+      建议：
+
+      - 稍后重试
+
+      - 使用其他方式获取信息
+
+      '
+    unknown_error: '工具执行出现未知错误。
+
+
+      建议：
+
+      - 检查输入是否正确
+
+      - 稍后重试
+
+      - 联系管理员
+
+      '
+  multi_tool_coordination_prompt: "这个任务需要使用多个工具协作完成。\n\n用户问题：{question}\n\n可用工具：{available_tools}\n\
+    \n请规划工具调用顺序：\n{\n  \"tool_sequence\": [\n    {\n      \"step\": 1,\n      \"tool\"\
+    : \"工具名称\",\n      \"purpose\": \"使用目的\",\n      \"parameters\": {}\n    }\n \
+    \ ],\n  \"reasoning\": \"规划理由\"\n}\n"
+  tool_result_validation_prompt: "请验证工具返回结果的有效性。\n\n工具名称：{tool_name}\n工具输入：{tool_input}\n\
+    工具输出：{tool_output}\n\n验证项：\n1. 结果格式是否正确\n2. 结果是否回答了问题\n3. 结果是否可信\n\n返回JSON格式：\n\
+    {\n  \"is_valid\": true,\n  \"confidence\": 0.9,\n  \"issues\": [],\n  \"reasoning\"\
+    : \"验证理由\"\n}\n"

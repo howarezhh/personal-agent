@@ -15,7 +15,7 @@ export const useSSE = () => {
     rawChunk: string,
     onEvent: (event: SSEEvent) => void,
     onComplete?: () => void,
-    onTerminate?: () => void
+    onTerminate?: (event: SSEEvent) => void
   ) => {
     const eventBlocks = rawChunk.replace(/\r\n/g, '\n').split('\n\n');
 
@@ -37,7 +37,7 @@ export const useSSE = () => {
       onEvent(event);
 
       if (event.type === 'done' || event.type === 'error') {
-        onTerminate?.();
+        onTerminate?.(event);
         onComplete?.();
         return true;
       }
@@ -144,6 +144,7 @@ export const useSSE = () => {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let receivedTerminalEvent = false;
 
         cancelFnRef.current = () => {
           clearTimers();
@@ -158,7 +159,11 @@ export const useSSE = () => {
 
           if (done) {
             clearTimers();
-            onComplete?.();
+            if (receivedTerminalEvent || controller.signal.aborted) {
+              onComplete?.();
+            } else {
+              onError?.(new Error('Stream connection closed unexpectedly'));
+            }
             break;
           }
 
@@ -170,6 +175,7 @@ export const useSSE = () => {
           const completedChunk = normalizedBuffer.slice(0, completedLength);
           buffer = normalizedBuffer.slice(completedLength + 2);
           const shouldTerminate = emitSSEEvents(completedChunk, onEvent, onComplete, () => {
+            receivedTerminalEvent = true;
             clearTimers();
             void reader.cancel();
           });

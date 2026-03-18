@@ -1,16 +1,20 @@
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Dict, Any
 from enum import Enum
 import uuid
 import json
 
+from backend.utils.time_utils import utc_now
+
 
 class FileType(str, Enum):
     PDF = "pdf"
     DOCX = "docx"
+    PPTX = "pptx"
     XLSX = "xlsx"
+    HTML = "html"
     IMAGE = "image"
     CODE = "code"
     TEXT = "text"
@@ -126,7 +130,7 @@ class FileCreate:
         return True, None
 
     def to_file(self) -> File:
-        now = datetime.utcnow()
+        now = utc_now()
 
         return File(
             file_id=self.file_id or str(uuid.uuid4()),
@@ -174,7 +178,7 @@ class FileUpdate:
             data["metadata"] = self.metadata
 
         # 总是更新updated_at
-        data["updated_at"] = datetime.utcnow()
+        data["updated_at"] = utc_now()
 
         return data
 

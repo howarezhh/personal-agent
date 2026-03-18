@@ -59,6 +59,8 @@ class EmbeddingClient:
         self.local_model_path = str(embedding_config.get("local_model_path") or self.model_name)
         self.local_files_only = bool(embedding_config.get("local_files_only", True))
         self.pooling = str(embedding_config.get("pooling", "cls") or "cls").lower()
+        self.max_input_tokens = int(embedding_config.get("max_input_tokens", 512) or 512)
+        self.reserved_tokens = int(embedding_config.get("reserved_tokens", 32) or 32)
 
         retry_config = self.config_manager.get("model.retry", {})
         self.max_retries = int(retry_config.get("max_retries", 3) or 3)
@@ -121,6 +123,10 @@ class EmbeddingClient:
         self.model.to(self.device)
         self.model.eval()
         self.client = self.model
+
+        tokenizer_max_length = int(getattr(self.tokenizer, "model_max_length", 0) or 0)
+        if tokenizer_max_length > 0 and tokenizer_max_length < 1000000:
+            self.max_input_tokens = min(self.max_input_tokens, tokenizer_max_length)
 
         if not self.dimension:
             self.dimension = int(getattr(self.model.config, "hidden_size", 0) or 0)
@@ -219,7 +225,7 @@ class EmbeddingClient:
                 texts,
                 padding=True,
                 truncation=True,
-                max_length=512,
+                max_length=self.max_input_tokens,
                 return_tensors="pt",
             )
             encoded = {key: value.to(self.device) for key, value in encoded.items()}
@@ -246,6 +252,12 @@ class EmbeddingClient:
 
     def get_dimension(self) -> int:
         return self.dimension
+
+    def get_max_input_tokens(self) -> int:
+        return max(1, int(self.max_input_tokens))
+
+    def get_recommended_chunk_token_limit(self) -> int:
+        return max(1, self.get_max_input_tokens() - max(0, int(self.reserved_tokens)))
 
     def __repr__(self) -> str:
         return f"EmbeddingClient(provider='{self.provider}', model='{self.model_name}')"

@@ -1,5 +1,11 @@
+# -*- coding: utf-8 -*-
+
 
 from datetime import datetime
+"""
+生成 Agent 模块，负责结合检索上下文、工具结果与会话历史生成最终回答。
+"""
+
 from typing import AsyncGenerator, Optional, List, Dict, Any
 from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_input import AgentInput
@@ -7,23 +13,33 @@ from backend.agents.base.agent_output import AgentOutput, ExecutionStatus
 from backend.agents.base.stream_chunk import StreamChunk
 from backend.agents.generation.source_extractor import SourceExtractor
 from backend.agents.generation.hallucination_checker import HallucinationChecker
-from backend.utils.llm_client import get_llm_client
+from backend.core.llm_manager import get_langchain_model_manager
 from backend.database.repositories.agent_execution_repository import get_agent_execution_repository
 from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionUpdate
 
 
 class GenerationAgent(BaseAgent):
+    """
+    生成 Agent，负责调用模型生成答案，并可选执行引用提取与幻觉检查。
+    """
     def __init__(self):
+        """
+        初始化生成 Agent，并准备 LLM 客户端、执行记录仓储、引用提取器和幻觉检查器。
+        """
         super().__init__(
             agent_name="generation_agent",
             agent_type="generation"
         )
 
-        self.llm_client = get_llm_client()
+        # 初始化 LLM 客户端，后续所有回答生成都通过该客户端调用模型。
+        self.model_manager = get_langchain_model_manager()
 
+        # 初始化执行记录仓储，用于落库每次 Agent 执行的输入、输出与状态。
         self.execution_repo = get_agent_execution_repository()
 
+        # 引用提取器用于从回答中解析引用标记及来源列表。
         self.source_extractor = SourceExtractor()
+        # 幻觉检查器用于在需要时对生成答案做事后一致性评估。
         self.hallucination_checker = HallucinationChecker()
 
         self.enable_citation = self._get_config_value("enable_citation", True)
@@ -34,11 +50,15 @@ class GenerationAgent(BaseAgent):
         logger.info(f"Generation agent initialized (citation={self.enable_citation}, hallucination_check={self.enable_hallucination_check})")
 
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
+        """
+        执行非流式生成流程，根据上下文类型选择不同的回答路径。
+        """
         try:
             if agent_input.metadata:
                 tool_result = agent_input.metadata.get("tool_result")
                 retrieval_results = agent_input.metadata.get("retrieval_results")
 
+                # 同时存在检索结果和工具结果时，优先走组合上下文生成路径。
                 if tool_result and retrieval_results:
                     return await self.generate_with_combined_context(
                         agent_input,
@@ -52,17 +72,20 @@ class GenerationAgent(BaseAgent):
                 if retrieval_results:
                     return await self.generate_with_context(agent_input, retrieval_results)
 
+            # 若上游未提供检索或工具上下文，则退化为基于对话历史的普通生成。
             messages = self._build_messages(
                 user_content=agent_input.content,
                 conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
             )
 
-            response = await self.llm_client.chat_completion(
+            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
+            response = await self.model_manager.invoke_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
             )
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -89,6 +112,7 @@ class GenerationAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Generation agent execution failed: {str(e)}")
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -113,11 +137,15 @@ class GenerationAgent(BaseAgent):
             )
 
     async def execute_stream(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
+        """
+        执行流式生成流程，在不同阶段持续产出进度、内容与异常事件。
+        """
         try:
             if agent_input.metadata:
                 tool_result = agent_input.metadata.get("tool_result")
                 retrieval_results = agent_input.metadata.get("retrieval_results")
 
+                # 同时存在检索结果和工具结果时，优先走组合上下文生成路径。
                 if tool_result and retrieval_results:
                     async for chunk in self.generate_with_combined_context_stream(
                         agent_input,
@@ -139,13 +167,14 @@ class GenerationAgent(BaseAgent):
 
             yield StreamChunk.create_thinking("正在生成回答...")
 
+            # 若上游未提供检索或工具上下文，则退化为基于对话历史的普通生成。
             messages = self._build_messages(
                 user_content=agent_input.content,
                 conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
             )
 
             full_content = ""
-            async for chunk in self.llm_client.chat_completion_stream(
+            async for chunk in self.model_manager.stream_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
@@ -153,6 +182,7 @@ class GenerationAgent(BaseAgent):
                 full_content += chunk
                 yield StreamChunk.create_content(chunk)
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -195,6 +225,9 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         retrieval_results: list
     ) -> AgentOutput:
+        """
+        基于检索上下文生成非流式回答。
+        """
         try:
             context = self._format_retrieval_context(retrieval_results)
 
@@ -204,7 +237,8 @@ class GenerationAgent(BaseAgent):
                 conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
             )
 
-            response = await self.llm_client.chat_completion(
+            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
+            response = await self.model_manager.invoke_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
@@ -212,6 +246,7 @@ class GenerationAgent(BaseAgent):
 
             citations = self._extract_citations(response, retrieval_results)
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -239,6 +274,7 @@ class GenerationAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Generation with context failed: {str(e)}")
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -267,6 +303,9 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         retrieval_results: list
     ) -> AsyncGenerator[StreamChunk, None]:
+        """
+        基于检索上下文生成流式回答。
+        """
         try:
             yield StreamChunk.create_thinking("正在基于检索结果生成回答")
 
@@ -279,7 +318,7 @@ class GenerationAgent(BaseAgent):
             )
 
             full_content = ""
-            async for chunk in self.llm_client.chat_completion_stream(
+            async for chunk in self.model_manager.stream_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
@@ -289,6 +328,7 @@ class GenerationAgent(BaseAgent):
 
             citations = self._extract_citations(full_content, retrieval_results)
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -333,6 +373,9 @@ class GenerationAgent(BaseAgent):
         retrieval_results: list,
         tool_result: dict,
     ) -> AgentOutput:
+        """
+        结合检索结果与工具结果生成非流式回答。
+        """
         try:
             combined_context = self._format_combined_context(retrieval_results, tool_result)
             messages = self._build_messages_with_context(
@@ -341,13 +384,15 @@ class GenerationAgent(BaseAgent):
                 conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else [],
             )
 
-            response = await self.llm_client.chat_completion(
+            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
+            response = await self.model_manager.invoke_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000),
             )
             citations = self._extract_citations(response, retrieval_results)
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -402,6 +447,9 @@ class GenerationAgent(BaseAgent):
         retrieval_results: list,
         tool_result: dict,
     ) -> AsyncGenerator[StreamChunk, None]:
+        """
+        结合检索结果与工具结果生成流式回答。
+        """
         try:
             yield StreamChunk.create_thinking("正在综合检索结果和工具结果生成回答...")
 
@@ -413,7 +461,7 @@ class GenerationAgent(BaseAgent):
             )
 
             full_content = ""
-            async for chunk in self.llm_client.chat_completion_stream(
+            async for chunk in self.model_manager.stream_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000),
@@ -423,6 +471,7 @@ class GenerationAgent(BaseAgent):
 
             citations = self._extract_citations(full_content, retrieval_results)
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -469,6 +518,9 @@ class GenerationAgent(BaseAgent):
             yield StreamChunk.create_error(str(e))
 
     def _format_retrieval_context(self, retrieval_results: list) -> str:
+        """
+        将检索结果格式化为可直接提供给模型的上下文字符串。
+        """
         if not retrieval_results:
             return ""
 
@@ -492,6 +544,9 @@ class GenerationAgent(BaseAgent):
         return "\n\n".join(context_parts)
 
     def _extract_citations(self, content: str, retrieval_results: list) -> list:
+        """
+        从生成内容中提取引用编号，并映射为结构化来源信息。
+        """
         if not self.enable_citation:
             return []
 
@@ -504,6 +559,9 @@ class GenerationAgent(BaseAgent):
         answer: str,
         retrieval_results: Optional[List[Dict[str, Any]]] = None
     ) -> dict:
+        """
+        对生成答案执行幻觉检查，评估内容是否与检索上下文保持一致。
+        """
         if not self.enable_hallucination_check:
             return {"has_hallucination": False, "confidence": 1.0, "reason": "Hallucination check disabled"}
 
@@ -526,6 +584,9 @@ class GenerationAgent(BaseAgent):
         question: str,
         answer: str
     ) -> dict:
+        """
+        从引用覆盖率、幻觉风险等角度对答案质量进行综合评估。
+        """
         try:
             eval_prompt = self._get_prompt(
                 "answer_quality_prompt",
@@ -538,7 +599,8 @@ class GenerationAgent(BaseAgent):
                 return {"overall_score": 0.0}
 
             messages = [{"role": "user", "content": eval_prompt}]
-            response = await self.llm_client.chat_completion(
+            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
+            response = await self.model_manager.invoke_messages(
                 messages=messages,
                 temperature=0.3,
                 max_tokens=500
@@ -575,6 +637,9 @@ class GenerationAgent(BaseAgent):
         context: str,
         conversation_history: list = None
     ) -> list:
+        """
+        构建带检索上下文的模型消息列表。
+        """
         messages = []
 
         system_prompt = self._get_prompt("generation_system_prompt")
@@ -616,6 +681,9 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         tool_result: dict
     ) -> AgentOutput:
+        """
+        基于工具调用结果生成非流式回答。
+        """
         try:
             tool_context = self._format_tool_result_context(tool_result)
 
@@ -625,12 +693,14 @@ class GenerationAgent(BaseAgent):
                 conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
             )
 
-            response = await self.llm_client.chat_completion(
+            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
+            response = await self.model_manager.invoke_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
             )
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -658,6 +728,7 @@ class GenerationAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Generation with tool result failed: {str(e)}")
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -686,6 +757,9 @@ class GenerationAgent(BaseAgent):
         agent_input: AgentInput,
         tool_result: dict
     ) -> AsyncGenerator[StreamChunk, None]:
+        """
+        基于工具调用结果生成流式回答。
+        """
         try:
             yield StreamChunk.create_thinking("正在基于工具结果生成回答...")
 
@@ -698,7 +772,7 @@ class GenerationAgent(BaseAgent):
             )
 
             full_content = ""
-            async for chunk in self.llm_client.chat_completion_stream(
+            async for chunk in self.model_manager.stream_messages(
                 messages=messages,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
@@ -706,6 +780,7 @@ class GenerationAgent(BaseAgent):
                 full_content += chunk
                 yield StreamChunk.create_content(chunk)
 
+            # 先创建执行记录，便于后续关联输出内容和执行状态。
             execution_create = AgentExecutionCreate(
                 conversation_id=agent_input.conversation_id,
                 message_id=agent_input.message_id,
@@ -745,6 +820,9 @@ class GenerationAgent(BaseAgent):
             yield StreamChunk.create_error(str(e))
 
     def _format_tool_result_context(self, tool_result: dict) -> str:
+        """
+        将工具结果格式化为模型可用的上下文文本。
+        """
         if not tool_result:
             return ""
 
@@ -758,6 +836,9 @@ class GenerationAgent(BaseAgent):
         return context
 
     def _format_combined_context(self, retrieval_results: list, tool_result: dict) -> str:
+        """
+        将检索结果与工具结果组装为统一的上下文输入。
+        """
         retrieval_context = self._format_retrieval_context(retrieval_results)
         tool_context = self._format_tool_result_context(tool_result)
 
@@ -774,6 +855,9 @@ class GenerationAgent(BaseAgent):
         tool_context: str,
         conversation_history: list = None
     ) -> list:
+        """
+        构建包含工具结果的模型消息列表。
+        """
         messages = []
 
         system_prompt = self._get_prompt("generation_system_prompt_with_tool_result")

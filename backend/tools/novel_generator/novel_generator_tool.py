@@ -257,21 +257,26 @@ class NovelGeneratorTool(BaseTool):
         genre: Optional[str],
         style: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         genre_name = self._get_genre_name(genre)
         style_name = self._get_style_name(style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.novel_generator_outline_prompt",
-            title=title or "未命名小说",
-            genre_name=genre_name,
-            style_name=style_name,
-            theme=theme or "请围绕用户主题生成完整故事大纲",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.novel_generator_outline_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "title": title or "未命名小说",
+                "genre_name": genre_name,
+                "style_name": style_name,
+                "theme": theme or "请围绕用户主题生成完整故事大纲",
+            },
+            temperature=0.8
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -294,23 +299,28 @@ class NovelGeneratorTool(BaseTool):
         style: Optional[str],
         word_count: int,
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         genre_name = self._get_genre_name(genre)
         style_name = self._get_style_name(style)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.novel_generator_chapter_prompt",
-            chapter_number=chapter_number,
-            chapter_title=chapter_title or f"第{chapter_number}章",
-            genre_name=genre_name,
-            style_name=style_name,
-            word_count=word_count,
-            outline_text=outline or "请根据上下文自然展开情节",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.novel_generator_chapter_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=word_count * 2):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "chapter_number": chapter_number,
+                "chapter_title": chapter_title or f"第{chapter_number}章",
+                "genre_name": genre_name,
+                "style_name": style_name,
+                "word_count": word_count,
+                "outline_text": outline or "请根据上下文自然展开情节",
+            },
+            temperature=0.8, max_tokens=word_count * 2
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -332,19 +342,24 @@ class NovelGeneratorTool(BaseTool):
         genre: Optional[str],
         theme: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         genre_name = self._get_genre_name(genre)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.novel_generator_character_prompt",
-            character_name=character_name or "主角",
-            genre_name=genre_name,
-            theme=theme or "请补充完整的人物设定",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.novel_generator_character_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "character_name": character_name or "主角",
+                "genre_name": genre_name,
+                "theme": theme or "请补充完整的人物设定",
+            },
+            temperature=0.8
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -362,19 +377,24 @@ class NovelGeneratorTool(BaseTool):
         theme: Optional[str],
         genre: Optional[str],
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         genre_name = self._get_genre_name(genre)
-        prompt = self.prompt_manager.format_prompt(
-            "tool.novel_generator_worldview_prompt",
-            title=title or "未命名小说",
-            genre_name=genre_name,
-            theme=theme or "请补充世界规则、势力与背景",
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.novel_generator_worldview_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "title": title or "未命名小说",
+                "genre_name": genre_name,
+                "theme": theme or "请补充世界规则、势力与背景",
+            },
+            temperature=0.8
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -397,22 +417,27 @@ class NovelGeneratorTool(BaseTool):
             yield {"type": "error", "error": "需要提供前文内容"}
             return
 
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
         genre_name = self._get_genre_name(genre)
         style_name = self._get_style_name(style)
         context = previous_content[-1000:] if len(previous_content) > 1000 else previous_content
-        prompt = self.prompt_manager.format_prompt(
-            "tool.novel_generator_continue_prompt",
-            genre_name=genre_name,
-            style_name=style_name,
-            word_count=word_count,
-            context=context,
+        prompt_template = self.prompt_manager.get_prompt_template(
+            "tool.novel_generator_continue_prompt"
         )
 
         response = ""
-        async for chunk in llm_manager.generate_stream(prompt, temperature=0.8, max_tokens=word_count * 2):
+        async for chunk in llm_manager.stream_prompt_template(
+            prompt_template,
+            {
+                "genre_name": genre_name,
+                "style_name": style_name,
+                "word_count": word_count,
+                "context": context,
+            },
+            temperature=0.8, max_tokens=word_count * 2
+        ):
             response += chunk
             yield {"type": "content", "content": chunk}
 
@@ -429,22 +454,27 @@ class NovelGeneratorTool(BaseTool):
     async def _generate_outline(self, title: Optional[str], theme: Optional[str],
                                genre: Optional[str], style: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
             style_name = self.WRITING_STYLES.get(style, "默认") if style else "默认"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.novel_generator_outline_prompt",
-                title=title or "未命名小说",
-                genre_name=genre_name,
-                style_name=style_name,
-                theme=theme or "请围绕用户主题生成完整故事大纲"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.novel_generator_outline_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "title": title or "未命名小说",
+                    "genre_name": genre_name,
+                    "style_name": style_name,
+                    "theme": theme or "请围绕用户主题生成完整故事大纲",
+                },
+                temperature=0.8,
+            )
 
             # 尝试解析JSON
             try:
@@ -484,24 +514,29 @@ class NovelGeneratorTool(BaseTool):
                                 outline: Optional[str], genre: Optional[str],
                                 style: Optional[str], word_count: int) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
             style_name = self.WRITING_STYLES.get(style, "默认") if style else "默认"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.novel_generator_chapter_prompt",
-                chapter_number=chapter_number,
-                chapter_title=chapter_title or f"第{chapter_number}章",
-                genre_name=genre_name,
-                style_name=style_name,
-                word_count=word_count,
-                outline_text=outline or "?"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.novel_generator_chapter_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=word_count * 2)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "chapter_number": chapter_number,
+                    "chapter_title": chapter_title or f"第{chapter_number}章",
+                    "genre_name": genre_name,
+                    "style_name": style_name,
+                    "word_count": word_count,
+                    "outline_text": outline or "?",
+                },
+                temperature=0.8, max_tokens=word_count * 2,
+            )
 
             self.logger.info(f"第{chapter_number}章生成完成，字数: {len(response)}")
 
@@ -528,20 +563,25 @@ class NovelGeneratorTool(BaseTool):
     async def _generate_character(self, character_name: Optional[str],
                                   genre: Optional[str], theme: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.novel_generator_character_prompt",
-                character_name=character_name or "主角",
-                genre_name=genre_name,
-                theme=theme or "请补充完整的人物设定"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.novel_generator_character_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "character_name": character_name or "主角",
+                    "genre_name": genre_name,
+                    "theme": theme or "请补充完整的人物设定",
+                },
+                temperature=0.8,
+            )
 
             # 尝试解析JSON
             try:
@@ -576,20 +616,25 @@ class NovelGeneratorTool(BaseTool):
     async def _generate_worldview(self, title: Optional[str], theme: Optional[str],
                                   genre: Optional[str]) -> Dict[str, Any]:
         try:
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.novel_generator_worldview_prompt",
-                title=title or "未命名小说",
-                genre_name=genre_name,
-                theme=theme or "请补充世界规则、势力与背景"
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.novel_generator_worldview_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "title": title or "未命名小说",
+                    "genre_name": genre_name,
+                    "theme": theme or "请补充世界规则、势力与背景",
+                },
+                temperature=0.8,
+            )
 
             # 尝试解析JSON
             try:
@@ -632,23 +677,28 @@ class NovelGeneratorTool(BaseTool):
                     "error": "需要提供前文内容"
                 }
 
-            from backend.core.llm_manager import get_llm_manager
+            from backend.core.llm_manager import get_langchain_model_manager
 
-            llm_manager = get_llm_manager()
+            llm_manager = get_langchain_model_manager()
 
             genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
             style_name = self.WRITING_STYLES.get(style, "默认") if style else "默认"
             context = previous_content[-1000:] if len(previous_content) > 1000 else previous_content
 
-            prompt = self.prompt_manager.format_prompt(
-                "tool.novel_generator_continue_prompt",
-                genre_name=genre_name,
-                style_name=style_name,
-                word_count=word_count,
-                context=context
+            prompt_template = self.prompt_manager.get_prompt_template(
+                "tool.novel_generator_continue_prompt"
             )
 
-            response = await llm_manager.generate(prompt, temperature=0.8, max_tokens=word_count * 2)
+            response = await llm_manager.invoke_prompt_template(
+                prompt_template,
+                {
+                    "genre_name": genre_name,
+                    "style_name": style_name,
+                    "word_count": word_count,
+                    "context": context,
+                },
+                temperature=0.8, max_tokens=word_count * 2,
+            )
 
             self.logger.info(f"续写完成，字数: {len(response)}")
 

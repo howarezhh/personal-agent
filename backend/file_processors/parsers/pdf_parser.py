@@ -30,12 +30,14 @@ class PDFParser(BaseParser):
 
         try:
             try:
-                return await self._parse_with_pdfplumber(normalized_path)
+                result = await self._parse_with_pdfplumber(normalized_path)
+                return await self._maybe_apply_ocr_fallback(normalized_path, result)
             except ImportError:
                 self.logger.warning("pdfplumber not installed, falling back to PyPDF2")
 
             try:
-                return await self._parse_with_pypdf2(normalized_path)
+                result = await self._parse_with_pypdf2(normalized_path)
+                return await self._maybe_apply_ocr_fallback(normalized_path, result)
             except ImportError as exc:
                 raise ImportError(
                     "Neither pdfplumber nor PyPDF2 is installed. Please install one of them."
@@ -49,6 +51,70 @@ class PDFParser(BaseParser):
 
     async def _parse_with_pypdf2(self, file_path: Path) -> ParsedContent:
         return await asyncio.to_thread(self._parse_with_pypdf2_sync, file_path)
+
+    async def _maybe_apply_ocr_fallback(self, file_path: Path, result: ParsedContent) -> ParsedContent:
+        if result.text:
+            return result
+
+        try:
+            ocr_result = await self._ocr_pdf(file_path)
+        except ImportError:
+            return result
+        except Exception as exc:
+            self.logger.warning("PDF OCR fallback skipped: %s", exc)
+            return result
+
+        if not ocr_result or not ocr_result.text:
+            return result
+
+        merged_metadata = dict(result.metadata or {})
+        merged_metadata.update(ocr_result.metadata or {})
+        merged_metadata["ocr_applied"] = True
+        return self.finalize_parsed_content(
+            str(file_path),
+            ParsedContent(
+                text=ocr_result.text,
+                metadata=merged_metadata,
+                pages=ocr_result.pages,
+                tables=result.tables,
+                images=result.images,
+            ),
+        )
+
+    async def _ocr_pdf(self, file_path: Path) -> ParsedContent:
+        return await asyncio.to_thread(self._ocr_pdf_sync, file_path)
+
+    def _ocr_pdf_sync(self, file_path: Path) -> ParsedContent:
+        try:
+            import fitz
+            from PIL import Image
+            import pytesseract
+        except ImportError as exc:
+            raise ImportError("PDF OCR fallback requires PyMuPDF, Pillow and pytesseract") from exc
+
+        pages = []
+        with fitz.open(file_path) as document:
+            for page_index in range(len(document)):
+                page = document.load_page(page_index)
+                pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+                text = self._sanitize_text(pytesseract.image_to_string(image))
+                if not text:
+                    continue
+                pages.append({"page_number": page_index + 1, "text": text, "char_count": len(text)})
+
+        full_text = "\n\n".join(page["text"] for page in pages)
+        return ParsedContent(
+            text=full_text,
+            metadata={
+                "parser": "pdf_ocr",
+                "ocr_engine": "pytesseract",
+                "total_pages": len(pages),
+                "has_text": bool(full_text),
+                "empty_content": not bool(full_text),
+            },
+            pages=pages,
+        )
 
     def _parse_with_pdfplumber_sync(self, file_path: Path) -> ParsedContent:
         import pdfplumber

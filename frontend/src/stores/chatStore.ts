@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import { Message, Citation, ThinkingStep } from '@/types';
+import { Message, Citation, ThinkingStep, WorkflowTrace, StreamStatus } from '@/types';
 
 const CURRENT_CONVERSATION_STORAGE_KEY = 'current_conversation_id';
 const SELECTED_KNOWLEDGE_BASE_STORAGE_KEY = 'selected_knowledge_base_id';
@@ -28,8 +28,10 @@ interface ChatState {
   messages: Message[];
   currentConversationId: string | null;
   isStreaming: boolean;
+  streamStatus: StreamStatus;
   streamingContent: string;
   thinkingSteps: ThinkingStep[];
+  workflowTrace: WorkflowTrace;
   citations: Citation[];
   error: string | null;
   knowledgeBaseEnabled: boolean;
@@ -38,11 +40,14 @@ interface ChatState {
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   setCurrentConversationId: (id: string | null) => void;
-  setStreaming: (isStreaming: boolean) => void;
+  setStreamStatus: (status: StreamStatus) => void;
   setStreamingContent: (content: string) => void;
   appendStreamingContent: (content: string) => void;
   addThinkingStep: (step: ThinkingStep) => void;
   clearThinkingSteps: () => void;
+  setWorkflowTrace: (trace: WorkflowTrace) => void;
+  mergeWorkflowTrace: (trace: Partial<WorkflowTrace>) => void;
+  clearWorkflowTrace: () => void;
   setCitations: (citations: Citation[]) => void;
   setError: (error: string | null) => void;
   setKnowledgeBaseEnabled: (enabled: boolean) => void;
@@ -54,8 +59,10 @@ export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   currentConversationId: getInitialConversationId(),
   isStreaming: false,
+  streamStatus: 'idle',
   streamingContent: '',
   thinkingSteps: [],
+  workflowTrace: {},
   citations: [],
   error: null,
   selectedKnowledgeBaseId: getInitialKnowledgeBaseId(),
@@ -74,13 +81,31 @@ export const useChatStore = create<ChatState>((set) => ({
 
     set({ currentConversationId: id });
   },
-  setStreaming: (isStreaming) => set({ isStreaming }),
+  setStreamStatus: (streamStatus) => set({
+    streamStatus,
+    isStreaming: streamStatus === 'connecting' || streamStatus === 'streaming',
+  }),
   setStreamingContent: (content) => set({ streamingContent: content }),
   appendStreamingContent: (content) =>
     set((state) => ({ streamingContent: state.streamingContent + content })),
   addThinkingStep: (step) =>
     set((state) => ({ thinkingSteps: [...state.thinkingSteps, step] })),
   clearThinkingSteps: () => set({ thinkingSteps: [] }),
+  setWorkflowTrace: (workflowTrace) => set({ workflowTrace }),
+  mergeWorkflowTrace: (trace) => {
+    const definedEntries = Object.entries(trace).filter(([, value]) => value !== undefined);
+    if (definedEntries.length === 0) {
+      return;
+    }
+
+    set((state) => ({
+      workflowTrace: {
+        ...state.workflowTrace,
+        ...Object.fromEntries(definedEntries),
+      },
+    }));
+  },
+  clearWorkflowTrace: () => set({ workflowTrace: {} }),
   setCitations: (citations) => set({ citations }),
   setError: (error) => set({ error }),
   setKnowledgeBaseEnabled: (enabled) =>
@@ -112,8 +137,10 @@ export const useChatStore = create<ChatState>((set) => ({
       messages: [],
       currentConversationId: null,
       isStreaming: false,
+      streamStatus: 'idle',
       streamingContent: '',
       thinkingSteps: [],
+      workflowTrace: {},
       citations: [],
       error: null,
       knowledgeBaseEnabled: false,

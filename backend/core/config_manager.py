@@ -183,6 +183,28 @@ class ConfigManager:
             config["api_key"] = os.environ.get(config["api_key_env"], "")
         return config
 
+    def get_database_required_env_vars(self, db_type: str = "mysql") -> list[str]:
+        """Return declared env var names referenced by a database config section.
+
+        This method only inspects unified config declarations such as
+        `config/base/database.yaml` and extracts `*_env` fields. It does not
+        read environment variable values directly.
+
+        Args:
+            db_type: Database type, such as `mysql` or `redis`.
+
+        Returns:
+            A de-duplicated list of env var names in declaration order.
+        """
+        config = dict(self.get(f"database.{db_type}", {}) or {})
+        env_keys: list[str] = []
+        for key, value in config.items():
+            if key.endswith("_env") and value:
+                env_name = str(value)
+                if env_name not in env_keys:
+                    env_keys.append(env_name)
+        return env_keys
+
     def get_database_config(self, db_type: str = "mysql") -> dict[str, Any]:
         """获取数据库配置，并将环境变量覆盖写入最终结果。
 
@@ -252,11 +274,8 @@ class ConfigManager:
         return self.get("agent.vector_store", {}) or {}
 
     def get_conversation_history_config(self) -> dict[str, Any]:
-        """获取对话历史相关配置。
-
-        这里优先读取 `agent.conversation_history`，并兼容旧路径 `conversation_history`。
-        """
-        return self.get("agent.conversation_history", self.get("conversation_history", {})) or {}
+        """Get conversation history config."""
+        return self.get("agent.conversation_history", {}) or {}
 
     def validate_config(self) -> bool:
         """校验关键配置是否齐全。

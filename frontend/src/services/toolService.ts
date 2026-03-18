@@ -1,6 +1,6 @@
 /**
  * 工具管理服务
- * 提供工具列表、详情、执行等API调用
+ * 提供工具列表、详情、执行等 API 调用
  */
 
 import api from './api';
@@ -11,9 +11,34 @@ export interface Tool {
   name: string;
   description: string;
   category: string;
+  transportProtocol: string;
+  toolOrigin: string;
+  mcpServer?: string | null;
   parameters: ToolParameter[];
   timeout: number;
 }
+
+type ToolPayload = {
+  name: string;
+  description: string;
+  category: string;
+  transport_protocol?: string;
+  tool_origin?: string;
+  mcp_server?: string | null;
+  parameters: ToolParameter[];
+  timeout: number;
+};
+
+const adaptTool = (payload: ToolPayload): Tool => ({
+  name: payload.name,
+  description: payload.description,
+  category: payload.category,
+  transportProtocol: payload.transport_protocol ?? 'mcp',
+  toolOrigin: payload.tool_origin ?? 'local',
+  mcpServer: payload.mcp_server ?? null,
+  parameters: payload.parameters,
+  timeout: payload.timeout,
+});
 
 export interface ToolParameter {
   name: string;
@@ -30,9 +55,33 @@ export interface ToolExecuteRequest {
 
 export interface ToolExecuteResponse {
   success: boolean;
-  data?: any;
-  error?: string;
+  data?: Record<string, unknown> | null;
+  error?: string | null;
+  errorCode?: string | null;
+  errorType?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
+
+type ToolExecuteResponsePayload = ToolExecuteResponse & {
+  error_code?: string | null;
+  error_type?: string | null;
+};
+
+const adaptToolExecuteResponse = (payload: ToolExecuteResponsePayload): ToolExecuteResponse => ({
+  success: payload.success,
+  data: payload.data ?? null,
+  error: payload.error ?? null,
+  errorCode: payload.errorCode ?? payload.error_code ?? null,
+  errorType: payload.errorType ?? payload.error_type ?? null,
+  metadata: payload.metadata ?? null,
+});
+
+export const getToolExecutionErrorMessage = (
+  response: Pick<ToolExecuteResponse, 'error' | 'errorCode'>
+): string => {
+  const baseMessage = response.error || '执行失败';
+  return response.errorCode ? `${baseMessage} [${response.errorCode}]` : baseMessage;
+};
 
 export interface ToolCategory {
   category: string;
@@ -111,41 +160,28 @@ export const normalizeToolParameters = (
   return normalized;
 };
 
-/**
- * 获取所有工具列表
- * @param category 工具分类（可选）
- */
 export const getToolsList = async (category?: string): Promise<Tool[]> => {
   try {
     const response = await api.get(`${API_BASE_URL}/tools`, {
       params: { category }
     });
-    return response.data.data;
+    return (response.data.data as ToolPayload[]).map(adaptTool);
   } catch (error) {
     console.error('获取工具列表失败:', error);
     throw error;
   }
 };
 
-/**
- * 获取工具详情
- * @param toolName 工具名称
- */
 export const getToolDetail = async (toolName: string): Promise<Tool> => {
   try {
     const response = await api.get(`${API_BASE_URL}/tools/${toolName}`);
-    return response.data.data;
+    return adaptTool(response.data.data as ToolPayload);
   } catch (error) {
     console.error('获取工具详情失败:', error);
     throw error;
   }
 };
 
-/**
- * 执行工具
- * @param toolName 工具名称
- * @param parameters 工具参数
- */
 export const executeTool = async (
   toolName: string,
   parameters: Record<string, any>
@@ -155,16 +191,13 @@ export const executeTool = async (
       `${API_BASE_URL}/tools/${toolName}/execute`,
       { parameters }
     );
-    return response.data;
+    return adaptToolExecuteResponse(response.data as ToolExecuteResponsePayload);
   } catch (error) {
     console.error('执行工具失败:', error);
     throw error;
   }
 };
 
-/**
- * 获取工具分类列表
- */
 export const getToolCategories = async (): Promise<ToolCategory[]> => {
   try {
     const response = await api.get(`${API_BASE_URL}/tools/categories/list`);

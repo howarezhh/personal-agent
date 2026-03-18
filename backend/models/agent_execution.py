@@ -5,6 +5,8 @@ from datetime import datetime
 import uuid
 import json
 
+from backend.utils.time_utils import utc_now
+
 
 AgentType = Literal["router", "retrieval", "generation", "tool", "file_processor"]
 ExecutionStatus = Literal["success", "failed", "partial", "running"]
@@ -80,14 +82,14 @@ class AgentExecution:
         self.status = "success"
         self.output_data = output_data
         self.execution_time_ms = execution_time_ms
-        self.completed_at = datetime.utcnow()
+        self.completed_at = utc_now()
 
     def mark_failed(self, error_message: str, execution_time_ms: int = None):
         self.status = "failed"
         self.error_message = error_message
         if execution_time_ms is not None:
             self.execution_time_ms = execution_time_ms
-        self.completed_at = datetime.utcnow()
+        self.completed_at = utc_now()
 
     def __repr__(self) -> str:
         return f"AgentExecution(execution_id='{self.execution_id}', agent_name='{self.agent_name}', status='{self.status}')"
@@ -111,7 +113,7 @@ class AgentExecutionCreate:
             input_data=self.input_data,
             metadata=self.metadata,
             status="running",
-            created_at=datetime.utcnow(),
+            created_at=utc_now(),
         )
 
 

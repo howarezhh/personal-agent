@@ -368,6 +368,15 @@ class BaseTool(ABC):
     def get_category(self) -> str:
         return self._definition.category
 
+    def get_transport_protocol(self) -> str:
+        return "direct"
+
+    def get_tool_origin(self) -> str:
+        return "local"
+
+    def get_mcp_server(self) -> Optional[str]:
+        return None
+
     @property
     def name(self) -> str:
         return self.get_name()

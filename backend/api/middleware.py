@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+"""middleware 接口模块。
+
+本文件位于接口层，负责参数校验、依赖注入、统一响应包装，以及将请求转交给应用服务。
+"""
 
 import time
 import uuid
@@ -7,12 +13,26 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from backend.utils.logger import get_logger
 
 
+# 模块级日志记录器：统一记录当前接口模块的运行日志。
 logger = get_logger(__name__)
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
+    """RequestIDMiddleware 相关的数据结构定义。
+
+该类型用于承载接口层输入、输出或中间处理数据。
+    """
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # 生成请求ID
+        """处理 `dispatch` 相关逻辑。
+
+Args:
+    request: 参数 `request` 的业务输入值。
+    call_next: 参数 `call_next` 的业务输入值。
+
+Returns:
+    返回接口层所需的响应对象、业务结果或中间处理结果。
+        """
         request_id = str(uuid.uuid4())
 
         # 将请求ID添加到请求状态中
@@ -28,12 +48,34 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class PerformanceMonitorMiddleware(BaseHTTPMiddleware):
+    """PerformanceMonitorMiddleware 相关的数据结构定义。
+
+该类型用于承载接口层输入、输出或中间处理数据。
+    """
     def __init__(self, app, slow_request_threshold: float = 1.0):
+        """处理 `__init__` 相关逻辑。
+
+Args:
+    app: 参数 `app` 的业务输入值。
+    slow_request_threshold: 参数 `slow_request_threshold` 的业务输入值。
+
+Returns:
+    返回接口层所需的响应对象、业务结果或中间处理结果。
+        """
         super().__init__(app)
         self.slow_request_threshold = slow_request_threshold
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # 记录开始时间
+        """处理 `dispatch` 相关逻辑。
+
+Args:
+    request: 参数 `request` 的业务输入值。
+    call_next: 参数 `call_next` 的业务输入值。
+
+Returns:
+    返回接口层所需的响应对象、业务结果或中间处理结果。
+        """
         start_time = time.time()
 
         # 处理请求
@@ -61,7 +103,21 @@ class PerformanceMonitorMiddleware(BaseHTTPMiddleware):
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
+    """RateLimitMiddleware 相关的数据结构定义。
+
+该类型用于承载接口层输入、输出或中间处理数据。
+    """
     def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
+        """处理 `__init__` 相关逻辑。
+
+Args:
+    app: 参数 `app` 的业务输入值。
+    max_requests: 参数 `max_requests` 的业务输入值。
+    window_seconds: 参数 `window_seconds` 的业务输入值。
+
+Returns:
+    返回接口层所需的响应对象、业务结果或中间处理结果。
+        """
         super().__init__(app)
         self.max_requests = max_requests
         self.window_seconds = window_seconds
@@ -70,6 +126,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # 获取客户端IP
+        """处理 `dispatch` 相关逻辑。
+
+Args:
+    request: 参数 `request` 的业务输入值。
+    call_next: 参数 `call_next` 的业务输入值。
+
+Returns:
+    返回接口层所需的响应对象、业务结果或中间处理结果。
+        """
         client_ip = request.client.host if request.client else "unknown"
 
         # 当前时间戳
@@ -120,6 +185,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
     def _cleanup_expired_records(self, current_time: float):
+        """处理 `_cleanup_expired_records` 相关逻辑。
+
+Args:
+    current_time: 参数 `current_time` 的业务输入值。
+
+Returns:
+    返回接口层所需的响应对象、业务结果或中间处理结果。
+        """
         expired_ips = [
             ip for ip, (_, first_time) in self.request_counts.items()
             if current_time - first_time >= self.window_seconds
@@ -130,7 +203,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """SecurityHeadersMiddleware 相关的数据结构定义。
+
+该类型用于承载接口层输入、输出或中间处理数据。
+    """
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """处理 `dispatch` 相关逻辑。
+
+Args:
+    request: 参数 `request` 的业务输入值。
+    call_next: 参数 `call_next` 的业务输入值。
+
+Returns:
+    返回接口层所需的响应对象、业务结果或中间处理结果。
+        """
         response = await call_next(request)
 
         # 添加安全头
@@ -142,26 +228,3 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# 便捷函数：添加所有自定义中间件到应用
-def add_custom_middlewares(app, config: dict = None):
-    config = config or {}
-
-    # 添加请求ID中间件
-    app.add_middleware(RequestIDMiddleware)
-    logger.info("已添加请求ID中间件")
-
-    # 添加性能监控中间件
-    slow_threshold = config.get("slow_request_threshold", 1.0)
-    app.add_middleware(PerformanceMonitorMiddleware, slow_request_threshold=slow_threshold)
-    logger.info(f"已添加性能监控中间件 (阈值: {slow_threshold}秒)")
-
-    # 添加速率限制中间件（可选）
-    if config.get("enable_rate_limit", False):
-        max_requests = config.get("rate_limit_max_requests", 100)
-        window_seconds = config.get("rate_limit_window_seconds", 60)
-        app.add_middleware(RateLimitMiddleware, max_requests=max_requests, window_seconds=window_seconds)
-        logger.info(f"已添加速率限制中间件 (每{window_seconds}秒{max_requests}次请求)")
-
-    # 添加安全头中间件
-    app.add_middleware(SecurityHeadersMiddleware)
-    logger.info("已添加安全头中间件")

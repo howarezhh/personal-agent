@@ -1,29 +1,39 @@
 """多 Agent 协作工作流。
 
-该模块负责把多个 Agent 组织成可编排的执行链路，支持：
-1. 顺序执行；
-2. 并行执行；
-3. 条件分支；
-4. 预定义模板和自定义配置；
-5. 在步骤之间安全传递上下文、上一步结果和阶段性元数据。
+该模块统一使用 LangGraph 编排多 Agent 执行链路，支持：
+1. 顺序步骤；
+2. 条件分支；
+3. 预定义模板和自定义配置；
+4. 在步骤之间安全传递上下文、上一步结果和阶段性元数据。
 
-这个模块的核心价值，不只是“调用多个 Agent”，而是把多 Agent 协作过程收敛为统一的
-步骤结果结构与状态推进机制，降低链路复杂度。
+这里不再保留旧的手写递归步骤执行器，也不再保留顺序 / 并行的额外兼容入口；
+所有多 Agent 编排都收敛到同一张 LangGraph 执行图。
 """
 
-import ast
-import asyncio
-from copy import deepcopy
-from typing import Any, AsyncGenerator, Dict, List, Optional, TypedDict
+from __future__ import annotations
 
-from backend.agents.base.agent_input import AgentInput
+import ast
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, TypedDict
+
+from backend.agents.base.agent_input import AgentInput, GenerationAgentInput, ToolAgentInput, WorkflowContext
 from backend.agents.base.agent_output import AgentOutput
-from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.stream_chunk import StreamChunk
-from backend.agents.registry import get_agent_registry
 from backend.contracts.errors import ErrorCode
 from backend.utils.logger import get_logger
 from backend.workflows.state_graph import WorkflowAction, WorkflowState, get_state_graph
+from langgraph.config import get_stream_writer
+from langgraph.graph import END, START, StateGraph
+
+if TYPE_CHECKING:
+    from backend.agents.base.base_agent import BaseAgent
+
+
+def _get_agent_registry():
+    """延迟加载 Agent 注册表，避免模块导入阶段绑定具体 Agent 实现。"""
+    from backend.agents.registry import get_agent_registry as _registry_factory
+
+    return _registry_factory()
 
 CHUNK_THINKING = "thinking"
 CHUNK_CONTENT = "content"
@@ -70,6 +80,19 @@ class StepResult(TypedDict):
     metadata: Dict[str, Any]
     data: Any
     error: Optional[str]
+
+
+class _WorkflowGraphState(TypedDict, total=False):
+    """LangGraph 工作流运行态。"""
+
+    agent_input: AgentInput
+    workflow_config: Dict[str, Any]
+    context: Dict[str, StepResult]
+    step_counter: int
+    last_step_key: Optional[str]
+    last_step_result: Optional[StepResult]
+    failed: bool
+    branch_target: Optional[str]
 
 
 class MultiAgentWorkflow:
@@ -139,7 +162,6 @@ class MultiAgentWorkflow:
             "status": status,
             "final_step_key": final_step_key,
             "final_content": final_content,
-            "content": final_content,
             "step_count": step_count,
         }
 
@@ -156,6 +178,7 @@ class MultiAgentWorkflow:
         return {key: value for key, value in payload.items() if value is not None}
 
     def _collect_context_handoffs(self, context: Dict[str, StepResult]) -> Dict[str, Any]:
+        latest_route_decision = None
         latest_retrieval_results = None
         latest_tool_result = None
 
@@ -164,24 +187,25 @@ class MultiAgentWorkflow:
                 continue
 
             result_data = result.get("data")
-            result_metadata = result.get("metadata") or {}
+
+            if latest_route_decision is None:
+                if isinstance(result_data, dict) and isinstance(result_data.get("route_decision"), dict):
+                    latest_route_decision = deepcopy(result_data.get("route_decision"))
 
             if latest_retrieval_results is None:
                 if isinstance(result_data, dict) and result_data.get("retrieval_results"):
                     latest_retrieval_results = deepcopy(result_data.get("retrieval_results"))
-                elif result_metadata.get("retrieval_results"):
-                    latest_retrieval_results = deepcopy(result_metadata.get("retrieval_results"))
 
             if latest_tool_result is None:
                 if isinstance(result_data, dict) and result_data.get("tool_result"):
-                    latest_tool_result = deepcopy(result_data.get("tool_result"))
-                elif result_metadata.get("tool_result"):
-                    latest_tool_result = deepcopy(result_metadata.get("tool_result"))
+                    latest_tool_result = deepcopy(result_data)
 
-            if latest_retrieval_results is not None and latest_tool_result is not None:
+            if latest_route_decision is not None and latest_retrieval_results is not None and latest_tool_result is not None:
                 break
 
         handoffs: Dict[str, Any] = {}
+        if latest_route_decision is not None:
+            handoffs["route_decision"] = latest_route_decision
         if latest_retrieval_results is not None:
             handoffs["retrieval_results"] = latest_retrieval_results
         if latest_tool_result is not None:
@@ -193,24 +217,11 @@ class MultiAgentWorkflow:
         agent_input: AgentInput,
         workflow_config: Dict[str, Any]
     ) -> AsyncGenerator[StreamChunk, None]:
-        """执行多Agent协作工作流。"""
-        # `execution_state` 保存本次执行过程中的运行时状态，
-        # 与 `context` 中持久化的步骤产物分离，避免两类职责混在一起。
-        execution_state: Dict[str, Any] = {
-            "step_counter": 0,
-            "last_step_key": None,
-            "last_step_result": None,
-            "failed": False,
-        }
-        context: Dict[str, StepResult] = {}
-
+        """执行多 Agent 协作工作流。"""
         try:
             self.current_state = WorkflowState.INIT
-            # 先显式回到 INIT，再通过状态图进入首个运行态，保证重复调用时状态可重入。
             self._transition_or_set(WorkflowAction.START, WorkflowState.ROUTING)
 
-            # 工作流配置是多 Agent 编排的契约入口，先校验结构再执行，
-            # 可以把很多运行期错误前移到入口阶段。
             if not self._is_valid_workflow_config(workflow_config):
                 self._mark_failed()
                 yield self._create_error_chunk(
@@ -222,33 +233,12 @@ class MultiAgentWorkflow:
 
             steps = workflow_config.get("steps", [])
             self.logger.info(f"开始执行多Agent协作工作流，共{len(steps)}个步骤")
-            yield StreamChunk.create_thinking("开始执行多Agent协作工作流...")
+            compiled_graph = self._build_workflow_graph(workflow_config)
+            initial_state = self._build_initial_graph_state(agent_input, workflow_config)
 
-            # 统一由 `_execute_steps` 处理顺序步骤、条件分支、失败中断等控制流。
-            async for chunk in self._execute_steps(
-                agent_input=agent_input,
-                steps=steps,
-                context=context,
-                execution_state=execution_state,
-            ):
-                yield chunk
-
-            if execution_state["failed"]:
-                return
-
-            self._mark_completed()
-            final_step_result = execution_state.get("last_step_result")
-            self.logger.info("多Agent协作工作流执行完成")
-            yield StreamChunk.create_thinking("多Agent协作工作流执行完成")
-            yield StreamChunk.create_result(
-                self._build_workflow_summary_result(
-                    status="completed",
-                    final_step_key=execution_state.get("last_step_key"),
-                    final_step_result=final_step_result,
-                    step_count=len(context),
-                ),
-                result_scope="workflow",
-            )
+            async for event in compiled_graph.astream(initial_state, stream_mode="custom"):
+                if isinstance(event, StreamChunk):
+                    yield event
 
         except Exception as error:
             self._mark_failed()
@@ -258,80 +248,178 @@ class MultiAgentWorkflow:
                 error_type="workflow_runtime_error",
             )
 
-    async def _execute_steps(
+    def _build_initial_graph_state(
         self,
         agent_input: AgentInput,
+        workflow_config: Dict[str, Any],
+    ) -> _WorkflowGraphState:
+        """构建 LangGraph 初始状态。"""
+        return {
+            "agent_input": agent_input,
+            "workflow_config": deepcopy(workflow_config),
+            "context": {},
+            "step_counter": 0,
+            "last_step_key": None,
+            "last_step_result": None,
+            "failed": False,
+            "branch_target": None,
+        }
+
+    async def _workflow_start_node(self, state: _WorkflowGraphState) -> _WorkflowGraphState:
+        """工作流启动节点。"""
+        writer = get_stream_writer()
+        writer(StreamChunk.create_thinking("开始执行多Agent协作工作流..."))
+        return state
+
+    async def _workflow_complete_node(self, state: _WorkflowGraphState) -> _WorkflowGraphState:
+        """工作流完成节点。"""
+        writer = get_stream_writer()
+        self._mark_completed()
+        final_step_result = state.get("last_step_result")
+        context = state.get("context", {})
+        self.logger.info("多Agent协作工作流执行完成")
+        writer(StreamChunk.create_thinking("多Agent协作工作流执行完成"))
+        writer(
+            StreamChunk.create_result(
+                self._build_workflow_summary_result(
+                    status="completed",
+                    final_step_key=state.get("last_step_key"),
+                    final_step_result=final_step_result,
+                    step_count=len(context),
+                ),
+                result_scope="workflow",
+            )
+        )
+        return state
+
+    def _build_workflow_graph(self, workflow_config: Dict[str, Any]):
+        """根据工作流配置动态构建 LangGraph。"""
+        graph = StateGraph(_WorkflowGraphState)
+        graph.add_node("workflow_start", self._workflow_start_node)
+        graph.add_node("workflow_complete", self._workflow_complete_node)
+
+        entry_node = self._register_step_sequence(
+            graph=graph,
+            steps=workflow_config.get("steps", []),
+            prefix="root",
+            next_node="workflow_complete",
+        )
+
+        graph.add_edge(START, "workflow_start")
+        graph.add_edge("workflow_start", entry_node or "workflow_complete")
+        graph.add_edge("workflow_complete", END)
+        return graph.compile()
+
+    def _register_step_sequence(
+        self,
+        graph: StateGraph,
         steps: List[WorkflowStep],
-        context: Dict[str, StepResult],
-        execution_state: Dict[str, Any],
-    ) -> AsyncGenerator[StreamChunk, None]:
-        """顺序执行步骤列表，支持条件分支。"""
-        for step in steps:
-            step_type = step.get("type", STEP_TYPE_AGENT)
+        prefix: str,
+        next_node: str,
+    ) -> str:
+        """按顺序递归注册步骤链。"""
+        entry_node = next_node
+        for index in range(len(steps) - 1, -1, -1):
+            step = deepcopy(steps[index])
+            node_prefix = f"{prefix}_{index}"
+            if step.get("type", STEP_TYPE_AGENT) == STEP_TYPE_CONDITION:
+                entry_node = self._register_condition_step_node(graph, step, node_prefix, entry_node)
+            else:
+                entry_node = self._register_agent_step_node(graph, step, node_prefix, entry_node)
+        return entry_node
 
-            if step_type == STEP_TYPE_CONDITION:
-                # 条件步骤本身不产出 Agent 结果，而是像一个“控制节点”一样决定后续要执行哪组步骤。
-                condition = step.get("condition", "")
-                branch_name = "true_branch" if self._evaluate_condition(condition, context) else "false_branch"
-                selected_steps = step.get(branch_name, []) or []
+    def _register_agent_step_node(
+        self,
+        graph: StateGraph,
+        step: WorkflowStep,
+        node_name: str,
+        next_node: str,
+    ) -> str:
+        """注册单个 Agent 节点。"""
+        graph.add_node(node_name, self._build_agent_step_node(step))
 
-                self.logger.info(
-                    f"条件步骤命中分支: condition={condition!r}, branch={branch_name}, steps={len(selected_steps)}"
-                )
-                yield StreamChunk.create_thinking(f"条件分支判定完成，执行 {branch_name}...")
+        def _route_after_step(state: _WorkflowGraphState) -> str:
+            return END if state.get("failed") else next_node
 
-                # 这里递归调用 `_execute_steps`，从而复用相同的步骤执行逻辑，
-                # 不需要为分支步骤单独维护另一套执行器。
-                async for chunk in self._execute_steps(
-                    agent_input=agent_input,
-                    steps=selected_steps,
-                    context=context,
-                    execution_state=execution_state,
-                ):
-                    yield chunk
+        graph.add_conditional_edges(node_name, _route_after_step)
+        return node_name
 
-                if execution_state["failed"]:
-                    return
-                continue
+    def _register_condition_step_node(
+        self,
+        graph: StateGraph,
+        step: WorkflowStep,
+        node_prefix: str,
+        next_node: str,
+    ) -> str:
+        """注册条件节点及其分支链。"""
+        node_name = f"{node_prefix}_condition"
+        true_target = self._register_step_sequence(
+            graph,
+            step.get("true_branch", []) or [],
+            f"{node_prefix}_true",
+            next_node,
+        )
+        false_target = self._register_step_sequence(
+            graph,
+            step.get("false_branch", []) or [],
+            f"{node_prefix}_false",
+            next_node,
+        )
+        graph.add_node(node_name, self._build_condition_node(step, true_target or next_node, false_target or next_node))
+        graph.add_conditional_edges(node_name, self._route_after_condition_node)
+        return node_name
 
-            if step_type != STEP_TYPE_AGENT:
-                # 任何未知步骤类型都视为配置错误，直接终止，避免进入不可预测状态。
-                result = self._build_step_result(
-                    success=False,
-                    agent_type=step.get("agent_type", ""),
-                    step_name=step.get("name", "未命名步骤"),
-                    step_key=self._make_step_key(step.get("name", "未命名步骤"), execution_state["step_counter"] + 1, context),
-                    error=f"不支持的步骤类型: {step_type}",
-                )
-                execution_state["failed"] = True
-                execution_state["last_step_result"] = result
-                self._mark_failed()
-                yield self._create_error_chunk(
-                    result["error"] or "步骤类型无效",
-                    error_type="workflow_step_type_error",
-                )
-                return
+    def _build_condition_node(
+        self,
+        step: WorkflowStep,
+        true_target: str,
+        false_target: str,
+    ):
+        """构建条件节点执行函数。"""
 
-            # 使用显式计数器而不是直接依赖 `enumerate`，
-            # 是因为条件分支递归执行时仍然需要共享一套连续步骤编号。
-            execution_state["step_counter"] += 1
-            step_index = execution_state["step_counter"]
-            step_name = step.get("name", f"步骤{step_index}")
+        async def _condition_node(state: _WorkflowGraphState) -> _WorkflowGraphState:
+            writer = get_stream_writer()
+            context = state.get("context", {})
+            condition = step.get("condition", "")
+            matched = self._evaluate_condition(condition, context)
+            branch_name = "true_branch" if matched else "false_branch"
+            self.logger.info(
+                f"条件步骤命中分支: condition={condition!r}, branch={branch_name}"
+            )
+            writer(StreamChunk.create_thinking(f"条件分支判定完成，执行 {branch_name}..."))
+            return {
+                **state,
+                "branch_target": true_target if matched else false_target,
+            }
+
+        return _condition_node
+
+    @staticmethod
+    def _route_after_condition_node(state: _WorkflowGraphState) -> str:
+        """根据条件节点产出的分支目标继续执行。"""
+        return state.get("branch_target") or END
+
+    def _build_agent_step_node(self, step: WorkflowStep):
+        """构建 Agent 步骤节点执行函数。"""
+
+        async def _agent_step_node(state: _WorkflowGraphState) -> _WorkflowGraphState:
+            writer = get_stream_writer()
+            context = deepcopy(state.get("context", {}))
+            step_counter = int(state.get("step_counter", 0)) + 1
+            step_name = step.get("name", f"步骤{step_counter}")
             agent_type = step.get("agent_type", "")
             step_config = deepcopy(step.get("config", {}) or {})
-            step_key = self._make_step_key(step_name, step_index, context)
-            previous_result = execution_state.get("last_step_result")
+            step_key = self._make_step_key(step_name, step_counter, context)
+            previous_result = deepcopy(state.get("last_step_result")) if state.get("last_step_result") else None
 
             self.logger.info(
-                f"执行步骤 {step_index}: step_name={step_name}, step_key={step_key}, agent_type={agent_type}"
+                f"执行步骤 {step_counter}: step_name={step_name}, step_key={step_key}, agent_type={agent_type}"
             )
-            yield StreamChunk.create_thinking(f"执行{step_name}...")
+            writer(StreamChunk.create_thinking(f"执行{step_name}..."))
 
-            # `step_state` 作为可变容器传入流式执行函数，
-            # 这样既能边产出 chunk，又能在结束时把归一化结果“带出来”。
             step_state: Dict[str, StepResult] = {}
             async for chunk in self._execute_agent_step_stream(
-                agent_input=agent_input,
+                agent_input=state["agent_input"],
                 agent_type=agent_type,
                 step_name=step_name,
                 step_key=step_key,
@@ -340,7 +428,7 @@ class MultiAgentWorkflow:
                 previous_result=previous_result,
                 step_state=step_state,
             ):
-                yield chunk
+                writer(chunk)
 
             step_result = step_state.get(
                 "result",
@@ -353,106 +441,50 @@ class MultiAgentWorkflow:
                 ),
             )
             context[step_key] = step_result
-            execution_state["last_step_key"] = step_key
-            execution_state["last_step_result"] = step_result
+
+            next_state: _WorkflowGraphState = {
+                **state,
+                "context": context,
+                "step_counter": step_counter,
+                "last_step_key": step_key,
+                "last_step_result": step_result,
+                "branch_target": None,
+                "failed": False,
+            }
 
             if not step_result["success"]:
                 reason = step_result["error"] or "未知错误"
-                # `required=False` 的步骤允许失败后继续执行，常用于可选增强步骤；
-                # `required=True` 则视为主链路节点，失败即终止整个工作流。
                 if step_config.get("required", True):
                     self.logger.error(f"必需步骤失败: step_key={step_key}, error={reason}")
-                    execution_state["failed"] = True
                     self._mark_failed()
                     if not step_state.get("error_emitted"):
-                        yield self._create_error_chunk(
-                            f"步骤 {step_name} 失败: {reason}",
-                            error_type="workflow_step_error",
-                            step_key=step_key,
-                            step_name=step_name,
-                            agent_type=agent_type,
+                        writer(
+                            self._create_error_chunk(
+                                f"步骤 {step_name} 失败: {reason}",
+                                error_type="workflow_step_error",
+                                step_key=step_key,
+                                step_name=step_name,
+                                agent_type=agent_type,
+                            )
                         )
-                    return
+                    next_state["failed"] = True
+                    return next_state
 
                 self.logger.warning(f"可选步骤失败，继续执行: step_key={step_key}, error={reason}")
-                yield StreamChunk.create_thinking(
-                    f"步骤 {step_name} 失败，继续执行后续步骤...",
-                    event="optional_step_failed",
-                    step_key=step_key,
-                    step_name=step_name,
-                    error=reason,
-                    agent_type=agent_type,
+                writer(
+                    StreamChunk.create_thinking(
+                        f"步骤 {step_name} 失败，继续执行后续步骤...",
+                        event="optional_step_failed",
+                        step_key=step_key,
+                        step_name=step_name,
+                        error=reason,
+                        agent_type=agent_type,
+                    )
                 )
 
-    async def _execute_agent_step(
-        self,
-        agent_input: AgentInput,
-        agent_type: str,
-        step_config: Dict[str, Any],
-        context: Dict[str, StepResult],
-        step_name: Optional[str] = None,
-        step_key: Optional[str] = None,
-        previous_result: Optional[StepResult] = None,
-    ) -> StepResult:
-        """执行单个Agent步骤，返回统一结构。"""
-        resolved_step_name = step_name or agent_type or "未命名步骤"
-        resolved_step_key = step_key or self._make_step_key(resolved_step_name, len(context) + 1, context)
+            return next_state
 
-        try:
-            agent = self._get_agent_instance(agent_type)
-            if not agent:
-                return self._build_step_result(
-                    success=False,
-                    agent_type=agent_type,
-                    step_name=resolved_step_name,
-                    step_key=resolved_step_key,
-                    error=f"未知的Agent类型: {agent_type}",
-                )
-
-            # 在真正调用 Agent 之前，把当前工作流上下文和上一步结果合并到输入中，
-            # 保证每个 Agent 都能感知自己所处的协作阶段。
-            updated_input = self._update_input_with_context(
-                agent_input=agent_input,
-                context=context,
-                step_config=step_config,
-                previous_result=previous_result,
-            )
-
-            if callable(getattr(agent, "execute", None)):
-                output = await agent.execute(updated_input)
-                return self._result_from_agent_output(
-                    output=output,
-                    agent_type=agent_type,
-                    step_name=resolved_step_name,
-                    step_key=resolved_step_key,
-                )
-
-            if callable(getattr(agent, "execute_stream", None)):
-                return await self._collect_step_result_from_stream(
-                    agent=agent,
-                    agent_input=updated_input,
-                    agent_type=agent_type,
-                    step_name=resolved_step_name,
-                    step_key=resolved_step_key,
-                )
-
-            return self._build_step_result(
-                success=False,
-                agent_type=agent_type,
-                step_name=resolved_step_name,
-                step_key=resolved_step_key,
-                error=f"Agent {agent_type} 未实现 execute/execute_stream 接口",
-            )
-
-        except Exception as error:
-            self.logger.error(f"Agent步骤执行失败: {error}", exc_info=True)
-            return self._build_step_result(
-                success=False,
-                agent_type=agent_type,
-                step_name=resolved_step_name,
-                step_key=resolved_step_key,
-                error=str(error),
-            )
+        return _agent_step_node
 
     async def _execute_agent_step_stream(
         self,
@@ -494,6 +526,7 @@ class MultiAgentWorkflow:
                 context=context,
                 step_config=step_config,
                 previous_result=previous_result,
+                agent_type=agent_type,
             )
             self._advance_state_for_agent(agent_type)
 
@@ -612,16 +645,31 @@ class MultiAgentWorkflow:
                     step_key=step_key,
                 )
                 if step_result["content"]:
-                    yield StreamChunk.create_content(step_result["content"], step_key=step_key, step_name=step_name)
+                    yield self._augment_step_chunk(
+                        StreamChunk.create_content(step_result["content"], step_key=step_key, step_name=step_name),
+                        step_name=step_name,
+                        step_key=step_key,
+                        agent_type=agent_type,
+                    )
                 if step_result["success"]:
-                    yield StreamChunk.create_result(step_result["data"], step_key=step_key, step_name=step_name)
+                    yield self._augment_step_chunk(
+                        StreamChunk.create_result(step_result["data"], step_key=step_key, step_name=step_name),
+                        step_name=step_name,
+                        step_key=step_key,
+                        agent_type=agent_type,
+                    )
                 else:
                     step_state["error_emitted"] = True
-                    yield self._create_error_chunk(
-                        step_result["error"] or f"步骤 {step_name} 执行失败",
-                        error_type="workflow_step_error",
-                        step_key=step_key,
+                    yield self._augment_step_chunk(
+                        self._create_error_chunk(
+                            step_result["error"] or f"步骤 {step_name} 执行失败",
+                            error_type="workflow_step_error",
+                            step_key=step_key,
+                            step_name=step_name,
+                            agent_type=agent_type,
+                        ),
                         step_name=step_name,
+                        step_key=step_key,
                         agent_type=agent_type,
                     )
                 step_state["result"] = step_result
@@ -662,103 +710,9 @@ class MultiAgentWorkflow:
                 agent_type=agent_type,
             )
 
-    async def _collect_step_result_from_stream(
-        self,
-        agent: BaseAgent,
-        agent_input: AgentInput,
-        agent_type: str,
-        step_name: str,
-        step_key: str,
-    ) -> StepResult:
-        """消费 execute_stream，统一归一化结果。"""
-        # 这个方法用于“非流式调用场景下消费流式 Agent”，
-        # 逻辑与 `_execute_agent_step_stream` 类似，但这里不向外 yield chunk，
-        # 而是直接汇总成一个最终 StepResult 返回。
-        content_parts: List[str] = []
-        tool_calls: List[Any] = []
-        metadata_payloads: List[Dict[str, Any]] = []
-        result_payload: Any = None
-        result_metadata: Dict[str, Any] = {}
-        error_message: Optional[str] = None
-        saw_result_chunk = False
-
-        async for chunk in agent.execute_stream(agent_input):
-            if chunk.chunk_type == CHUNK_CONTENT and isinstance(chunk.content, str):
-                content_parts.append(chunk.content)
-            elif chunk.chunk_type == CHUNK_TOOL_CALL:
-                tool_calls.append({
-                    "content": chunk.content,
-                    "metadata": deepcopy(chunk.metadata) if chunk.metadata else {},
-                })
-            elif chunk.chunk_type == CHUNK_METADATA and isinstance(chunk.metadata, dict):
-                metadata_payloads.append(deepcopy(chunk.metadata))
-            elif chunk.chunk_type == CHUNK_RESULT:
-                saw_result_chunk = True
-                result_payload = deepcopy(chunk.content)
-                result_metadata = deepcopy(chunk.metadata) if chunk.metadata else {}
-            elif chunk.chunk_type == CHUNK_ERROR:
-                error_message = str(chunk.content)
-
-        if error_message:
-            return self._build_step_result(
-                success=False,
-                agent_type=agent_type,
-                step_name=step_name,
-                step_key=step_key,
-                content="".join(content_parts),
-                metadata={
-                    "tool_calls": tool_calls,
-                    "stream_metadata": metadata_payloads,
-                    **result_metadata,
-                },
-                data=result_payload if result_payload is not None else {},
-                error=error_message,
-            )
-
-        has_content = bool(content_parts)
-        has_result = saw_result_chunk
-        if not has_content and not has_result:
-            return self._build_step_result(
-                success=False,
-                agent_type=agent_type,
-                step_name=step_name,
-                step_key=step_key,
-                metadata={
-                    "tool_calls": tool_calls,
-                    "stream_metadata": metadata_payloads,
-                },
-                error=f"步骤 {step_name} 未产出有效结果",
-            )
-
-        normalized_content = "".join(content_parts)
-        if not normalized_content:
-            normalized_content = self._extract_content_from_payload(result_payload)
-
-        normalized_metadata: Dict[str, Any] = {
-            "tool_calls": tool_calls,
-            "stream_metadata": metadata_payloads,
-            **result_metadata,
-        }
-        normalized_data, normalized_metadata, execution_id = self._normalize_step_result_payload(
-            agent_type=agent_type,
-            payload=result_payload,
-            metadata=normalized_metadata,
-        )
-
-        return self._build_step_result(
-            success=True,
-            agent_type=agent_type,
-            step_name=step_name,
-            step_key=step_key,
-            content=normalized_content,
-            metadata=normalized_metadata,
-            data=normalized_data,
-            execution_id=execution_id,
-        )
-
     def _get_agent_instance(self, agent_type: str) -> Optional[BaseAgent]:
         """根据 agent_type 获取 Agent 实例。"""
-        agent = get_agent_registry().create(agent_type)
+        agent = _get_agent_registry().create(agent_type)
         if agent:
             return agent
         self.logger.error(f"未知的Agent类型: {agent_type}")
@@ -770,54 +724,79 @@ class MultiAgentWorkflow:
         context: Dict[str, StepResult],
         step_config: Dict[str, Any],
         previous_result: Optional[StepResult] = None,
+        agent_type: str = "generation",
     ) -> AgentInput:
-        """根据上下文更新 AgentInput。"""
-        # 统一深拷贝输入上下文，避免下游 Agent 改写上游上下文对象。
+        """基于当前工作流上下文创建强类型 AgentInput。"""
         metadata = deepcopy(agent_input.metadata) if agent_input.metadata else {}
-        conversation_history = deepcopy(agent_input.conversation_history)
-        workflow_context = deepcopy(context)
-
-        if conversation_history and "conversation_history" not in metadata:
-            metadata["conversation_history"] = deepcopy(conversation_history)
-
-        # 把完整 workflow_context 和当前 step_config 一并注入 metadata，
-        # 这样下游 Agent 可以按需读取工作流上下文，而不必直接依赖执行器内部状态。
-        metadata["workflow_context"] = workflow_context
-        metadata["step_config"] = deepcopy(step_config)
+        metadata.pop("workflow_context", None)
+        metadata.pop("step_config", None)
+        metadata.pop("previous_output", None)
+        conversation_history = deepcopy(agent_input.get_conversation_history())
+        workflow_context = WorkflowContext(
+            step_results=deepcopy(context),
+            step_config=deepcopy(step_config),
+        )
 
         use_previous_output = bool(step_config.get("use_previous_output", False))
+        route_decision = agent_input.get_route_decision()
+        retrieval_results = None
+        tool_result = None
 
         if previous_result and previous_result.get("success") and use_previous_output:
-            # 只有显式开启 `use_previous_output` 时才向下游传递上一步结果，
-            # 避免所有步骤无差别继承上下文，导致提示词和输入变得不可控。
-            metadata["previous_output"] = deepcopy(previous_result)
+            workflow_context.previous_output = deepcopy(previous_result)
 
             previous_data = previous_result.get("data")
-            previous_metadata = previous_result.get("metadata") or {}
+            if isinstance(previous_data, dict) and isinstance(previous_data.get("route_decision"), dict):
+                route_decision = deepcopy(previous_data.get("route_decision"))
+
             if isinstance(previous_data, dict) and previous_data.get("retrieval_results"):
-                metadata["retrieval_results"] = deepcopy(previous_data.get("retrieval_results"))
-            elif previous_metadata.get("retrieval_results"):
-                metadata["retrieval_results"] = deepcopy(previous_metadata.get("retrieval_results"))
+                retrieval_results = deepcopy(previous_data.get("retrieval_results"))
 
             if isinstance(previous_data, dict) and previous_data.get("tool_result"):
-                metadata["tool_result"] = deepcopy(previous_data.get("tool_result"))
-            elif previous_metadata.get("tool_result"):
-                metadata["tool_result"] = deepcopy(previous_metadata.get("tool_result"))
+                tool_result = deepcopy(previous_data)
 
         if use_previous_output:
-            handoffs = self._collect_context_handoffs(workflow_context)
-            if handoffs.get("retrieval_results") and "retrieval_results" not in metadata:
-                metadata["retrieval_results"] = handoffs["retrieval_results"]
-            if handoffs.get("tool_result") and "tool_result" not in metadata:
-                metadata["tool_result"] = handoffs["tool_result"]
+            handoffs = self._collect_context_handoffs(workflow_context.step_results)
+            if route_decision is None and isinstance(handoffs.get("route_decision"), dict):
+                route_decision = deepcopy(handoffs["route_decision"])
+            if retrieval_results is None and handoffs.get("retrieval_results"):
+                retrieval_results = deepcopy(handoffs["retrieval_results"])
+            if tool_result is None and handoffs.get("tool_result"):
+                tool_result = deepcopy(handoffs["tool_result"])
 
-        return AgentInput(
-            user_id=agent_input.user_id,
-            conversation_id=agent_input.conversation_id,
-            message_id=agent_input.message_id,
-            content=agent_input.content,
+        if agent_type == "tool":
+            return ToolAgentInput.from_agent_input(
+                agent_input,
+                conversation_history=conversation_history,
+                route_decision=route_decision,
+                retrieval_results=deepcopy(retrieval_results),
+                tool_results=[deepcopy(tool_result)] if tool_result is not None else None,
+                metadata=metadata,
+                workflow_context=workflow_context,
+                available_tools=agent_input.get_available_tools(),
+                tool_timeout=getattr(agent_input, "tool_timeout", 30),
+            )
+
+        if agent_type == "generation":
+            tool_results = [deepcopy(tool_result)] if tool_result is not None else None
+            return GenerationAgentInput.from_agent_input(
+                agent_input,
+                conversation_history=conversation_history,
+                route_decision=route_decision,
+                metadata=metadata,
+                workflow_context=workflow_context,
+                retrieval_results=deepcopy(retrieval_results),
+                tool_results=tool_results,
+            )
+
+        return AgentInput.from_agent_input(
+            agent_input,
             conversation_history=conversation_history,
+            route_decision=route_decision,
+            retrieval_results=deepcopy(retrieval_results),
+            tool_results=[deepcopy(tool_result)] if tool_result is not None else None,
             metadata=metadata,
+            workflow_context=workflow_context,
         )
 
     def _normalize_step_result_payload(
@@ -826,164 +805,17 @@ class MultiAgentWorkflow:
         payload: Any,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> tuple[Any, Dict[str, Any], Optional[str]]:
-        """统一不同 Agent 的结果载荷结构，确保上下文字段稳定。"""
+        """Normalize agent result payloads without mirroring core handoff data into metadata."""
         normalized_metadata = deepcopy(metadata) if metadata else {}
         normalized_payload = deepcopy(payload) if payload is not None else {}
 
         if isinstance(normalized_payload, dict):
-            # 优先从 metadata 和 payload 中提取 execution_id，
-            # 这样无论不同 Agent 把执行 ID 放在哪一层，都能统一抽出来。
             execution_id = normalized_metadata.get("execution_id") or normalized_payload.get("execution_id")
-
-            # Router 的产物在下游通常约定为 `decision` 字段；
-            # 如果原始输出没有显式包一层，这里自动补齐，统一消费协议。
-            if agent_type == "router" and "decision" not in normalized_payload:
-                normalized_payload = {"decision": normalized_payload}
-
-            # 对 Retrieval / Tool 这类关键结果，除了保留在 data 中，
-            # 还同步镜像到 metadata，方便后续步骤按统一入口读取。
-            if agent_type == "retrieval" and "retrieval_results" in normalized_payload:
-                normalized_metadata.setdefault(
-                    "retrieval_results",
-                    deepcopy(normalized_payload.get("retrieval_results", [])),
-                )
-
-            if agent_type == "tool" and "tool_result" in normalized_payload:
-                normalized_metadata.setdefault(
-                    "tool_result",
-                    deepcopy(normalized_payload.get("tool_result")),
-                )
-
+            if agent_type == "router" and "route_decision" not in normalized_payload:
+                normalized_payload = {"route_decision": normalized_payload}
             return normalized_payload, normalized_metadata, execution_id
 
         return normalized_payload, normalized_metadata, normalized_metadata.get("execution_id")
-
-    async def execute_sequential(
-        self,
-        agent_input: AgentInput,
-        agent_sequence: List[str]
-    ) -> AsyncGenerator[StreamChunk, None]:
-        """按顺序执行多个Agent，使用统一结果结构。"""
-        self.current_state = WorkflowState.INIT
-        self._transition_or_set(WorkflowAction.START, WorkflowState.ROUTING)
-
-        # 顺序执行模式下，`previous_result` 会沿链路向后传递，
-        # 用于典型的“检索 -> 生成”或“初稿 -> 优化”串联场景。
-        context: Dict[str, StepResult] = {}
-        previous_result: Optional[StepResult] = None
-
-        self.logger.info(f"开始顺序执行{len(agent_sequence)}个Agent")
-        yield StreamChunk.create_thinking(f"开始顺序执行{len(agent_sequence)}个Agent...")
-
-        for index, agent_type in enumerate(agent_sequence, start=1):
-            step_name = f"{agent_type}_{index}"
-            step_key = self._make_step_key(step_name, index, context)
-            result = await self._execute_agent_step(
-                agent_input=agent_input,
-                agent_type=agent_type,
-                step_config={"use_previous_output": True},
-                context=context,
-                step_name=step_name,
-                step_key=step_key,
-                previous_result=previous_result,
-            )
-            context[step_key] = result
-            previous_result = result
-
-            if not result["success"]:
-                self._mark_failed()
-                yield StreamChunk.create_error(
-                    f"Agent {agent_type} 执行失败: {result['error'] or '未知错误'}"
-                )
-                return
-
-        self._mark_completed()
-        yield StreamChunk.create_result(
-            self._build_workflow_summary_result(
-                status="completed",
-                final_step_key=previous_result["step_key"] if previous_result else None,
-                final_step_result=previous_result,
-                step_count=len(context),
-            ),
-            result_scope="workflow",
-        )
-
-    async def execute_parallel(
-        self,
-        agent_input: AgentInput,
-        agent_list: List[str]
-    ) -> AsyncGenerator[StreamChunk, None]:
-        """并行执行多个Agent，返回统一结果结构。"""
-        self.current_state = WorkflowState.INIT
-        self._transition_or_set(WorkflowAction.START, WorkflowState.ROUTING)
-
-        self.logger.info(f"开始并行执行{len(agent_list)}个Agent")
-        yield StreamChunk.create_thinking(f"开始并行执行{len(agent_list)}个Agent...")
-
-        # 并行模式不共享 `previous_result`，而是把每个任务看作独立步骤同时执行。
-        task_specs = []
-        context: Dict[str, StepResult] = {}
-        for index, agent_type in enumerate(agent_list, start=1):
-            step_name = f"{agent_type}_{index}"
-            step_key = self._make_step_key(step_name, index, context)
-            task_specs.append((
-                step_key,
-                agent_type,
-                # 这里显式创建 Task，再统一 gather，
-                # 这样所有并行步骤都会被调度，即使个别步骤失败也不会阻断其它任务启动。
-                asyncio.create_task(
-                    self._execute_agent_step(
-                        agent_input=agent_input,
-                        agent_type=agent_type,
-                        step_config={},
-                        context={},
-                        step_name=step_name,
-                        step_key=step_key,
-                        previous_result=None,
-                    )
-                ),
-            ))
-
-        # `return_exceptions=True` 很关键：它保证 gather 在某个任务异常时仍然收集其它任务结果，
-        # 从而让工作流能够输出“部分成功/部分失败”的完整上下文。
-        results = await asyncio.gather(*(task for _, _, task in task_specs), return_exceptions=True)
-
-        has_failure = False
-        last_result: Optional[StepResult] = None
-        for (step_key, agent_type, _), result in zip(task_specs, results):
-            if isinstance(result, Exception):
-                has_failure = True
-                self.logger.error(
-                    f"并行步骤执行异常: agent_type={agent_type}, error={result}",
-                    exc_info=(type(result), result, result.__traceback__),
-                )
-                context[step_key] = self._build_step_result(
-                    success=False,
-                    agent_type=agent_type,
-                    step_name=step_key,
-                    step_key=step_key,
-                    error=str(result),
-                )
-            else:
-                context[step_key] = result
-                last_result = result
-                if not result["success"]:
-                    has_failure = True
-
-        if has_failure:
-            self._mark_failed()
-        else:
-            self._mark_completed()
-
-        yield StreamChunk.create_result(
-            self._build_workflow_summary_result(
-                status="completed" if not has_failure else "partial",
-                final_step_key=last_result["step_key"] if last_result else None,
-                final_step_result=last_result,
-                step_count=len(context),
-            ),
-            result_scope="workflow",
-        )
 
     def transition_state(self, action: WorkflowAction) -> bool:
         """按状态图推进当前状态。"""
@@ -1071,7 +903,7 @@ class MultiAgentWorkflow:
     ) -> StepResult:
         """将 AgentOutput 归一化为统一步骤结果。"""
         metadata = deepcopy(output.metadata) if output.metadata else {}
-        raw_data: Any = metadata if metadata else output.content
+        raw_data: Any = output.to_payload()
         data, metadata, execution_id = self._normalize_step_result_payload(
             agent_type=agent_type,
             payload=raw_data,
@@ -1159,7 +991,7 @@ class MultiAgentWorkflow:
                 return False
             if not step.get("agent_type"):
                 return False
-            if step.get("agent_type") not in set(get_agent_registry().registered_types()):
+            if step.get("agent_type") not in set(_get_agent_registry().registered_types()):
                 return False
             if "config" in step and not isinstance(step.get("config"), dict):
                 return False
@@ -1328,7 +1160,7 @@ WORKFLOW_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "description": "先从知识库检索信息，再根据结果调用工具，最后生成回答。",
         "steps": [
             {"name": "检索知识", "type": STEP_TYPE_AGENT, "agent_type": "retrieval", "config": {}},
-            {"name": "调用工具", "type": STEP_TYPE_AGENT, "agent_type": "tool", "config": {}},
+            {"name": "调用工具", "type": STEP_TYPE_AGENT, "agent_type": "tool", "config": {"use_previous_output": True}},
             {"name": "生成回答", "type": STEP_TYPE_AGENT, "agent_type": "generation", "config": {"use_previous_output": True}},
         ],
     },
@@ -1337,7 +1169,7 @@ WORKFLOW_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "description": "先调用工具获取外部数据，再补充知识库检索，最后生成回答。",
         "steps": [
             {"name": "调用工具", "type": STEP_TYPE_AGENT, "agent_type": "tool", "config": {}},
-            {"name": "检索知识", "type": STEP_TYPE_AGENT, "agent_type": "retrieval", "config": {}},
+            {"name": "检索知识", "type": STEP_TYPE_AGENT, "agent_type": "retrieval", "config": {"use_previous_output": True}},
             {"name": "生成回答", "type": STEP_TYPE_AGENT, "agent_type": "generation", "config": {"use_previous_output": True}},
         ],
     },
@@ -1356,7 +1188,7 @@ WORKFLOW_TEMPLATES: Dict[str, Dict[str, Any]] = {
             {"name": "路由分析", "type": STEP_TYPE_AGENT, "agent_type": "router", "config": {}},
             {
                 "type": STEP_TYPE_CONDITION,
-                "condition": "last_step.data and last_step.data.get('decision', {}).get('action') == 'retrieval'",
+                "condition": "last_step.data and last_step.data.get('route_decision', {}).get('action') == 'retrieval'",
                 "true_branch": [
                     {"name": "检索知识", "type": STEP_TYPE_AGENT, "agent_type": "retrieval", "config": {}},
                     {"name": "生成回答", "type": STEP_TYPE_AGENT, "agent_type": "generation", "config": {"use_previous_output": True}},

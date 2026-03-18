@@ -223,6 +223,30 @@ class VectorDBClient:
             self.logger.error("Failed to delete documents: collection=%s, error=%s", self.collection_name, error)
             return False
 
+    def get_documents(
+        self,
+        ids: Optional[List[str]] = None,
+        where: Optional[Dict[str, Any]] = None,
+        include: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        try:
+            self.last_error = None
+            normalized_where = self.normalize_where_filter(where)
+            results = self.collection.get(ids=ids, where=normalized_where, include=include)
+            result_count = len(results.get("ids", [])) if isinstance(results, dict) and results.get("ids") else 0
+            self.logger.info(
+                "Fetched vector documents: collection=%s, ids=%s, returned=%s, where=%s",
+                self.collection_name,
+                len(ids or []),
+                result_count,
+                normalized_where,
+            )
+            return results
+        except Exception as error:
+            self.last_error = str(error)
+            self.logger.error("Failed to fetch documents: collection=%s, error=%s", self.collection_name, error)
+            return {"ids": [], "documents": [], "metadatas": []}
+
     def get_collection_count(self) -> int:
         try:
             return self.collection.count()

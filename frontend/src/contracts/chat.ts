@@ -4,6 +4,8 @@ export type MessageContract = components['schemas']['ConversationMessageItem'];
 export type AskRequestContract = components['schemas']['AskRequest'];
 export type AskResponseContract = components['schemas']['AskResponse'];
 export type SSEEventContract = components['schemas']['SSEEvent'];
+export type ChatResultPayloadContract = components['schemas']['ChatResultPayload'];
+export type ChatDonePayloadContract = components['schemas']['ChatDonePayload'];
 export type PauseRequestContract = components['schemas']['PauseRequest'];
 export type PauseStreamResponseContract = components['schemas']['PauseStreamResponse'];
 

@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 from uuid import uuid4
 
 from backend.infrastructure.persistence import UserRepositoryAdapter
 from backend.infrastructure.security import JWTTokenGateway, PasswordHashGateway, get_token_revocation_store
 from backend.models.user import User, UserCreate, UserLogin
+from backend.utils.time_utils import utc_now
 
 
 class AuthApplicationService:
@@ -35,7 +35,7 @@ class AuthApplicationService:
             raise ValueError(f"邮箱 '{normalized_email}' 已存在")
 
         password_hash = await asyncio.to_thread(self.password_gateway.hash_password, user_create.password)
-        now = datetime.utcnow()
+        now = utc_now()
         user = User(
             username=normalized_username,
             email=normalized_email,
@@ -75,6 +75,30 @@ class AuthApplicationService:
 
     async def get_profile(self, *, user_id: str):
         return await asyncio.to_thread(self.user_repo.get_user_by_id, user_id)
+
+    async def validate_access_token(self, *, access_token: str) -> dict:
+        is_valid, payload, error = self.token_gateway.verify_token(access_token)
+        if not is_valid or not payload:
+            normalized_error = str(error or "").lower()
+            if "expired" in normalized_error or "过期" in normalized_error:
+                raise ValueError("token expired")
+            raise ValueError("invalid token")
+
+        if payload.get("type") != "access":
+            raise ValueError("invalid token")
+
+        if self.token_revocation_store.is_session_revoked(payload.get("sid")):
+            raise ValueError("invalid token")
+
+        return payload
+
+    async def get_active_user(self, *, user_id: str):
+        user = await asyncio.to_thread(self.user_repo.get_user_by_id, user_id)
+        if not user:
+            raise LookupError("user not found")
+        if not user.is_active:
+            raise PermissionError("user inactive")
+        return user
 
     async def refresh(self, *, refresh_token: str):
         is_valid, payload, error = self.token_gateway.verify_token(refresh_token)
@@ -144,5 +168,5 @@ class AuthApplicationService:
         if expiration is None:
             return self._get_session_ttl_seconds()
 
-        remaining_seconds = int((expiration - datetime.utcnow()).total_seconds())
+        remaining_seconds = int((expiration - utc_now()).total_seconds())
         return max(remaining_seconds, 1)

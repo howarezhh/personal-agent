@@ -1,34 +1,63 @@
+# -*- coding: utf-8 -*-
+
 import time
 import json
+"""
+路由 Agent 模块，负责组织模型消息并产出路由决策结果。
+"""
+
 from typing import AsyncGenerator
+
+from pydantic import BaseModel
+
+from pydantic import BaseModel
+
 from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_input import AgentInput
 from backend.agents.base.agent_output import AgentOutput
 from backend.agents.base.stream_chunk import StreamChunk
-from backend.utils.llm_client import get_llm_client
+from backend.core.llm_manager import get_langchain_model_manager
 from backend.database.repositories.agent_execution_repository import get_agent_execution_repository
 from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionUpdate
 from backend.agents.router.decision_maker import DecisionMaker
 
 
+class RouterDecisionStructuredResult(BaseModel):
+    """Router decision agent."""
+
+    action: str
+    confidence: float = 0.0
+    reasoning: str = ""
+    should_use_tools: bool = False
+    should_retrieve: bool = False
+    response_style: str | None = None
+
+
 class RouterAgent(BaseAgent):
+    """路由 Agent，负责协调 LLM 判断与规则决策并输出最终路由结果。"""
     def __init__(self):
+        """初始化路由 Agent 所需的依赖、决策器和配置。"""
         super().__init__(
             agent_name="router_agent",
             agent_type="router"
         )
 
-        # 获取LLM客户端
-        self.llm_client = get_llm_client()
+        # 获取统一模型管理器。
+        # model_manager: 用于保存模型调用相关的类内状态。
+        self.model_manager = get_langchain_model_manager()
 
         # 获取执行记录仓储
+        # execution_repo: 用于保存“executionrepo”相关的类内状态。
         self.execution_repo = get_agent_execution_repository()
 
         # 初始化决策制定器（增强版，支持工具感知和LLM协作）
+        # decision_maker: 用于保存“决策maker”相关的类内状态。
         self.decision_maker = DecisionMaker()
 
         # 获取配置
+        # confidence_threshold: 用于保存“confidencethreshold”相关的类内状态。
         self.confidence_threshold = self._get_config_value("confidence_threshold", 0.7)
+        # decision_types: 用于保存“决策types”相关的类内状态。
         self.decision_types = self._get_config_value("decision_types", [
             "direct_answer", "retrieval", "tool_call", "multi_agent"
         ])
@@ -36,6 +65,7 @@ class RouterAgent(BaseAgent):
         self.logger.info("Router agent initialized")
 
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
+        """执行非流式路由流程并返回标准输出。"""
         start_time = time.time()
 
         try:
@@ -57,7 +87,7 @@ class RouterAgent(BaseAgent):
             self.logger.debug(f"[ROUTER] 执行记录创建成功: execution_id={execution.execution_id}")
 
             # 获取对话历史
-            conversation_history = agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
+            conversation_history = agent_input.get_conversation_history()
             self.logger.debug(f"[ROUTER] 历史消息数量: {len(conversation_history)}")
 
             # 构建消息
@@ -74,19 +104,18 @@ class RouterAgent(BaseAgent):
             max_tokens = self._get_config_value("max_tokens", 500)
             self.logger.debug(f"[ROUTER] LLM参数: temperature={temperature}, max_tokens={max_tokens}")
 
-            response = await self.llm_client.chat_completion(
+            decision_model = await self.model_manager.with_structured_output(
+                RouterDecisionStructuredResult
+            ).invoke_messages(
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens
             )
-            self.logger.info(f"[ROUTER] LLM响应长度: {len(response)}字符")
-            self.logger.debug(f"[ROUTER] LLM响应内容: {response[:200]}...")
-
-            # 解析LLM的路由决策
-            self.logger.debug("[ROUTER] 解析LLM路由决策")
-            llm_decision = self._parse_decision(response)
-            self.logger.info(f"[ROUTER] LLM决策: action={llm_decision.get('action')}, confidence={llm_decision.get('confidence')}")
-            self.logger.debug(f"[ROUTER] LLM决策详情: {llm_decision}")
+            llm_decision = decision_model.model_dump()
+            self.logger.info(f"[ROUTER] LLM decision result: action={llm_decision.get('action')}, confidence={llm_decision.get('confidence')}")
+            self.logger.debug(f"[ROUTER] LLM decision details: {llm_decision}")
+            # Record the full LLM decision payload for debugging.
+            self.logger.debug("[ROUTER] Recorded LLM decision details")
 
             # 使用DecisionMaker进行增强分析（结合LLM决策）
             self.logger.debug("[ROUTER] 使用DecisionMaker进行增强分析")
@@ -101,7 +130,7 @@ class RouterAgent(BaseAgent):
             # 使用增强决策作为最终决策
             decision = enhanced_decision
 
-            knowledge_enabled = bool(agent_input.metadata and agent_input.metadata.get("enable_knowledge_base"))
+            knowledge_enabled = agent_input.is_knowledge_enabled(default=False)
             self.logger.info(f"[ROUTER] 知识库增强开关: {knowledge_enabled}")
             # 验证决策
             if not self.decision_maker.validate_decision(decision):
@@ -132,7 +161,10 @@ class RouterAgent(BaseAgent):
                 status="success",
                 execution_time_ms=execution_time_ms,
                 execution_id=execution.execution_id,
-                decision=decision
+                route_decision=decision,
+                confidence=decision.get("confidence"),
+                reasoning=decision.get("reason"),
+                suggested_tools=decision.get("suggested_tools"),
             )
 
             self.logger.info("[ROUTER] ========== 路由分析完成 ==========")
@@ -176,6 +208,7 @@ class RouterAgent(BaseAgent):
             )
 
     async def execute_stream(self, agent_input: AgentInput) -> AsyncGenerator[StreamChunk, None]:
+        """执行流式路由流程并逐步输出路由分析结果。"""
         try:
             # 发送思考状态
             yield StreamChunk.create_thinking("正在分析问题类型...")
@@ -185,8 +218,7 @@ class RouterAgent(BaseAgent):
 
             # 发送结果
             if output.is_success():
-                decision = output.metadata.get("decision", {})
-                yield StreamChunk.create_result(decision)
+                yield StreamChunk.create_result(output.to_payload())
             else:
                 yield StreamChunk.create_error(output.error_message or "路由分析失败")
 
@@ -195,6 +227,7 @@ class RouterAgent(BaseAgent):
             yield StreamChunk.create_error(str(e))
 
     def _parse_decision(self, response: str) -> dict:
+        """解析模型返回内容并提取结构化路由决策。"""
         try:
             # 尝试解析JSON
             # 查找JSON代码块
@@ -247,6 +280,7 @@ class RouterAgent(BaseAgent):
             }
 
     def _build_messages(self, user_content: str, conversation_history: list) -> list:
+        """构造发送给路由模型的消息列表。"""
         messages = []
 
         # 添加系统提示词
@@ -342,6 +376,7 @@ class RouterAgent(BaseAgent):
         return messages
 
     def _format_conversation_history(self, conversation_history: list) -> str:
+        """把历史会话格式化为适合拼入 Prompt 的文本。"""
         if not conversation_history:
             no_history = self._get_prompt("no_history_placeholder")
             return no_history if no_history else "（这是新对话的第一条消息）"
@@ -367,6 +402,8 @@ class RouterAgent(BaseAgent):
         return "\n".join(formatted_lines)
 
     def get_decision_type(self, agent_output: AgentOutput) -> str:
-        if agent_output.metadata and "decision" in agent_output.metadata:
-            return agent_output.metadata["decision"].get("action", "direct_answer")
+        """从 Agent 输出中提取决策动作类型。"""
+        route_decision = agent_output.get_route_decision()
+        if route_decision:
+            return route_decision.get("action", "direct_answer")
         return "direct_answer"

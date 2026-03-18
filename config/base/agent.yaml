@@ -122,9 +122,10 @@ file_processor_agent:
   chunk_size: 1000
   chunk_overlap: 100
 
-# 瀵硅瘽鍘嗗彶閰嶇疆
-conversation_history:
-  max_history_length: 10  # 鏈€澶氫繚鐣欑殑鍘嗗彶娑堟伅鏁?
-  include_agent_executions: true  # 鏄惁鍖呭惈鏅鸿兘浣撴墽琛岃褰?
-  format: "messages"  # messages/text
+# ??????
+agent:
+  conversation_history:
+    max_history_length: 10  # ??????????
+    include_agent_executions: true  # ???????????
+    format: "messages"  # messages/text
 

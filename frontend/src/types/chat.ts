@@ -7,4 +7,5 @@ export type {
   SSEEvent,
   StreamEventMetadata,
   ThinkingStep,
+  WorkflowTrace,
 } from '@/adapters/chatAdapter';

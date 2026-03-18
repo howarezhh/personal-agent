@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Layout, Select, Space, Typography } from 'antd';
+import { Alert, Layout, Select, Space, Typography } from 'antd';
 
 import { useChat } from '@/hooks/useChat';
 import { knowledgeService } from '@/services/knowledgeService';
 import type { KnowledgeBase } from '@/types';
 
 import { CitationList } from './CitationList';
+import { ExecutionTimelinePanel } from './ExecutionTimelinePanel';
 import { InputBox } from './InputBox';
 import { MessageList } from './MessageList';
-import { ThinkingSteps } from './ThinkingSteps';
 
 import './ChatInterface.css';
 
@@ -20,9 +20,12 @@ export const ChatInterface = () => {
     messages,
     currentConversationId,
     isStreaming,
+    streamStatus,
     streamingContent,
     thinkingSteps,
+    workflowTrace,
     citations,
+    error,
     selectedKnowledgeBaseId,
     sendMessage,
     stopStreaming,
@@ -60,8 +63,9 @@ export const ChatInterface = () => {
   return (
     <Layout className="chat-interface">
       <Content className="chat-messages" ref={contentRef}>
+        {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} /> : null}
         <MessageList messages={messages} streamingContent={streamingContent} />
-        {thinkingSteps.length > 0 && <ThinkingSteps steps={thinkingSteps} isStreaming={isStreaming} />}
+        <ExecutionTimelinePanel steps={thinkingSteps} trace={workflowTrace} status={streamStatus} isStreaming={isStreaming} />
         {citations.length > 0 && <CitationList citations={citations} />}
       </Content>
       <Footer className="chat-footer">

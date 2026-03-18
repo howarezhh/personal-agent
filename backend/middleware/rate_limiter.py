@@ -1,7 +1,7 @@
 
 import time
 from typing import Optional, Callable, TYPE_CHECKING
-from fastapi import Request, HTTPException, status
+from fastapi import Request
 from fastapi.responses import JSONResponse
 
 # 将redis导入改为可选的
@@ -270,18 +270,16 @@ def rate_limit(limit: int = 100, window: int = 60):
             )
 
             if not allowed:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "message": "请求过于频繁，请稍后再试",
-                        "retry_after": reset_time - int(time.time())
-                    },
+                raise too_many_requests(
+                    "Too many requests, please try again later",
+                    error_code=ErrorCode.RATE_LIMIT_EXCEEDED,
+                    error="RateLimitExceeded",
                     headers={
                         "X-RateLimit-Limit": str(limit),
                         "X-RateLimit-Remaining": str(remaining),
                         "X-RateLimit-Reset": str(reset_time),
                         "Retry-After": str(reset_time - int(time.time()))
-                    }
+                    },
                 )
 
             # 执行原函数

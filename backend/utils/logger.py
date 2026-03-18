@@ -16,7 +16,29 @@ from datetime import datetime, timezone
 _STANDARD_LOG_RECORD_FIELDS = set(logging.makeLogRecord({}).__dict__.keys())
 
 
+def _ensure_windows_utf8_code_page() -> None:
+    if os.name != "nt":
+        return
+
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+    except Exception:
+        return
+
+    for setter_name in ("SetConsoleOutputCP", "SetConsoleCP"):
+        setter = getattr(kernel32, setter_name, None)
+        if callable(setter):
+            try:
+                setter(65001)
+            except Exception:
+                pass
+
+
 def _ensure_utf8_stdio() -> None:
+    _ensure_windows_utf8_code_page()
+
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
         if stream is None:
@@ -28,6 +50,20 @@ def _ensure_utf8_stdio() -> None:
                 reconfigure(encoding="utf-8", errors="replace")
             except Exception:
                 pass
+
+
+def _resolve_log_directory(log_dir: str | Path | None) -> Path:
+    from backend.utils.path_utils import find_project_root
+
+    project_root = find_project_root(Path(__file__).parent)
+    if log_dir is None:
+        return project_root / ".runtime" / "logs"
+
+    candidate = Path(log_dir).expanduser()
+    if not candidate.is_absolute():
+        candidate = project_root / candidate
+
+    return candidate.resolve()
 
 
 class StructuredFormatter(logging.Formatter):
@@ -104,7 +140,9 @@ class LoggerManager:
         初始化日志管理器
 
         Args:
-            log_dir: 日志文件目录，默认为项目根目录下的logs文件夹
+            log_dir: log directory, defaulting to `.runtime/logs` when omitted
+¥æ¶é»è®¤åå
+¥ `.runtime/logs`
             log_level: 日志级别（DEBUG/INFO/WARNING/ERROR/CRITICAL）
             enable_console: 是否输出到控制台
             enable_file: 是否输出到文件
@@ -116,13 +154,7 @@ class LoggerManager:
         """
         _ensure_utf8_stdio()
 
-        if log_dir is None:
-            # 动态查找项目根目录
-            from backend.utils.path_utils import find_project_root
-            project_root = find_project_root(Path(__file__).parent)
-            log_dir = project_root / "logs"
-
-        self.log_dir = Path(log_dir)
+        self.log_dir = _resolve_log_directory(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)

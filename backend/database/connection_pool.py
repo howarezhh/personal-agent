@@ -4,8 +4,6 @@
 """
 
 # 确保环境变量已加载
-from backend.core.env_loader import load_environment
-load_environment()
 
 import pymysql
 from pymysql.cursors import DictCursor

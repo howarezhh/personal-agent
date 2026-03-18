@@ -5,6 +5,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .alogs/
+.runtime/
 .adataauploads/
 logs/
 *.log
@@ -29,5 +30,7 @@ scripts/**/*.pyc
 /backend/tests
 backend/tests/test_workflow_logic.py
 backend/tests/test_workflow_logic.py
+/backend/tests
+/backend/tests
 /backend/tests
 /backend/tests

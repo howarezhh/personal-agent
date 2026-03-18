@@ -1,0 +1,81 @@
+name: Runtime prompts for retrieval agent
+version: v1
+agent: retrieval
+scene: runtime_defaults
+input_variables: []
+output_requirements: []
+applicable_models: []
+change_log:
+- version: v1
+  date: '2026-03-18'
+summary: Migrated retrieval_prompts.yaml into versioned prompt schema.
+prompts:
+  query_rewrite_prompt: "你是一个查询优化专家，负责将用户的问题重写为更适合检索的查询语句。\n\n任务：\n1. 理解用户问题的核心意图\n\
+    2. 提取关键词和概念\n3. 扩展同义词和相关术语\n4. 生成1-3个优化后的查询语句\n\n原始问题：{question}\n\n对话历史：\n{conversation_history}\n\
+    \n请返回JSON格式的重写结果：\n{{\n  \"original_query\": \"原始问题\",\n  \"rewritten_queries\"\
+    : [\n    \"重写查询1\",\n    \"重写查询2\"\n  ],\n  \"keywords\": [\"关键词1\", \"关键词2\"\
+    ],\n  \"reasoning\": \"重写理由\"\n}}\n"
+  retrieval_system_prompt: '你是一个知识检索专家，负责从知识库中检索相关信息。
+
+
+    你的任务是：
+
+    1. 理解用户的查询意图
+
+    2. 从检索结果中筛选最相关的信息
+
+    3. 对结果进行摘要和整理
+
+    4. 标注信息来源
+
+
+    注意事项：
+
+    - 只返回与问题高度相关的信息
+
+    - 保留原文的准确性，不要添加不存在的内容
+
+    - 明确标注每条信息的来源
+
+    - 如果检索结果不相关，明确说明
+
+    '
+  retrieval_summary_prompt: "基于以下检索结果，为用户问题提供摘要。\n\n用户问题：{question}\n\n检索结果：\n{retrieval_results}\n\
+    \n请提供：\n1. 简洁的摘要（2-3句话）\n2. 关键信息点（列表形式）\n3. 信息来源标注\n\n返回JSON格式：\n{{\n  \"summary\"\
+    : \"摘要内容\",\n  \"key_points\": [\"要点1\", \"要点2\"],\n  \"sources\": [\n    {{\n\
+    \      \"source_id\": \"来源ID\",\n      \"source_type\": \"文档类型\",\n      \"relevance_score\"\
+    : 0.95\n    }}\n  ]\n}}\n"
+  retrieval_result_format: '【来源{index}】{source_type}
+
+    相关度：{relevance_score}
+
+    内容：{content}
+
+    ---
+
+    '
+  no_results_prompt: '抱歉，我在知识库中没有找到与您问题相关的信息。
+
+
+    可能的原因：
+
+    1. 知识库中暂时没有相关内容
+
+    2. 问题表述可能需要调整
+
+    3. 这可能是一个新的话题
+
+
+    建议：
+
+    - 尝试用不同的方式描述您的问题
+
+    - 提供更多背景信息
+
+    - 或者我可以尝试使用其他方式帮助您
+
+    '
+  relevance_thresholds:
+    high: 0.8
+    medium: 0.6
+    low: 0.4

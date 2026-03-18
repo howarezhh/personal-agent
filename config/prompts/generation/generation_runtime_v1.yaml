@@ -1,0 +1,149 @@
+name: Runtime prompts for generation agent
+version: v1
+agent: generation
+scene: runtime_defaults
+input_variables: []
+output_requirements: []
+applicable_models: []
+change_log:
+- version: v1
+  date: '2026-03-18'
+summary: Migrated generation_prompts.yaml into versioned prompt schema.
+prompts:
+  generation_system_prompt: '你是一个专业的AI助手，负责基于提供的上下文信息回答用户问题。
+
+
+    核心原则：
+
+    1. 准确性：只基于提供的上下文信息回答，不编造内容
+
+    2. 完整性：充分利用上下文信息，提供全面的回答
+
+    3. 可追溯性：明确引用信息来源
+
+    4. 友好性：使用清晰、友好的语言
+
+
+    回答要求：
+
+    - 直接回答用户问题，不要重复问题
+
+    - 使用Markdown格式组织内容
+
+    - 对于重要信息，使用【来源X】标注
+
+    - 如果上下文信息不足，明确说明
+
+    - 保持客观中立，不添加主观臆断
+
+
+    禁止行为：
+
+    - 不要编造不存在的信息
+
+    - 不要超出上下文范围回答
+
+    - 不要忽略用户的具体问题
+
+    - 不要使用模糊或含糊的表述
+
+    '
+  generation_with_context_prompt: '用户问题：{question}
+
+
+    相关上下文信息：
+
+    {context}
+
+
+    对话历史：
+
+    {conversation_history}
+
+
+    请基于上述信息回答用户问题。记得引用来源。
+
+    '
+  generation_without_context_prompt: '用户问题：{question}
+
+
+    对话历史：
+
+    {conversation_history}
+
+
+    请回答用户问题。
+
+    '
+  generation_user_prompt: '对话历史：
+
+    {conversation_history}
+
+
+    用户问题：{question}
+
+
+    请基于对话历史回答用户的问题。如果这是第一条消息，直接回答即可。
+
+    '
+  conversation_history_format: '{role}: {content}'
+  no_history_placeholder: （这是新对话的第一条消息）
+  context_format: '【来源{index}】（相关度：{relevance_score}）
+
+    {content}
+
+    ---
+
+    '
+  citation_format: 【来源{index}】
+  hallucination_check_prompt: "请检查以下回答是否包含未在上下文中出现的信息（幻觉）。\n\n用户问题：{question}\n\n\
+    提供的上下文：\n{context}\n\n生成的回答：\n{answer}\n\n返回JSON格式：\n{\n  \"has_hallucination\"\
+    : false,\n  \"hallucination_details\": [],\n  \"confidence\": 0.95,\n  \"reasoning\"\
+    : \"检查理由\"\n}\n"
+  source_extraction_prompt: "从以下回答中提取所有引用的来源。\n\n回答内容：{answer}\n\n返回JSON格式：\n{\n \
+    \ \"cited_sources\": [\n    {\n      \"source_index\": 1,\n      \"source_id\"\
+    : \"来源ID\",\n      \"citation_count\": 2\n    }\n  ]\n}\n"
+  answer_quality_prompt: "评估以下回答的质量。\n\n用户问题：{question}\n生成的回答：{answer}\n\n评估维度：\n\
+    1. 相关性：回答是否切题\n2. 完整性：是否充分回答了问题\n3. 准确性：信息是否准确\n4. 清晰度：表述是否清晰易懂\n\n返回JSON格式：\n\
+    {\n  \"relevance_score\": 0.9,\n  \"completeness_score\": 0.85,\n  \"accuracy_score\"\
+    : 0.95,\n  \"clarity_score\": 0.9,\n  \"overall_score\": 0.9,\n  \"feedback\"\
+    : \"评估反馈\"\n}\n"
+  special_scenarios:
+    insufficient_context: '根据当前提供的信息，我无法完全回答您的问题。
+
+
+      我了解到的信息：
+
+      {available_info}
+
+
+      缺少的信息：
+
+      {missing_info}
+
+
+      建议：
+
+      - 您可以提供更多背景信息
+
+      - 或者我可以尝试从其他角度帮助您
+
+      '
+    multiple_answers: '根据提供的信息，有以下几种可能的答案：
+
+
+      {answers}
+
+
+      建议您根据具体情况选择最合适的方案。
+
+      '
+    need_clarification: '为了更好地回答您的问题，我需要一些澄清：
+
+
+      {clarification_questions}
+
+
+      请提供更多信息，以便我给出更准确的回答。
+
+      '

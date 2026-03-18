@@ -134,21 +134,24 @@ class TranslationTool(BaseTool):
             raise ToolExecutionError(f"翻译失败: {str(e)}") from e
 
     async def _translate_with_llm(self, text: str, source_lang: str, target_lang: str) -> str:
-        from backend.core.llm_manager import get_llm_manager
+        from backend.core.llm_manager import get_langchain_model_manager
 
-        llm_manager = get_llm_manager()
+        llm_manager = get_langchain_model_manager()
 
         source_name = self.SUPPORTED_LANGUAGES.get(source_lang, source_lang)
         target_name = self.SUPPORTED_LANGUAGES.get(target_lang, target_lang)
         prompt_key = "tool.translation_auto_prompt" if source_lang == "auto" else "tool.translation_prompt"
-        prompt = self.prompt_manager.format_prompt(
-            prompt_key,
-            text=text,
-            source_name=source_name,
-            target_name=target_name,
-        )
+        prompt_template = self.prompt_manager.get_prompt_template(prompt_key)
 
-        response = await llm_manager.generate(prompt, temperature=0.3)
+        response = await llm_manager.invoke_prompt_template(
+            prompt_template,
+            {
+                "text": text,
+                "source_name": source_name,
+                "target_name": target_name,
+            },
+            temperature=0.3,
+        )
         return response.strip()
 
     async def _detect_language(self, text: str) -> str:

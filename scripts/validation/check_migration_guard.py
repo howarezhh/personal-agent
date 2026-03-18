@@ -1,4 +1,4 @@
-"""Guard schema/model changes with SQL migrations."""
+﻿"""Guard model/repository changes with SQL migrations."""
 
 from __future__ import annotations
 
@@ -26,13 +26,14 @@ def main() -> int:
     schema_related = [
         path for path in changed
         if path.startswith("backend/models/")
-        or path.startswith("backend/database/schemas/")
         or path.startswith("backend/database/repositories/")
+        or path.startswith("backend/database/database_manager.py")
+        or path.startswith("backend/database/connection_pool.py")
     ]
     migrations = [path for path in changed if path.startswith("backend/database/migrations/") and path.endswith(".sql")]
 
     if schema_related and not migrations:
-        print("Schema/model changes detected without SQL migration file:")
+        print("Database-related changes detected without SQL migration file:")
         for path in schema_related:
             print(f" - {path}")
         print("Add a file under backend/database/migrations/*.sql")

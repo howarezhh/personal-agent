@@ -3,7 +3,7 @@ import secrets
 import hmac
 import hashlib
 from typing import Optional, Callable
-from fastapi import Request, HTTPException, status
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from backend.utils.logger import get_logger
 from backend.core.config_manager import get_config_manager
@@ -175,13 +175,7 @@ def require_csrf(func):
 
         # 验证Token
         if not token or not csrf_protection.validate_token(token, session_id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "message": "CSRF验证失败",
-                    "error": "CSRFValidationFailed"
-                }
-            )
+            raise forbidden("CSRF validation failed", error_code=ErrorCode.CSRF_VALIDATION_FAILED, error="CSRFValidationFailed")
 
         # 执行原函数
         return await func(request, *args, **kwargs)
