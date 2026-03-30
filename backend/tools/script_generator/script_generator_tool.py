@@ -1,4 +1,4 @@
-
+﻿
 from typing import AsyncGenerator, Dict, Any, Optional
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
 from backend.core.config_manager import get_config_manager
@@ -6,11 +6,33 @@ from backend.core.prompt_manager import get_prompt_manager
 import logging
 import json
 
+from pydantic import BaseModel, ConfigDict
+
+
+class _ScriptStructuredPayloadBase(BaseModel):
+    """用于承接脚本结构化输出的基础模型。"""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ScriptOutlineStructuredPayload(_ScriptStructuredPayloadBase):
+    raw_outline: Optional[str] = None
+
+
+class ScriptStoryboardStructuredPayload(_ScriptStructuredPayloadBase):
+    raw_storyboard: Optional[str] = None
+
 
 class ScriptGeneratorTool(BaseTool):
+    declared_capabilities = ("invoke", "stream", "local_direct")
+    STRUCTURED_OUTPUT_SCHEMAS = {
+        "raw_outline": ScriptOutlineStructuredPayload,
+        "raw_storyboard": ScriptStoryboardStructuredPayload,
+    }
+
     # 脚本类型
     SCRIPT_TYPES = {
-        "movie": "电影剧本",
+        "movie": "鐢靛奖鍓ф湰",
         "tv_series": "电视剧剧本",
         "short_video": "短视频脚本",
         "advertisement": "广告脚本",
@@ -22,14 +44,14 @@ class ScriptGeneratorTool(BaseTool):
 
     # 脚本风格
     SCRIPT_STYLES = {
-        "comedy": "喜剧",
-        "drama": "剧情",
+        "comedy": "鍠滃墽",
+        "drama": "鍓ф儏",
         "action": "动作",
-        "romance": "爱情",
-        "thriller": "惊悚",
+        "romance": "鐖辨儏",
+        "thriller": "鎯婃倸",
         "scifi": "科幻",
-        "fantasy": "奇幻",
-        "documentary": "纪实"
+        "fantasy": "濂囧够",
+        "documentary": "绾疄"
     }
 
     def __init__(self):
@@ -42,14 +64,14 @@ class ScriptGeneratorTool(BaseTool):
     def _create_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name="script_generator",
-            description="AI脚本生成工具，支持生成影视剧本、短视频脚本、广告脚本等各类脚本",
+            description="AI 脚本生成工具，支持生成影视剧本、短视频脚本、广告脚本等各类脚本",
             category="creative",
             strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="action",
                     type="string",
-                    description="操作类型：outline(生成大纲), scene(生成场景), dialogue(生成对白), storyboard(生成分镜)",
+                    description="操作类型：outline(生成大纲)、scene(生成场景)、dialogue(生成对白)、storyboard(生成分镜)",
                     required=True,
                     enum=["outline", "scene", "dialogue", "storyboard", "complete"]
                 ),
@@ -82,7 +104,7 @@ class ScriptGeneratorTool(BaseTool):
                 ToolParameter(
                     name="duration",
                     type="integer",
-                    description="时长（分钟）",
+                    description="鏃堕暱锛堝垎閽燂級",
                     required=False
                 ),
                 ToolParameter(
@@ -185,19 +207,22 @@ class ScriptGeneratorTool(BaseTool):
         return self.SCRIPT_STYLES.get(style, "默认") if style else "默认"
 
     def _parse_json_response(self, response: str, raw_key: str) -> Dict[str, Any]:
-        try:
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            if json_start >= 0 and json_end > json_start:
-                return json.loads(response[json_start:json_end])
-        except Exception:
-            self.logger.debug("Failed to parse structured script response, fallback to raw text", exc_info=True)
+        # Parse structured JSON output when available.
+        schema_cls = self.STRUCTURED_OUTPUT_SCHEMAS.get(raw_key)
+        if schema_cls is None:
+            return {raw_key: response}
 
-        return {raw_key: response}
+        try:
+            from backend.core.llm_manager import get_langchain_model_manager
+
+            return {raw_key: response}
+        except Exception:
+            self.logger.debug("Failed to preserve structured streaming script response", exc_info=True)
+            return {raw_key: response}
 
     async def execute_stream(self, action: str, script_type: str, **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
         try:
-            self.logger.info(f"执行脚本生成流式操作: {action}, 类型: {script_type}")
+            self.logger.info(f"执行脚本流式生成操作: {action}, 类型: {script_type}")
 
             if action == "outline":
                 async for event in self._stream_outline(
@@ -361,7 +386,7 @@ class ScriptGeneratorTool(BaseTool):
             {
                 "type_name": type_name,
                 "characters": characters or "未指定角色",
-                "scene_description": scene_description or "请生成符合剧情的对白",
+                "scene_description": scene_description or "璇风敓鎴愮鍚堝墽鎯呯殑瀵圭櫧",
                 "style_name": style_name,
             },
             temperature=0.8, max_tokens=2500
@@ -399,7 +424,7 @@ class ScriptGeneratorTool(BaseTool):
             prompt_template,
             {
                 "type_name": type_name,
-                "scene_description": scene_description or "请拆分出完整分镜",
+                "scene_description": scene_description or "璇锋媶鍒嗗嚭瀹屾暣鍒嗛暅",
                 "style_name": style_name,
             },
             temperature=0.8
@@ -463,8 +488,8 @@ class ScriptGeneratorTool(BaseTool):
         }
 
     async def _generate_outline(self, script_type: str, title: Optional[str],
-                               theme: Optional[str], style: Optional[str],
-                               duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
+                              theme: Optional[str], style: Optional[str],
+                              duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
         try:
             from backend.core.llm_manager import get_langchain_model_manager
 
@@ -477,7 +502,9 @@ class ScriptGeneratorTool(BaseTool):
                 "tool.script_generator_outline_prompt"
             )
 
-            response = await llm_manager.invoke_prompt_template(
+            structured_result = await llm_manager.with_structured_output(
+                ScriptOutlineStructuredPayload
+            ).invoke_prompt_template(
                 prompt_template,
                 {
                     "title": title or "未命名脚本",
@@ -489,21 +516,9 @@ class ScriptGeneratorTool(BaseTool):
                 },
                 temperature=0.8,
             )
-
-            # 尝试解析JSON
-            try:
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start >= 0 and json_end > json_start:
-                    json_str = response[json_start:json_end]
-                    outline_data = json.loads(json_str)
-                else:
-                    outline_data = {"raw_outline": response}
-            except:
-                outline_data = {"raw_outline": response}
+            outline_data = structured_result.model_dump(exclude_none=True)
 
             self.logger.info("脚本大纲生成完成")
-
             return {
                 "success": True,
                 "data": {
@@ -511,18 +526,17 @@ class ScriptGeneratorTool(BaseTool):
                     "script_type": type_name,
                     "style": style_name,
                     "duration": duration,
-                    "outline": outline_data
+                    "outline": outline_data,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成大纲失败: {str(e)}"
+                "error": f"生成大纲失败: {str(e)}",
             }
-
     async def _generate_scene(self, script_type: str, scene_number: int,
                              scene_description: Optional[str], characters: Optional[str],
                              style: Optional[str], outline: Optional[str]) -> Dict[str, Any]:
@@ -548,29 +562,29 @@ class ScriptGeneratorTool(BaseTool):
                     "style_name": style_name,
                     "outline_text": outline or "请保持剧情连贯",
                 },
-                temperature=0.8, max_tokens=3000,
+                temperature=0.8,
+                max_tokens=3000,
             )
+            response_text = str(response or "")
 
-            self.logger.info(f"第{scene_number}场脚本生成完成")
-
+            self.logger.info("场景生成完成: scene=%s", scene_number)
             return {
                 "success": True,
                 "data": {
                     "scene_number": scene_number,
                     "script_type": type_name,
                     "style": style_name,
-                    "content": response
+                    "content": response_text,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成场景失败: {str(e)}"
+                "error": f"生成场景失败: {str(e)}",
             }
-
     async def _generate_dialogue(self, script_type: str, characters: Optional[str],
                                 scene_description: Optional[str], style: Optional[str]) -> Dict[str, Any]:
         try:
@@ -589,7 +603,7 @@ class ScriptGeneratorTool(BaseTool):
                 prompt_template,
                 {
                     "type_name": type_name,
-                    "scene_description": scene_description or "请生成符合剧情的对白",
+                    "scene_description": scene_description or "璇风敓鎴愮鍚堝墽鎯呯殑瀵圭櫧",
                     "characters": characters or "未指定角色",
                     "style_name": style_name,
                 },
@@ -629,7 +643,9 @@ class ScriptGeneratorTool(BaseTool):
                 "tool.script_generator_storyboard_prompt"
             )
 
-            response = await llm_manager.invoke_prompt_template(
+            structured_result = await llm_manager.with_structured_output(
+                ScriptStoryboardStructuredPayload
+            ).invoke_prompt_template(
                 prompt_template,
                 {
                     "type_name": type_name,
@@ -638,47 +654,32 @@ class ScriptGeneratorTool(BaseTool):
                 },
                 temperature=0.8,
             )
-
-            # 尝试解析JSON
-            try:
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start >= 0 and json_end > json_start:
-                    json_str = response[json_start:json_end]
-                    storyboard_data = json.loads(json_str)
-                else:
-                    storyboard_data = {"raw_storyboard": response}
-            except:
-                storyboard_data = {"raw_storyboard": response}
+            storyboard_data = structured_result.model_dump(exclude_none=True)
 
             self.logger.info("分镜脚本生成完成")
-
             return {
                 "success": True,
                 "data": {
                     "script_type": type_name,
                     "style": style_name,
-                    "storyboard": storyboard_data
+                    "storyboard": storyboard_data,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成分镜脚本失败: {str(e)}"
+                "error": f"生成分镜脚本失败: {str(e)}",
             }
-
     async def _generate_complete_script(self, script_type: str, title: Optional[str],
                                        theme: Optional[str], style: Optional[str],
                                        duration: Optional[int], target_audience: Optional[str]) -> Dict[str, Any]:
         try:
-            # 先生成大纲
             outline_result = await self._generate_outline(
                 script_type, title, theme, style, duration, target_audience
             )
-
             if not outline_result["success"]:
                 return outline_result
 
@@ -703,11 +704,11 @@ class ScriptGeneratorTool(BaseTool):
                     "duration": duration or "未指定",
                     "outline_json": outline_str,
                 },
-                temperature=0.8, max_tokens=4000,
+                temperature=0.8,
+                max_tokens=4000,
             )
 
             self.logger.info("完整脚本生成完成")
-
             return {
                 "success": True,
                 "data": {
@@ -716,20 +717,21 @@ class ScriptGeneratorTool(BaseTool):
                     "style": style_name,
                     "duration": duration,
                     "outline": outline_result["data"]["outline"],
-                    "complete_script": response
+                    "complete_script": str(response or ""),
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成完整脚本失败: {str(e)}"
+                "error": f"生成完整脚本失败: {str(e)}",
             }
-
     def get_supported_types(self) -> Dict[str, str]:
         return self.SCRIPT_TYPES.copy()
 
     def get_supported_styles(self) -> Dict[str, str]:
         return self.SCRIPT_STYLES.copy()
+
+

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Personal Agent System",
-    "description": "企业级多Agent知识库助手系统",
+    "description": "Enterprise multi-agent knowledge assistant backend",
     "version": "1.0.0"
   },
   "paths": {
@@ -12,7 +12,6 @@
           "root"
         ],
         "summary": "Root",
-        "description": "根路径端点 - 提供API信息和文档链接\n\nReturns:\n    API信息",
         "operationId": "root__get",
         "responses": {
           "200": {
@@ -92,7 +91,6 @@
           "health"
         ],
         "summary": "Health Check",
-        "description": "健康检查端点\n\nReturns:\n    健康状态响应",
         "operationId": "health_check_health_get",
         "responses": {
           "200": {
@@ -174,7 +172,6 @@
           "authentication"
         ],
         "summary": "Register",
-        "description": "处理 `register` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "register_api_v1_auth_register_post",
         "requestBody": {
           "content": {
@@ -266,7 +263,6 @@
           "authentication"
         ],
         "summary": "Login",
-        "description": "处理 `login` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -358,7 +354,6 @@
           "authentication"
         ],
         "summary": "Logout",
-        "description": "处理 `logout` 相关逻辑。\n\nArgs:\n    token_payload: 参数 `token_payload` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "logout_api_v1_auth_logout_post",
         "responses": {
           "200": {
@@ -445,7 +440,6 @@
           "authentication"
         ],
         "summary": "Get Profile",
-        "description": "处理 `get_profile` 相关逻辑。\n\nArgs:\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_profile_api_v1_auth_profile_get",
         "responses": {
           "200": {
@@ -532,7 +526,6 @@
           "authentication"
         ],
         "summary": "Refresh Token",
-        "description": "处理 `refresh_token` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "refresh_token_api_v1_auth_refresh_post",
         "requestBody": {
           "content": {
@@ -618,235 +611,12 @@
         }
       }
     },
-    "/api/v1/chat/pause": {
-      "post": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Pause Stream",
-        "description": "处理 `pause_stream` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
-        "operationId": "pause_stream_api_v1_chat_pause_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PauseRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse_PauseStreamResponse_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/chat/ask": {
-      "post": {
-        "tags": [
-          "chat"
-        ],
-        "summary": "Ask Endpoint",
-        "description": "处理 `ask_endpoint` 相关逻辑。\n\nArgs:\n    http_request: 参数 `http_request` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
-        "operationId": "ask_endpoint_api_v1_chat_ask_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AskRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response or SSE stream",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse_AskResponse_"
-                }
-              },
-              "text/event-stream": {
-                "schema": {
-                  "type": "string"
-                },
-                "examples": {
-                  "stream": {
-                    "summary": "SSE stream",
-                    "value": "event: content\ndata: {\"type\":\"content\",\"content\":\"hello\"}\n\n"
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unified error response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "x-sse-event-schema": {
-          "$ref": "#/components/schemas/SSEEvent"
-        },
-        "x-stream-response": true,
-        "x-agent-io-protocol-version": "2.0.0",
-        "x-agent-input-schema": {
-          "$ref": "#/components/schemas/AgentInputSchema"
-        },
-        "x-agent-output-schema": {
-          "$ref": "#/components/schemas/AgentOutputSchema"
-        },
-        "x-chat-result-payload-schema": {
-          "$ref": "#/components/schemas/ChatResultPayload"
-        },
-        "x-chat-done-payload-schema": {
-          "$ref": "#/components/schemas/ChatDonePayload"
-        }
-      }
-    },
     "/api/v1/conversations": {
       "get": {
         "tags": [
           "conversations"
         ],
         "summary": "Get Conversations",
-        "description": "处理 `get_conversations` 相关逻辑。\n\nArgs:\n    page: 参数 `page` 的业务输入值。\n    page_size: 参数 `page_size` 的业务输入值。\n    only_active: 参数 `only_active` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_conversations_api_v1_conversations_get",
         "security": [
           {
@@ -972,7 +742,6 @@
           "conversations"
         ],
         "summary": "Create Conversation",
-        "description": "处理 `create_conversation` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "create_conversation_api_v1_conversations_post",
         "security": [
           {
@@ -1069,7 +838,6 @@
           "conversations"
         ],
         "summary": "Get Conversation",
-        "description": "处理 `get_conversation` 相关逻辑。\n\nArgs:\n    conversation_id: 参数 `conversation_id` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_conversation_api_v1_conversations__conversation_id__get",
         "security": [
           {
@@ -1165,7 +933,6 @@
           "conversations"
         ],
         "summary": "Update Conversation",
-        "description": "处理 `update_conversation` 相关逻辑。\n\nArgs:\n    conversation_id: 参数 `conversation_id` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "update_conversation_api_v1_conversations__conversation_id__put",
         "security": [
           {
@@ -1271,7 +1038,6 @@
           "conversations"
         ],
         "summary": "Delete Conversation",
-        "description": "处理 `delete_conversation` 相关逻辑。\n\nArgs:\n    conversation_id: 参数 `conversation_id` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "delete_conversation_api_v1_conversations__conversation_id__delete",
         "security": [
           {
@@ -1369,7 +1135,6 @@
           "conversations"
         ],
         "summary": "Get Conversation Messages",
-        "description": "处理 `get_conversation_messages` 相关逻辑。\n\nArgs:\n    conversation_id: 参数 `conversation_id` 的业务输入值。\n    page: 参数 `page` 的业务输入值。\n    page_size: 参数 `page_size` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_conversation_messages_api_v1_conversations__conversation_id__messages_get",
         "security": [
           {
@@ -1494,7 +1259,6 @@
           "knowledge"
         ],
         "summary": "Get Knowledge Bases",
-        "description": "处理 `get_knowledge_bases` 相关逻辑。\n\nArgs:\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_knowledge_bases_api_v1_knowledge_bases_get",
         "responses": {
           "200": {
@@ -1579,7 +1343,6 @@
           "knowledge"
         ],
         "summary": "Create Knowledge Base",
-        "description": "处理 `create_knowledge_base` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "create_knowledge_base_api_v1_knowledge_bases_post",
         "requestBody": {
           "content": {
@@ -1676,7 +1439,6 @@
           "knowledge"
         ],
         "summary": "Delete Knowledge Base",
-        "description": "处理 `delete_knowledge_base` 相关逻辑。\n\nArgs:\n    knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "delete_knowledge_base_api_v1_knowledge_bases__knowledge_base_id__delete",
         "security": [
           {
@@ -1774,17 +1536,39 @@
           "knowledge"
         ],
         "summary": "Upload Document",
-        "description": "处理 `upload_document` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n    background_tasks: 参数 `background_tasks` 的业务输入值。\n    file: 参数 `file` 的业务输入值。\n    knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "upload_document_api_v1_knowledge_upload_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/Body_upload_document_api_v1_knowledge_upload_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1857,12 +1641,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/knowledge/upload/batch": {
@@ -1871,7 +1650,6 @@
           "knowledge"
         ],
         "summary": "Upload Documents Batch",
-        "description": "处理 `upload_documents_batch` 相关逻辑。\n\nArgs:\n    request: 参数 `request` 的业务输入值。\n    files: 参数 `files` 的业务输入值。\n    knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "upload_documents_batch_api_v1_knowledge_upload_batch_post",
         "requestBody": {
           "content": {
@@ -1968,7 +1746,6 @@
           "knowledge"
         ],
         "summary": "Get Document Status",
-        "description": "处理 `get_document_status` 相关逻辑。\n\nArgs:\n    document_id: 参数 `document_id` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_document_status_api_v1_knowledge_documents__document_id__status_get",
         "security": [
           {
@@ -2066,7 +1843,6 @@
           "knowledge"
         ],
         "summary": "Get Documents",
-        "description": "处理 `get_documents` 相关逻辑。\n\nArgs:\n    knowledge_base_id: 参数 `knowledge_base_id` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_documents_api_v1_knowledge_documents_get",
         "security": [
           {
@@ -2173,7 +1949,6 @@
           "knowledge"
         ],
         "summary": "Delete Document",
-        "description": "处理 `delete_document` 相关逻辑。\n\nArgs:\n    document_id: 参数 `document_id` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "delete_document_api_v1_knowledge_documents__document_id__delete",
         "security": [
           {
@@ -2271,7 +2046,6 @@
           "knowledge"
         ],
         "summary": "Rebuild Vectors",
-        "description": "处理 `rebuild_vectors` 相关逻辑。\n\nArgs:\n    payload: 参数 `payload` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "rebuild_vectors_api_v1_knowledge_rebuild_vectors_post",
         "requestBody": {
           "content": {
@@ -2368,17 +2142,39 @@
           "knowledge"
         ],
         "summary": "Start Full Rebuild Vectors Task",
-        "description": "处理 `start_full_rebuild_vectors_task` 相关逻辑。\n\nArgs:\n    payload: 参数 `payload` 的业务输入值。\n    background_tasks: 参数 `background_tasks` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "start_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/VectorRebuildRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "202": {
@@ -2451,12 +2247,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/knowledge/rebuild-vectors/full/tasks/{task_id}": {
@@ -2465,7 +2256,6 @@
           "knowledge"
         ],
         "summary": "Get Full Rebuild Vectors Task",
-        "description": "处理 `get_full_rebuild_vectors_task` 相关逻辑。\n\nArgs:\n    task_id: 参数 `task_id` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "get_full_rebuild_vectors_task_api_v1_knowledge_rebuild_vectors_full_tasks__task_id__get",
         "security": [
           {
@@ -2563,7 +2353,6 @@
           "knowledge"
         ],
         "summary": "Rebuild Vectors Full",
-        "description": "处理 `rebuild_vectors_full` 相关逻辑。\n\nArgs:\n    payload: 参数 `payload` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "rebuild_vectors_full_api_v1_knowledge_rebuild_vectors_full_post",
         "requestBody": {
           "content": {
@@ -2660,7 +2449,6 @@
           "knowledge"
         ],
         "summary": "Search Knowledge",
-        "description": "处理 `search_knowledge` 相关逻辑。\n\nArgs:\n    payload: 参数 `payload` 的业务输入值。\n    request: 参数 `request` 的业务输入值。\n    user_id: 参数 `user_id` 的业务输入值。\n\nReturns:\n    返回接口层所需的响应对象、业务结果或中间处理结果。",
         "operationId": "search_knowledge_api_v1_knowledge_search_post",
         "requestBody": {
           "content": {
@@ -2754,17 +2542,19 @@
     "/api/v1/tools/categories/list": {
       "get": {
         "tags": [
-          "工具管理"
+          "tools"
         ],
-        "summary": "获取工具分类列表",
-        "description": "获取所有可见工具的业务分类列表",
+        "summary": "List tool categories",
+        "description": "Return categories for tools visible to the current user.",
         "operationId": "get_tool_categories_api_v1_tools_categories_list_get",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ToolCategoryListResponse"
+                }
               }
             }
           },
@@ -2839,10 +2629,10 @@
     "/api/v1/tools": {
       "get": {
         "tags": [
-          "工具管理"
+          "tools"
         ],
-        "summary": "获取工具列表",
-        "description": "获取当前用户可见的工具列表",
+        "summary": "List tools",
+        "description": "Return tools visible to the current user.",
         "operationId": "get_tools_list_api_v1_tools_get",
         "security": [
           {
@@ -2944,10 +2734,10 @@
     "/api/v1/tools/{tool_name}": {
       "get": {
         "tags": [
-          "工具管理"
+          "tools"
         ],
-        "summary": "获取工具详情",
-        "description": "获取当前用户可见工具的详细信息",
+        "summary": "Get tool detail",
+        "description": "Return detail for a tool visible to the current user.",
         "operationId": "get_tool_detail_api_v1_tools__tool_name__get",
         "security": [
           {
@@ -3042,10 +2832,10 @@
     "/api/v1/tools/{tool_name}/execute": {
       "post": {
         "tags": [
-          "工具管理"
+          "tools"
         ],
-        "summary": "执行工具",
-        "description": "执行指定工具",
+        "summary": "Execute tool",
+        "description": "Execute the specified tool.",
         "operationId": "execute_tool_api_v1_tools__tool_name__execute_post",
         "security": [
           {
@@ -3150,10 +2940,10 @@
     "/api/v1/content/novel/outline": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成小说大纲",
-        "description": "根据标题和主题生成小说大纲",
+        "summary": "Generate novel outline",
+        "description": "Generate a novel outline from title and theme.",
         "operationId": "generate_novel_outline_api_v1_content_novel_outline_post",
         "security": [
           {
@@ -3274,10 +3064,10 @@
     "/api/v1/content/novel/chapter": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成小说章节",
-        "description": "生成指定章节的小说内容",
+        "summary": "Generate novel chapter",
+        "description": "Generate chapter content for a novel.",
         "operationId": "generate_novel_chapter_api_v1_content_novel_chapter_post",
         "security": [
           {
@@ -3398,10 +3188,10 @@
     "/api/v1/content/novel/character": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成角色设定",
-        "description": "生成小说角色的详细设定",
+        "summary": "Generate novel character",
+        "description": "Generate a character profile for a novel.",
         "operationId": "generate_novel_character_api_v1_content_novel_character_post",
         "security": [
           {
@@ -3522,10 +3312,10 @@
     "/api/v1/content/novel/worldview": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成世界观设定",
-        "description": "生成小说的世界观设定",
+        "summary": "Generate novel worldview",
+        "description": "Generate a worldview for a novel.",
         "operationId": "generate_novel_worldview_api_v1_content_novel_worldview_post",
         "security": [
           {
@@ -3646,10 +3436,10 @@
     "/api/v1/content/novel/continue": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "续写小说",
-        "description": "根据前文内容续写小说",
+        "summary": "Continue novel content",
+        "description": "Continue writing from previous novel content.",
         "operationId": "continue_novel_api_v1_content_novel_continue_post",
         "security": [
           {
@@ -3770,10 +3560,10 @@
     "/api/v1/content/script/outline": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成脚本大纲",
-        "description": "生成脚本的详细大纲",
+        "summary": "Generate script outline",
+        "description": "Generate an outline for a script.",
         "operationId": "generate_script_outline_api_v1_content_script_outline_post",
         "security": [
           {
@@ -3894,10 +3684,10 @@
     "/api/v1/content/script/scene": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成场景脚本",
-        "description": "生成指定场景的脚本内容",
+        "summary": "Generate script scene",
+        "description": "Generate scene content for a script.",
         "operationId": "generate_script_scene_api_v1_content_script_scene_post",
         "security": [
           {
@@ -4018,10 +3808,10 @@
     "/api/v1/content/script/dialogue": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成对白",
-        "description": "生成脚本对白",
+        "summary": "Generate script dialogue",
+        "description": "Generate dialogue for a script scene.",
         "operationId": "generate_script_dialogue_api_v1_content_script_dialogue_post",
         "security": [
           {
@@ -4142,10 +3932,10 @@
     "/api/v1/content/script/storyboard": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成分镜脚本",
-        "description": "生成详细的分镜脚本",
+        "summary": "Generate script storyboard",
+        "description": "Generate storyboard content for a script.",
         "operationId": "generate_script_storyboard_api_v1_content_script_storyboard_post",
         "security": [
           {
@@ -4266,10 +4056,10 @@
     "/api/v1/content/script/complete": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "生成完整脚本",
-        "description": "生成完整的脚本内容",
+        "summary": "Generate complete script",
+        "description": "Generate a complete script.",
         "operationId": "generate_complete_script_api_v1_content_script_complete_post",
         "security": [
           {
@@ -4390,10 +4180,10 @@
     "/api/v1/content/optimize": {
       "post": {
         "tags": [
-          "内容生成"
+          "content_generation"
         ],
-        "summary": "优化内容",
-        "description": "对内容进行润色、改写、扩写、缩写等优化",
+        "summary": "Optimize content",
+        "description": "Optimize or rewrite existing content.",
         "operationId": "optimize_content_api_v1_content_optimize_post",
         "security": [
           {
@@ -4510,63 +4300,904 @@
         },
         "x-stream-response": true
       }
+    },
+    "/api/v1/task-runtime/tasks": {
+      "post": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Submit Task",
+        "description": "提交任务并返回初始 goal / plan。",
+        "operationId": "submit_task_api_v1_task_runtime_tasks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRuntimeSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_TaskRuntimePrepareResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "x-task-lifecycle-enabled": true,
+        "x-task-follow-up-paths": [
+          "/api/v1/task-runtime/tasks/{task_id}",
+          "/api/v1/task-runtime/tasks/{task_id}/pause",
+          "/api/v1/task-runtime/tasks/{task_id}/resume",
+          "/api/v1/task-runtime/tasks/{task_id}/cancel",
+          "/api/v1/task-runtime/tasks/{task_id}/retry"
+        ]
+      }
+    },
+    "/api/v1/task-runtime/tasks/stream": {
+      "post": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Stream Task",
+        "description": "流式执行任务，并输出统一 SSE 事件流。",
+        "operationId": "stream_task_api_v1_task_runtime_tasks_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRuntimeSubmitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Task runtime SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "examples": {
+                  "planning": {
+                    "summary": "规划阶段事件",
+                    "value": "event: result\ndata: {\"type\":\"result\",\"content\":{\"plan_id\":\"plan_xxx\"},\"metadata\":{\"stage\":\"planning\",\"request_id\":\"req_xxx\",\"conversation_id\":\"conv_xxx\",\"message_id\":\"msg_xxx\",\"execution_id\":\"exec_xxx\",\"plan_id\":\"plan_xxx\",\"step_id\":null},\"timestamp\":\"2026-03-23T00:00:00Z\",\"request_id\":\"req_xxx\",\"conversation_id\":\"conv_xxx\",\"message_id\":\"msg_xxx\",\"execution_id\":\"exec_xxx\"}\n\n"
+                  },
+                  "error": {
+                    "summary": "统一错误事件",
+                    "value": "event: error\ndata: {\"type\":\"error\",\"message\":\"任务执行失败：下游组件异常\",\"content\":null,\"metadata\":{\"stage\":\"termination\",\"request_id\":\"req_xxx\",\"conversation_id\":\"conv_xxx\",\"message_id\":\"msg_xxx\",\"execution_id\":\"exec_xxx\",\"plan_id\":null,\"step_id\":null,\"error_code\":\"WORKFLOW_EXECUTION_ERROR\"},\"timestamp\":\"2026-03-23T00:00:01Z\",\"request_id\":\"req_xxx\",\"conversation_id\":\"conv_xxx\",\"message_id\":\"msg_xxx\",\"execution_id\":\"exec_xxx\",\"error_code\":\"WORKFLOW_EXECUTION_ERROR\"}\n\n"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "x-sse-event-schema": {
+          "$ref": "#/components/schemas/SSEEvent"
+        },
+        "x-stream-response": true,
+        "x-runtime-stage-field": "metadata.stage",
+        "x-runtime-stages": [
+          "goal_parsing",
+          "planning",
+          "step_started",
+          "step_observation",
+          "step_evaluation",
+          "goal_evaluation",
+          "replan",
+          "termination"
+        ]
+      }
+    },
+    "/api/v1/task-runtime/tasks/{task_id}": {
+      "get": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Get Task Status",
+        "description": "获取复杂任务的统一状态快照。",
+        "operationId": "get_task_status_api_v1_task_runtime_tasks__task_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_TaskRuntimeStatusResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-task-status-contract": {
+          "$ref": "#/components/schemas/TaskRuntimeStatusResponse"
+        },
+        "x-task-status-values": [
+          "pending",
+          "running",
+          "paused",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "timed_out"
+        ]
+      }
+    },
+    "/api/v1/task-runtime/tasks/{task_id}/stream": {
+      "post": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Stream Task By Id",
+        "description": "基于持久化检查点继续流式执行任务。",
+        "operationId": "stream_task_by_id_api_v1_task_runtime_tasks__task_id__stream_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resume task runtime SSE stream",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/task-runtime/tasks/{task_id}/pause": {
+      "post": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Pause Task",
+        "description": "暂停任务执行。",
+        "operationId": "pause_task_api_v1_task_runtime_tasks__task_id__pause_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_TaskRuntimeActionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-task-action-request-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+        },
+        "x-task-action-response-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionResponse"
+        }
+      }
+    },
+    "/api/v1/task-runtime/tasks/{task_id}/resume": {
+      "post": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Resume Task",
+        "description": "恢复已暂停任务。",
+        "operationId": "resume_task_api_v1_task_runtime_tasks__task_id__resume_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_TaskRuntimeActionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-task-action-request-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+        },
+        "x-task-action-response-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionResponse"
+        }
+      }
+    },
+    "/api/v1/task-runtime/tasks/{task_id}/cancel": {
+      "post": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Cancel Task",
+        "description": "取消任务执行。",
+        "operationId": "cancel_task_api_v1_task_runtime_tasks__task_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_TaskRuntimeActionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-task-action-request-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+        },
+        "x-task-action-response-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionResponse"
+        }
+      }
+    },
+    "/api/v1/task-runtime/tasks/{task_id}/retry": {
+      "post": {
+        "tags": [
+          "task-runtime"
+        ],
+        "summary": "Retry Task",
+        "description": "重试任务执行。",
+        "operationId": "retry_task_api_v1_task_runtime_tasks__task_id__retry_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse_TaskRuntimeActionResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unified error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-task-action-request-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionRequest"
+        },
+        "x-task-action-response-schema": {
+          "$ref": "#/components/schemas/TaskRuntimeActionResponse"
+        }
+      }
     }
   },
   "components": {
     "schemas": {
-      "AskRequest": {
-        "properties": {
-          "question": {
-            "type": "string",
-            "maxLength": 5000,
-            "minLength": 1,
-            "title": "Question",
-            "description": "用户问题"
-          },
-          "conversation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Conversation Id",
-            "description": "会话ID（可选，不提供则创建新会话）"
-          },
-          "stream": {
-            "type": "boolean",
-            "title": "Stream",
-            "description": "是否使用流式输出",
-            "default": true
-          },
-          "enable_knowledge_base": {
-            "type": "boolean",
-            "title": "Enable Knowledge Base",
-            "description": "是否启用知识库增强",
-            "default": false
-          },
-          "knowledge_base_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Knowledge Base Id",
-            "description": "Selected knowledge base ID"
-          }
-        },
-        "type": "object",
-        "required": [
-          "question"
-        ],
-        "title": "AskRequest",
-        "description": "AskRequest 相关的数据结构定义。\n\nAttributes:\n    question: 字段 `question` 的业务含义。\n    conversation_id: 字段 `conversation_id` 的业务含义。\n    stream: 字段 `stream` 的业务含义。\n    enable_knowledge_base: 字段 `enable_knowledge_base` 的业务含义。\n    knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。\n    "
-      },
       "BatchUploadItemResponse": {
         "properties": {
           "file_name": {
@@ -4604,8 +5235,7 @@
           "file_name",
           "success"
         ],
-        "title": "BatchUploadItemResponse",
-        "description": "BatchUploadItemResponse 相关的数据结构定义。\n\nAttributes:\n    file_name: 字段 `file_name` 的业务含义。\n    success: 字段 `success` 的业务含义。\n    document: 字段 `document` 的业务含义。\n    error: 字段 `error` 的业务含义。\n    "
+        "title": "BatchUploadItemResponse"
       },
       "BatchUploadResponse": {
         "properties": {
@@ -4636,8 +5266,7 @@
           "failed_count",
           "results"
         ],
-        "title": "BatchUploadResponse",
-        "description": "BatchUploadResponse 相关的数据结构定义。\n\nAttributes:\n    total: 字段 `total` 的业务含义。\n    success_count: 字段 `success_count` 的业务含义。\n    failed_count: 字段 `failed_count` 的业务含义。\n    results: 字段 `results` 的业务含义。\n    "
+        "title": "BatchUploadResponse"
       },
       "Body_upload_document_api_v1_knowledge_upload_post": {
         "properties": {
@@ -4706,7 +5335,6 @@
           "data": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -4733,8 +5361,7 @@
         "required": [
           "success"
         ],
-        "title": "ContentGenerationResponse",
-        "description": "ContentGenerationResponse 相关的数据结构定义。\n\nAttributes:\n    success: 字段 `success` 的业务含义。\n    data: 字段 `data` 的业务含义。\n    error: 字段 `error` 的业务含义。\n    "
+        "title": "ContentGenerationResponse"
       },
       "ContentOptimizeRequest": {
         "properties": {
@@ -4746,7 +5373,7 @@
           "content": {
             "type": "string",
             "title": "Content",
-            "description": "要优化的内容"
+            "description": "待优化内容"
           },
           "target_style": {
             "anyOf": [
@@ -4802,8 +5429,7 @@
           "action",
           "content"
         ],
-        "title": "ContentOptimizeRequest",
-        "description": "ContentOptimizeRequest 相关的数据结构定义。\n\nAttributes:\n    action: 字段 `action` 的业务含义。\n    content: 字段 `content` 的业务含义。\n    target_style: 字段 `target_style` 的业务含义。\n    target_length: 字段 `target_length` 的业务含义。\n    keywords: 字段 `keywords` 的业务含义。\n    requirements: 字段 `requirements` 的业务含义。\n    "
+        "title": "ContentOptimizeRequest"
       },
       "ConversationMessageItem": {
         "properties": {
@@ -4848,6 +5474,11 @@
             "type": "string",
             "title": "Created At",
             "description": "创建时间"
+          },
+          "metadata": {
+            "type": "object",
+            "title": "Metadata",
+            "description": "消息扩展元数据"
           }
         },
         "type": "object",
@@ -4859,8 +5490,7 @@
           "sequence_number",
           "created_at"
         ],
-        "title": "ConversationMessageItem",
-        "description": "ConversationMessageItem 相关的数据结构定义。\n\nAttributes:\n    message_id: 字段 `message_id` 的业务含义。\n    conversation_id: 字段 `conversation_id` 的业务含义。\n    message_type: 字段 `message_type` 的业务含义。\n    content: 字段 `content` 的业务含义。\n    sequence_number: 字段 `sequence_number` 的业务含义。\n    parent_message_id: 字段 `parent_message_id` 的业务含义。\n    created_at: 字段 `created_at` 的业务含义。\n    "
+        "title": "ConversationMessageItem"
       },
       "ConversationResponse": {
         "properties": {
@@ -4922,8 +5552,7 @@
           "created_at",
           "updated_at"
         ],
-        "title": "ConversationResponse",
-        "description": "ConversationResponse 相关的数据结构定义。\n\nAttributes:\n    conversation_id: 字段 `conversation_id` 的业务含义。\n    user_id: 字段 `user_id` 的业务含义。\n    title: 字段 `title` 的业务含义。\n    description: 字段 `description` 的业务含义。\n    message_count: 字段 `message_count` 的业务含义。\n    is_active: 字段 `is_active` 的业务含义。\n    created_at: 字段 `created_at` 的业务含义。\n    updated_at: 字段 `updated_at` 的业务含义。\n    "
+        "title": "ConversationResponse"
       },
       "ConversationSummaryResponse": {
         "properties": {
@@ -4967,8 +5596,7 @@
           "title",
           "updated_at"
         ],
-        "title": "ConversationSummaryResponse",
-        "description": "ConversationSummaryResponse 相关的数据结构定义。\n\nAttributes:\n    conversation_id: 字段 `conversation_id` 的业务含义。\n    title: 字段 `title` 的业务含义。\n    message_count: 字段 `message_count` 的业务含义。\n    last_message_preview: 字段 `last_message_preview` 的业务含义。\n    updated_at: 字段 `updated_at` 的业务含义。\n    "
+        "title": "ConversationSummaryResponse"
       },
       "CreateConversationRequest": {
         "properties": {
@@ -5000,8 +5628,7 @@
           }
         },
         "type": "object",
-        "title": "CreateConversationRequest",
-        "description": "CreateConversationRequest 相关的数据结构定义。\n\nAttributes:\n    title: 字段 `title` 的业务含义。\n    description: 字段 `description` 的业务含义。\n    "
+        "title": "CreateConversationRequest"
       },
       "DocumentInfo": {
         "properties": {
@@ -5028,7 +5655,7 @@
           "chunk_count": {
             "type": "integer",
             "title": "Chunk Count",
-            "description": "文本分块数"
+            "description": "切块数量"
           },
           "upload_time": {
             "type": "string",
@@ -5109,13 +5736,13 @@
           "vectorized_chunk_count": {
             "type": "integer",
             "title": "Vectorized Chunk Count",
-            "description": "已向量化分块数",
+            "description": "已向量化切块数",
             "default": 0
           },
           "missing_vector_chunk_count": {
             "type": "integer",
             "title": "Missing Vector Chunk Count",
-            "description": "待向量化分块数",
+            "description": "待向量化切块数",
             "default": 0
           },
           "vectorization_status": {
@@ -5129,6 +5756,18 @@
             "title": "Can Retry Vectorization",
             "description": "是否可重试向量化",
             "default": false
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key",
+            "description": "幂等键"
           }
         },
         "type": "object",
@@ -5141,8 +5780,7 @@
           "upload_time",
           "user_id"
         ],
-        "title": "DocumentInfo",
-        "description": "DocumentInfo 相关的数据结构定义。\n\nAttributes:\n    document_id: 字段 `document_id` 的业务含义。\n    file_name: 字段 `file_name` 的业务含义。\n    file_type: 字段 `file_type` 的业务含义。\n    file_size: 字段 `file_size` 的业务含义。\n    chunk_count: 字段 `chunk_count` 的业务含义。\n    upload_time: 字段 `upload_time` 的业务含义。\n    user_id: 字段 `user_id` 的业务含义。\n    knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。\n    knowledge_base_name: 字段 `knowledge_base_name` 的业务含义。\n    status: 字段 `status` 的业务含义。\n    processing_stage: 字段 `processing_stage` 的业务含义。\n    processing_progress: 字段 `processing_progress` 的业务含义。\n    error_message: 字段 `error_message` 的业务含义。\n    vectorized_chunk_count: 字段 `vectorized_chunk_count` 的业务含义。\n    missing_vector_chunk_count: 字段 `missing_vector_chunk_count` 的业务含义。\n    vectorization_status: 字段 `vectorization_status` 的业务含义。\n    can_retry_vectorization: 字段 `can_retry_vectorization` 的业务含义。\n    "
+        "title": "DocumentInfo"
       },
       "DocumentListResponse": {
         "properties": {
@@ -5163,8 +5801,7 @@
           "documents",
           "total"
         ],
-        "title": "DocumentListResponse",
-        "description": "DocumentListResponse 相关的数据结构定义。\n\nAttributes:\n    documents: 字段 `documents` 的业务含义。\n    total: 字段 `total` 的业务含义。\n    "
+        "title": "DocumentListResponse"
       },
       "FullVectorRebuildResponse": {
         "properties": {
@@ -5239,8 +5876,7 @@
           "total_missing_chunks_after",
           "details"
         ],
-        "title": "FullVectorRebuildResponse",
-        "description": "FullVectorRebuildResponse 相关的数据结构定义。\n\nAttributes:\n    reset_collection: 字段 `reset_collection` 的业务含义。\n    target_dimension: 字段 `target_dimension` 的业务含义。\n    error: 字段 `error` 的业务含义。\n    "
+        "title": "FullVectorRebuildResponse"
       },
       "FullVectorRebuildTaskResponse": {
         "properties": {
@@ -5310,7 +5946,7 @@
           "status": {
             "type": "string",
             "title": "Status",
-            "description": "任务状态：pending/running/succeeded/failed",
+            "description": "任务状态",
             "default": "pending"
           },
           "scope": {
@@ -5391,6 +6027,18 @@
               }
             ],
             "title": "Finished At"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key",
+            "description": "幂等键"
           }
         },
         "type": "object",
@@ -5406,8 +6054,7 @@
           "task_id",
           "created_at"
         ],
-        "title": "FullVectorRebuildTaskResponse",
-        "description": "FullVectorRebuildTaskResponse 相关的数据结构定义。\n\nAttributes:\n    task_id: 字段 `task_id` 的业务含义。\n    status: 字段 `status` 的业务含义。\n    scope: 字段 `scope` 的业务含义。\n    knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。\n    current_document_id: 字段 `current_document_id` 的业务含义。\n    current_file_name: 字段 `current_file_name` 的业务含义。\n    created_at: 字段 `created_at` 的业务含义。\n    updated_at: 字段 `updated_at` 的业务含义。\n    started_at: 字段 `started_at` 的业务含义。\n    finished_at: 字段 `finished_at` 的业务含义。\n    "
+        "title": "FullVectorRebuildTaskResponse"
       },
       "HTTPValidationError": {
         "properties": {
@@ -5449,8 +6096,7 @@
         "required": [
           "name"
         ],
-        "title": "KnowledgeBaseCreateRequest",
-        "description": "KnowledgeBaseCreateRequest 相关的数据结构定义。\n\nAttributes:\n    name: 字段 `name` 的业务含义。\n    description: 字段 `description` 的业务含义。\n    "
+        "title": "KnowledgeBaseCreateRequest"
       },
       "KnowledgeBaseListResponse": {
         "properties": {
@@ -5471,8 +6117,7 @@
           "knowledge_bases",
           "total"
         ],
-        "title": "KnowledgeBaseListResponse",
-        "description": "KnowledgeBaseListResponse 相关的数据结构定义。\n\nAttributes:\n    knowledge_bases: 字段 `knowledge_bases` 的业务含义。\n    total: 字段 `total` 的业务含义。\n    "
+        "title": "KnowledgeBaseListResponse"
       },
       "KnowledgeBaseResponse": {
         "properties": {
@@ -5538,8 +6183,7 @@
           "is_default",
           "is_active"
         ],
-        "title": "KnowledgeBaseResponse",
-        "description": "KnowledgeBaseResponse 相关的数据结构定义。\n\nAttributes:\n    knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。\n    user_id: 字段 `user_id` 的业务含义。\n    name: 字段 `name` 的业务含义。\n    description: 字段 `description` 的业务含义。\n    is_default: 字段 `is_default` 的业务含义。\n    is_active: 字段 `is_active` 的业务含义。\n    created_at: 字段 `created_at` 的业务含义。\n    updated_at: 字段 `updated_at` 的业务含义。\n    "
+        "title": "KnowledgeBaseResponse"
       },
       "KnowledgeSearchItem": {
         "properties": {
@@ -5560,7 +6204,6 @@
             "title": "Source"
           },
           "metadata": {
-            "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
           }
@@ -5573,8 +6216,7 @@
           "source",
           "metadata"
         ],
-        "title": "KnowledgeSearchItem",
-        "description": "KnowledgeSearchItem 相关的数据结构定义。\n\nAttributes:\n    id: 字段 `id` 的业务含义。\n    content: 字段 `content` 的业务含义。\n    score: 字段 `score` 的业务含义。\n    source: 字段 `source` 的业务含义。\n    metadata: 字段 `metadata` 的业务含义。\n    "
+        "title": "KnowledgeSearchItem"
       },
       "KnowledgeSearchResponse": {
         "properties": {
@@ -5611,8 +6253,7 @@
           "results",
           "total"
         ],
-        "title": "KnowledgeSearchResponse",
-        "description": "KnowledgeSearchResponse 相关的数据结构定义。\n\nAttributes:\n    query: 字段 `query` 的业务含义。\n    knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。\n    results: 字段 `results` 的业务含义。\n    total: 字段 `total` 的业务含义。\n    "
+        "title": "KnowledgeSearchResponse"
       },
       "LoginRequest": {
         "properties": {
@@ -5632,8 +6273,7 @@
           "username_or_email",
           "password"
         ],
-        "title": "LoginRequest",
-        "description": "LoginRequest 相关的数据结构定义。\n\nAttributes:\n    username_or_email: 字段 `username_or_email` 的业务含义。\n    password: 字段 `password` 的业务含义。\n    "
+        "title": "LoginRequest"
       },
       "LogoutResponse": {
         "properties": {
@@ -5651,8 +6291,7 @@
           "message",
           "user_id"
         ],
-        "title": "LogoutResponse",
-        "description": "LogoutResponse 相关的数据结构定义。\n\nAttributes:\n    message: 字段 `message` 的业务含义。\n    user_id: 字段 `user_id` 的业务含义。\n    "
+        "title": "LogoutResponse"
       },
       "MessageResponse": {
         "properties": {
@@ -5742,8 +6381,7 @@
         "required": [
           "chapter_number"
         ],
-        "title": "NovelChapterRequest",
-        "description": "NovelChapterRequest 相关的数据结构定义。\n\nAttributes:\n    chapter_number: 字段 `chapter_number` 的业务含义。\n    chapter_title: 字段 `chapter_title` 的业务含义。\n    outline: 字段 `outline` 的业务含义。\n    genre: 字段 `genre` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    word_count: 字段 `word_count` 的业务含义。\n    "
+        "title": "NovelChapterRequest"
       },
       "NovelCharacterRequest": {
         "properties": {
@@ -5785,8 +6423,7 @@
           }
         },
         "type": "object",
-        "title": "NovelCharacterRequest",
-        "description": "NovelCharacterRequest 相关的数据结构定义。\n\nAttributes:\n    character_name: 字段 `character_name` 的业务含义。\n    genre: 字段 `genre` 的业务含义。\n    theme: 字段 `theme` 的业务含义。\n    "
+        "title": "NovelCharacterRequest"
       },
       "NovelContinueRequest": {
         "properties": {
@@ -5830,8 +6467,7 @@
         "required": [
           "previous_content"
         ],
-        "title": "NovelContinueRequest",
-        "description": "NovelContinueRequest 相关的数据结构定义。\n\nAttributes:\n    previous_content: 字段 `previous_content` 的业务含义。\n    genre: 字段 `genre` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    word_count: 字段 `word_count` 的业务含义。\n    "
+        "title": "NovelContinueRequest"
       },
       "NovelOutlineRequest": {
         "properties": {
@@ -5885,8 +6521,7 @@
           }
         },
         "type": "object",
-        "title": "NovelOutlineRequest",
-        "description": "NovelOutlineRequest 相关的数据结构定义。\n\nAttributes:\n    title: 字段 `title` 的业务含义。\n    theme: 字段 `theme` 的业务含义。\n    genre: 字段 `genre` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    "
+        "title": "NovelOutlineRequest"
       },
       "NovelWorldviewRequest": {
         "properties": {
@@ -5928,8 +6563,7 @@
           }
         },
         "type": "object",
-        "title": "NovelWorldviewRequest",
-        "description": "NovelWorldviewRequest 相关的数据结构定义。\n\nAttributes:\n    title: 字段 `title` 的业务含义。\n    theme: 字段 `theme` 的业务含义。\n    genre: 字段 `genre` 的业务含义。\n    "
+        "title": "NovelWorldviewRequest"
       },
       "PaginatedResponse_ConversationMessageItem_": {
         "properties": {
@@ -6071,43 +6705,6 @@
         ],
         "title": "PaginationMeta"
       },
-      "PauseRequest": {
-        "properties": {
-          "stream_id": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Stream Id",
-            "description": "流式会话ID"
-          }
-        },
-        "type": "object",
-        "required": [
-          "stream_id"
-        ],
-        "title": "PauseRequest",
-        "description": "PauseRequest 相关的数据结构定义。\n\nAttributes:\n    stream_id: 字段 `stream_id` 的业务含义。\n    "
-      },
-      "PauseStreamResponse": {
-        "properties": {
-          "stream_id": {
-            "type": "string",
-            "title": "Stream Id",
-            "description": "流式会话 ID"
-          },
-          "paused": {
-            "type": "boolean",
-            "title": "Paused",
-            "description": "是否已暂停"
-          }
-        },
-        "type": "object",
-        "required": [
-          "stream_id",
-          "paused"
-        ],
-        "title": "PauseStreamResponse",
-        "description": "PauseStreamResponse 相关的数据结构定义。\n\nAttributes:\n    stream_id: 字段 `stream_id` 的业务含义。\n    paused: 字段 `paused` 的业务含义。\n    "
-      },
       "RefreshTokenRequest": {
         "properties": {
           "refresh_token": {
@@ -6120,8 +6717,7 @@
         "required": [
           "refresh_token"
         ],
-        "title": "RefreshTokenRequest",
-        "description": "RefreshTokenRequest 相关的数据结构定义。\n\nAttributes:\n    refresh_token: 字段 `refresh_token` 的业务含义。\n    "
+        "title": "RefreshTokenRequest"
       },
       "RegisterRequest": {
         "properties": {
@@ -6165,8 +6761,7 @@
           "email",
           "password"
         ],
-        "title": "RegisterRequest",
-        "description": "RegisterRequest 相关的数据结构定义。\n\nAttributes:\n    username: 字段 `username` 的业务含义。\n    email: 字段 `email` 的业务含义。\n    password: 字段 `password` 的业务含义。\n    full_name: 字段 `full_name` 的业务含义。\n    "
+        "title": "RegisterRequest"
       },
       "ScriptCompleteRequest": {
         "properties": {
@@ -6240,8 +6835,7 @@
         "required": [
           "script_type"
         ],
-        "title": "ScriptCompleteRequest",
-        "description": "ScriptCompleteRequest 相关的数据结构定义。\n\nAttributes:\n    script_type: 字段 `script_type` 的业务含义。\n    title: 字段 `title` 的业务含义。\n    theme: 字段 `theme` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    duration: 字段 `duration` 的业务含义。\n    target_audience: 字段 `target_audience` 的业务含义。\n    "
+        "title": "ScriptCompleteRequest"
       },
       "ScriptDialogueRequest": {
         "properties": {
@@ -6291,8 +6885,7 @@
         "required": [
           "script_type"
         ],
-        "title": "ScriptDialogueRequest",
-        "description": "ScriptDialogueRequest 相关的数据结构定义。\n\nAttributes:\n    script_type: 字段 `script_type` 的业务含义。\n    characters: 字段 `characters` 的业务含义。\n    scene_description: 字段 `scene_description` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    "
+        "title": "ScriptDialogueRequest"
       },
       "ScriptOutlineRequest": {
         "properties": {
@@ -6366,8 +6959,7 @@
         "required": [
           "script_type"
         ],
-        "title": "ScriptOutlineRequest",
-        "description": "ScriptOutlineRequest 相关的数据结构定义。\n\nAttributes:\n    script_type: 字段 `script_type` 的业务含义。\n    title: 字段 `title` 的业务含义。\n    theme: 字段 `theme` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    duration: 字段 `duration` 的业务含义。\n    target_audience: 字段 `target_audience` 的业务含义。\n    "
+        "title": "ScriptOutlineRequest"
       },
       "ScriptSceneRequest": {
         "properties": {
@@ -6435,8 +7027,7 @@
         "required": [
           "script_type"
         ],
-        "title": "ScriptSceneRequest",
-        "description": "ScriptSceneRequest 相关的数据结构定义。\n\nAttributes:\n    script_type: 字段 `script_type` 的业务含义。\n    scene_number: 字段 `scene_number` 的业务含义。\n    scene_description: 字段 `scene_description` 的业务含义。\n    characters: 字段 `characters` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    outline: 字段 `outline` 的业务含义。\n    "
+        "title": "ScriptSceneRequest"
       },
       "ScriptStoryboardRequest": {
         "properties": {
@@ -6474,8 +7065,7 @@
         "required": [
           "script_type"
         ],
-        "title": "ScriptStoryboardRequest",
-        "description": "ScriptStoryboardRequest 相关的数据结构定义。\n\nAttributes:\n    script_type: 字段 `script_type` 的业务含义。\n    scene_description: 字段 `scene_description` 的业务含义。\n    style: 字段 `style` 的业务含义。\n    "
+        "title": "ScriptStoryboardRequest"
       },
       "SearchRequest": {
         "properties": {
@@ -6488,10 +7078,10 @@
           },
           "top_k": {
             "type": "integer",
-            "maximum": 20.0,
+            "maximum": 10.0,
             "minimum": 1.0,
             "title": "Top K",
-            "description": "返回结果数量",
+            "description": "返回结果数量，最多 10 条",
             "default": 5
           },
           "knowledge_base_id": {
@@ -6505,6 +7095,18 @@
             ],
             "title": "Knowledge Base Id",
             "description": "限定搜索的知识库 ID"
+          },
+          "file_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Type",
+            "description": "限定搜索的文件类型，如 pdf、docx、pptx"
           },
           "enable_query_rewrite": {
             "type": "boolean",
@@ -6547,8 +7149,7 @@
         "required": [
           "query"
         ],
-        "title": "SearchRequest",
-        "description": "SearchRequest 相关的数据结构定义。\n\nAttributes:\n    query: 字段 `query` 的业务含义。\n    top_k: 字段 `top_k` 的业务含义。\n    knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。\n    enable_query_rewrite: 字段 `enable_query_rewrite` 的业务含义。\n    enable_exact_phrase: 字段 `enable_exact_phrase` 的业务含义。\n    enable_sparse_keyword: 字段 `enable_sparse_keyword` 的业务含义。\n    enable_dense_vector: 字段 `enable_dense_vector` 的业务含义。\n    enable_fusion_rank: 字段 `enable_fusion_rank` 的业务含义。\n    enable_rerank: 字段 `enable_rerank` 的业务含义。\n    "
+        "title": "SearchRequest"
       },
       "SuccessResponse_BatchUploadResponse_": {
         "properties": {
@@ -6930,7 +7531,7 @@
           "timestamp": "2024-01-01T00:00:00+00:00"
         }
       },
-      "SuccessResponse_PauseStreamResponse_": {
+      "SuccessResponse_TaskRuntimeActionResponse_": {
         "properties": {
           "code": {
             "type": "integer",
@@ -6945,7 +7546,7 @@
           "data": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PauseStreamResponse"
+                "$ref": "#/components/schemas/TaskRuntimeActionResponse"
               },
               {
                 "type": "null"
@@ -6958,7 +7559,83 @@
           }
         },
         "type": "object",
-        "title": "SuccessResponse[PauseStreamResponse]",
+        "title": "SuccessResponse[TaskRuntimeActionResponse]",
+        "example": {
+          "code": 200,
+          "data": {
+            "key": "value"
+          },
+          "message": "success",
+          "timestamp": "2024-01-01T00:00:00+00:00"
+        }
+      },
+      "SuccessResponse_TaskRuntimePrepareResponse_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "default": 200
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "success"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimePrepareResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "title": "SuccessResponse[TaskRuntimePrepareResponse]",
+        "example": {
+          "code": 200,
+          "data": {
+            "key": "value"
+          },
+          "message": "success",
+          "timestamp": "2024-01-01T00:00:00+00:00"
+        }
+      },
+      "SuccessResponse_TaskRuntimeStatusResponse_": {
+        "properties": {
+          "code": {
+            "type": "integer",
+            "title": "Code",
+            "default": 200
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "success"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimeStatusResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "title": "SuccessResponse[TaskRuntimeStatusResponse]",
         "example": {
           "code": 200,
           "data": {
@@ -7082,6 +7759,928 @@
           "timestamp": "2024-01-01T00:00:00+00:00"
         }
       },
+      "TaskRuntimeActionRequest": {
+        "additionalProperties": false,
+        "description": "任务生命周期控制请求 DTO。",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reason"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "title": "TaskRuntimeActionRequest",
+        "type": "object"
+      },
+      "TaskRuntimeActionResponse": {
+        "additionalProperties": false,
+        "description": "任务生命周期动作响应 DTO。",
+        "properties": {
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task Id"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Checkpoint Id"
+          },
+          "current_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Plan Id"
+          },
+          "current_step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Step Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Updated At"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          },
+          "action": {
+            "enum": [
+              "pause",
+              "resume",
+              "cancel",
+              "retry"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "accepted": {
+            "default": true,
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "detail_message": {
+            "default": "",
+            "title": "Detail Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "execution_id",
+          "action"
+        ],
+        "title": "TaskRuntimeActionResponse",
+        "type": "object"
+      },
+      "TaskRuntimeArtifactResponse": {
+        "additionalProperties": false,
+        "description": "任务产物响应 DTO。",
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "artifact_type": {
+            "title": "Artifact Type",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "content": {
+            "default": null,
+            "title": "Content"
+          },
+          "source_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Plan Id"
+          },
+          "source_step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Step Id"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "artifact_type",
+          "created_at"
+        ],
+        "title": "TaskRuntimeArtifactResponse",
+        "type": "object"
+      },
+      "TaskRuntimeCheckpointResponse": {
+        "additionalProperties": false,
+        "description": "任务检查点响应 DTO。",
+        "properties": {
+          "checkpoint_id": {
+            "title": "Checkpoint Id",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task Id"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Execution Id"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "iteration_count": {
+            "default": 0,
+            "title": "Iteration Count",
+            "type": "integer"
+          },
+          "completed_step_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Completed Step Ids",
+            "type": "array"
+          },
+          "latest_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Latest Plan Id"
+          },
+          "latest_step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Latest Step Id"
+          },
+          "checkpoint_reason": {
+            "default": "",
+            "title": "Checkpoint Reason",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "checkpoint_id",
+          "created_at"
+        ],
+        "title": "TaskRuntimeCheckpointResponse",
+        "type": "object"
+      },
+      "TaskRuntimeEvaluationReportResponse": {
+        "additionalProperties": false,
+        "description": "任务验收报告响应 DTO。",
+        "properties": {
+          "report_id": {
+            "title": "Report Id",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task Id"
+          },
+          "success": {
+            "default": false,
+            "title": "Success",
+            "type": "boolean"
+          },
+          "overall_score": {
+            "default": 0.0,
+            "title": "Overall Score",
+            "type": "number"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "satisfied_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Satisfied Criteria",
+            "type": "array"
+          },
+          "missing_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Criteria",
+            "type": "array"
+          },
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Risks",
+            "type": "array"
+          },
+          "recommendations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "report_id",
+          "created_at"
+        ],
+        "title": "TaskRuntimeEvaluationReportResponse",
+        "type": "object"
+      },
+      "TaskRuntimeGoalResponse": {
+        "additionalProperties": false,
+        "description": "任务目标响应 DTO。",
+        "properties": {
+          "goal_id": {
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "source_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Message Id"
+          },
+          "original_user_input": {
+            "title": "Original User Input",
+            "type": "string"
+          },
+          "normalized_goal": {
+            "title": "Normalized Goal",
+            "type": "string"
+          },
+          "success_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Success Criteria",
+            "type": "array"
+          },
+          "constraints": {
+            "title": "Constraints",
+            "type": "object"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "goal_id",
+          "conversation_id",
+          "original_user_input",
+          "normalized_goal"
+        ],
+        "title": "TaskRuntimeGoalResponse",
+        "type": "object"
+      },
+      "TaskRuntimePlanResponse": {
+        "additionalProperties": false,
+        "description": "任务计划响应 DTO。",
+        "properties": {
+          "plan_id": {
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "goal_id": {
+            "title": "Goal Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "reasoning": {
+            "default": "",
+            "title": "Reasoning",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/TaskRuntimePlanStepResponse"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "plan_id",
+          "goal_id",
+          "version"
+        ],
+        "title": "TaskRuntimePlanResponse",
+        "type": "object"
+      },
+      "TaskRuntimePlanStepResponse": {
+        "additionalProperties": false,
+        "description": "任务计划步骤响应 DTO。",
+        "properties": {
+          "step_id": {
+            "title": "Step Id",
+            "type": "string"
+          },
+          "step_type": {
+            "title": "Step Type",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "step_id",
+          "step_type",
+          "title"
+        ],
+        "title": "TaskRuntimePlanStepResponse",
+        "type": "object"
+      },
+      "TaskRuntimePrepareResponse": {
+        "additionalProperties": false,
+        "description": "同步准备接口响应 DTO。",
+        "properties": {
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task Id"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Checkpoint Id"
+          },
+          "current_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Plan Id"
+          },
+          "current_step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Step Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Updated At"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          },
+          "goal": {
+            "$ref": "#/components/schemas/TaskRuntimeGoalResponse"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/TaskRuntimePlanResponse"
+          },
+          "evaluation_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimeEvaluationReportResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "request_id",
+          "execution_id",
+          "goal",
+          "plan"
+        ],
+        "title": "TaskRuntimePrepareResponse",
+        "type": "object"
+      },
+      "TaskRuntimeStatusResponse": {
+        "additionalProperties": false,
+        "description": "任务状态接口响应 DTO。",
+        "properties": {
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Task Id"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Checkpoint Id"
+          },
+          "current_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Plan Id"
+          },
+          "current_step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Step Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Updated At"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimeGoalResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "current_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimePlanResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "termination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimeTerminationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "latest_checkpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimeCheckpointResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/TaskRuntimeArtifactResponse"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "evaluation_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskRuntimeEvaluationReportResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "request_id",
+          "execution_id"
+        ],
+        "title": "TaskRuntimeStatusResponse",
+        "type": "object"
+      },
+      "TaskRuntimeSubmitRequest": {
+        "additionalProperties": false,
+        "description": "任务运行时提交请求 DTO。",
+        "properties": {
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "user_input": {
+            "title": "User Input",
+            "type": "string"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message Id"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "user_input"
+        ],
+        "title": "TaskRuntimeSubmitRequest",
+        "type": "object"
+      },
+      "TaskRuntimeTerminationResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "final_output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Output"
+          },
+          "metadata": {
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "TaskRuntimeTerminationResponse",
+        "description": "任务终止结果响应 DTO。"
+      },
       "TokenResponse": {
         "properties": {
           "access_token": {
@@ -7118,36 +8717,89 @@
           "user_id",
           "username"
         ],
-        "title": "TokenResponse",
-        "description": "TokenResponse 相关的数据结构定义。\n\nAttributes:\n    access_token: 字段 `access_token` 的业务含义。\n    refresh_token: 字段 `refresh_token` 的业务含义。\n    token_type: 字段 `token_type` 的业务含义。\n    user_id: 字段 `user_id` 的业务含义。\n    username: 字段 `username` 的业务含义。\n    "
+        "title": "TokenResponse"
+      },
+      "ToolCategoryInfo": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Tool category"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of tools in the category"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tools",
+            "description": "Tool names in the category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "count"
+        ],
+        "title": "ToolCategoryInfo"
+      },
+      "ToolCategoryListResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "Whether the request succeeded",
+            "default": true
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ToolCategoryInfo"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "Visible tool categories"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Number of categories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "title": "ToolCategoryListResponse"
       },
       "ToolDetailResponse": {
         "properties": {
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "是否成功",
+            "description": "Whether the request succeeded",
             "default": true
           },
           "data": {
             "$ref": "#/components/schemas/ToolInfo",
-            "description": "工具详情"
+            "description": "Tool detail payload"
           }
         },
         "type": "object",
         "required": [
           "data"
         ],
-        "title": "ToolDetailResponse",
-        "description": "ToolDetailResponse 相关的数据结构定义。\n\nAttributes:\n    success: 字段 `success` 的业务含义。\n    data: 字段 `data` 的业务含义。\n    "
+        "title": "ToolDetailResponse"
       },
       "ToolExecuteRequest": {
         "properties": {
           "parameters": {
-            "additionalProperties": true,
             "type": "object",
             "title": "Parameters",
-            "description": "工具参数"
+            "description": "Tool execution parameters"
           }
         },
         "type": "object",
@@ -7155,7 +8807,6 @@
           "parameters"
         ],
         "title": "ToolExecuteRequest",
-        "description": "ToolExecuteRequest 相关的数据结构定义。\n\nAttributes:\n    parameters: 字段 `parameters` 的业务含义。\n    ",
         "example": {
           "parameters": {
             "source_lang": "en",
@@ -7169,20 +8820,11 @@
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "是否成功"
+            "description": "Whether tool execution succeeded"
           },
           "data": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
             "title": "Data",
-            "description": "执行结果"
+            "description": "Tool result payload"
           },
           "error": {
             "anyOf": [
@@ -7194,7 +8836,7 @@
               }
             ],
             "title": "Error",
-            "description": "错误信息"
+            "description": "Error message"
           },
           "error_code": {
             "anyOf": [
@@ -7206,7 +8848,7 @@
               }
             ],
             "title": "Error Code",
-            "description": "稳定错误码"
+            "description": "Stable error code"
           },
           "error_type": {
             "anyOf": [
@@ -7218,12 +8860,11 @@
               }
             ],
             "title": "Error Type",
-            "description": "错误分类"
+            "description": "Error category"
           },
           "metadata": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -7231,7 +8872,7 @@
               }
             ],
             "title": "Metadata",
-            "description": "附加元数据"
+            "description": "Execution metadata"
           }
         },
         "type": "object",
@@ -7239,10 +8880,9 @@
           "success"
         ],
         "title": "ToolExecuteResponse",
-        "description": "ToolExecuteResponse 相关的数据结构定义。\n\nAttributes:\n    success: 字段 `success` 的业务含义。\n    data: 字段 `data` 的业务含义。\n    error: 字段 `error` 的业务含义。\n    error_code: 字段 `error_code` 的业务含义。\n    error_type: 字段 `error_type` 的业务含义。\n    metadata: 字段 `metadata` 的业务含义。\n    ",
         "example": {
           "data": {
-            "translated_text": "你好，世界！"
+            "translated_text": "Hello world in another language"
           },
           "metadata": {
             "execution_id": "exec_xxx",
@@ -7257,27 +8897,35 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "工具名称"
+            "description": "Tool name"
           },
           "description": {
             "type": "string",
             "title": "Description",
-            "description": "工具描述"
+            "description": "Tool description"
           },
           "category": {
             "type": "string",
             "title": "Category",
-            "description": "业务分类"
+            "description": "Business category"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities",
+            "description": "Declared tool capabilities"
           },
           "transport_protocol": {
             "type": "string",
             "title": "Transport Protocol",
-            "description": "运行时协议"
+            "description": "Runtime transport protocol"
           },
           "tool_origin": {
             "type": "string",
             "title": "Tool Origin",
-            "description": "工具来源，local/external"
+            "description": "Tool origin"
           },
           "mcp_server": {
             "anyOf": [
@@ -7289,21 +8937,20 @@
               }
             ],
             "title": "Mcp Server",
-            "description": "绑定的 MCP Server"
+            "description": "Bound MCP server"
           },
           "parameters": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/ToolParameterInfo"
             },
             "type": "array",
             "title": "Parameters",
-            "description": "参数列表"
+            "description": "Tool parameter definitions"
           },
           "timeout": {
             "type": "integer",
             "title": "Timeout",
-            "description": "超时时间（秒）"
+            "description": "Timeout in seconds"
           }
         },
         "type": "object",
@@ -7317,15 +8964,18 @@
           "timeout"
         ],
         "title": "ToolInfo",
-        "description": "ToolInfo 相关的数据结构定义。\n\nAttributes:\n    name: 字段 `name` 的业务含义。\n    description: 字段 `description` 的业务含义。\n    category: 字段 `category` 的业务含义。\n    transport_protocol: 字段 `transport_protocol` 的业务含义。\n    tool_origin: 字段 `tool_origin` 的业务含义。\n    mcp_server: 字段 `mcp_server` 的业务含义。\n    parameters: 字段 `parameters` 的业务含义。\n    timeout: 字段 `timeout` 的业务含义。\n    ",
         "example": {
+          "capabilities": [
+            "invoke",
+            "local_direct"
+          ],
           "category": "language",
-          "description": "多语言翻译工具",
+          "description": "Multilingual translation tool",
           "mcp_server": "builtin",
           "name": "translation",
           "parameters": [
             {
-              "description": "输入文本",
+              "description": "Input text",
               "name": "text",
               "required": true,
               "type": "string"
@@ -7341,7 +8991,7 @@
           "success": {
             "type": "boolean",
             "title": "Success",
-            "description": "是否成功",
+            "description": "Whether the request succeeded",
             "default": true
           },
           "data": {
@@ -7350,12 +9000,12 @@
             },
             "type": "array",
             "title": "Data",
-            "description": "工具列表"
+            "description": "Visible tools"
           },
           "total": {
             "type": "integer",
             "title": "Total",
-            "description": "工具总数"
+            "description": "Number of tools"
           }
         },
         "type": "object",
@@ -7363,8 +9013,152 @@
           "data",
           "total"
         ],
-        "title": "ToolListResponse",
-        "description": "ToolListResponse 相关的数据结构定义。\n\nAttributes:\n    success: 字段 `success` 的业务含义。\n    data: 字段 `data` 的业务含义。\n    total: 字段 `total` 的业务含义。\n    "
+        "title": "ToolListResponse"
+      },
+      "ToolParameterInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Parameter name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Parameter type"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Parameter description"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "description": "Whether the parameter is required"
+          },
+          "default": {
+            "title": "Default",
+            "description": "Default value"
+          },
+          "enum": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enum",
+            "description": "Allowed enum values"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum",
+            "description": "Minimum numeric value"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum",
+            "description": "Maximum numeric value"
+          },
+          "min_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Length",
+            "description": "Minimum string length"
+          },
+          "max_length": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length",
+            "description": "Maximum string length"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern",
+            "description": "Regex pattern"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Items",
+            "description": "Array item schema"
+          },
+          "properties": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties",
+            "description": "Object property schema"
+          },
+          "additional_properties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Properties",
+            "description": "Whether object accepts extra fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "description",
+          "required"
+        ],
+        "title": "ToolParameterInfo"
       },
       "UpdateConversationRequest": {
         "properties": {
@@ -7396,8 +9190,7 @@
           }
         },
         "type": "object",
-        "title": "UpdateConversationRequest",
-        "description": "UpdateConversationRequest 相关的数据结构定义。\n\nAttributes:\n    title: 字段 `title` 的业务含义。\n    description: 字段 `description` 的业务含义。\n    "
+        "title": "UpdateConversationRequest"
       },
       "UserProfileResponse": {
         "properties": {
@@ -7454,8 +9247,7 @@
           "is_active",
           "created_at"
         ],
-        "title": "UserProfileResponse",
-        "description": "UserProfileResponse 相关的数据结构定义。\n\nAttributes:\n    user_id: 字段 `user_id` 的业务含义。\n    username: 字段 `username` 的业务含义。\n    email: 字段 `email` 的业务含义。\n    full_name: 字段 `full_name` 的业务含义。\n    avatar_url: 字段 `avatar_url` 的业务含义。\n    is_active: 字段 `is_active` 的业务含义。\n    created_at: 字段 `created_at` 的业务含义。\n    "
+        "title": "UserProfileResponse"
       },
       "ValidationError": {
         "properties": {
@@ -7537,8 +9329,7 @@
           "missing_after",
           "success"
         ],
-        "title": "VectorRebuildItem",
-        "description": "VectorRebuildItem 相关的数据结构定义。\n\nAttributes:\n    document_id: 字段 `document_id` 的业务含义。\n    file_name: 字段 `file_name` 的业务含义。\n    missing_before: 字段 `missing_before` 的业务含义。\n    vectorized_now: 字段 `vectorized_now` 的业务含义。\n    missing_after: 字段 `missing_after` 的业务含义。\n    success: 字段 `success` 的业务含义。\n    error: 字段 `error` 的业务含义。\n    "
+        "title": "VectorRebuildItem"
       },
       "VectorRebuildRequest": {
         "properties": {
@@ -7556,8 +9347,7 @@
           }
         },
         "type": "object",
-        "title": "VectorRebuildRequest",
-        "description": "VectorRebuildRequest 相关的数据结构定义。\n\nAttributes:\n    knowledge_base_id: 字段 `knowledge_base_id` 的业务含义。\n    "
+        "title": "VectorRebuildRequest"
       },
       "VectorRebuildResponse": {
         "properties": {
@@ -7608,8 +9398,7 @@
           "total_missing_chunks_after",
           "details"
         ],
-        "title": "VectorRebuildResponse",
-        "description": "VectorRebuildResponse 相关的数据结构定义。\n\nAttributes:\n    total_documents: 字段 `total_documents` 的业务含义。\n    processed_documents: 字段 `processed_documents` 的业务含义。\n    succeeded_documents: 字段 `succeeded_documents` 的业务含义。\n    failed_documents: 字段 `failed_documents` 的业务含义。\n    total_missing_chunks_before: 字段 `total_missing_chunks_before` 的业务含义。\n    total_vectorized_chunks_now: 字段 `total_vectorized_chunks_now` 的业务含义。\n    total_missing_chunks_after: 字段 `total_missing_chunks_after` 的业务含义。\n    details: 字段 `details` 的业务含义。\n    "
+        "title": "VectorRebuildResponse"
       },
       "ErrorDetail": {
         "properties": {
@@ -7711,15 +9500,25 @@
       },
       "SSEEvent": {
         "example": {
-          "content": "hello",
+          "content": {
+            "plan_id": "plan_xxx"
+          },
           "conversation_id": "conv_xxx",
           "execution_id": "exec_xxx",
-          "message": "chunk generated",
+          "message": "plan generated",
           "message_id": "msg_xxx",
-          "metadata": {},
+          "metadata": {
+            "conversation_id": "conv_xxx",
+            "execution_id": "exec_xxx",
+            "message_id": "msg_xxx",
+            "plan_id": "plan_xxx",
+            "request_id": "req_xxx",
+            "stage": "planning",
+            "step_id": null
+          },
           "request_id": "req_xxx",
-          "timestamp": "2024-01-01T00:00:00+00:00",
-          "type": "content"
+          "timestamp": "2024-01-01T00:00:00Z",
+          "type": "result"
         },
         "properties": {
           "type": {
@@ -7751,7 +9550,6 @@
             "title": "Content"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -7806,6 +9604,33 @@
             ],
             "default": null,
             "title": "Execution Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error Code"
+          },
+          "citations": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Citations"
           }
         },
         "required": [
@@ -7814,173 +9639,57 @@
         "title": "SSEEvent",
         "type": "object"
       },
-      "AskResponse": {
-        "description": "AskResponse 相关的数据结构定义。\n\nAttributes:\n    conversation_id: 字段 `conversation_id` 的业务含义。\n    message_id: 字段 `message_id` 的业务含义。\n    answer: 字段 `answer` 的业务含义。\n    execution_id: 字段 `execution_id` 的业务含义。\n    ",
-        "properties": {
-          "conversation_id": {
-            "description": "会话ID",
-            "title": "Conversation Id",
-            "type": "string"
+      "StreamChunkSchema": {
+        "additionalProperties": false,
+        "example": {
+          "chunk_id": "chunk_xxx",
+          "chunk_type": "content",
+          "content": "hello",
+          "metadata": {
+            "step": "generation"
           },
-          "message_id": {
-            "description": "消息ID",
-            "title": "Message Id",
-            "type": "string"
-          },
-          "answer": {
-            "description": "助手回答",
-            "title": "Answer",
-            "type": "string"
-          },
-          "execution_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "执行ID",
-            "title": "Execution Id"
-          },
-          "citations": {
-            "description": "引用列表",
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Citations",
-            "type": "array"
-          }
+          "timestamp": "2024-01-01T00:00:00Z",
+          "type": "content"
         },
-        "required": [
-          "conversation_id",
-          "message_id",
-          "answer"
-        ],
-        "title": "AskResponse",
-        "type": "object"
-      },
-      "ChatResultPayload": {
-        "description": "Chat SSE `result` event payload contract.",
         "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "type": {
+            "default": "content",
+            "enum": [
+              "thinking",
+              "content",
+              "tool_call",
+              "result",
+              "done",
+              "error"
             ],
-            "default": null,
-            "description": "工作流或结果状态",
-            "title": "Status"
+            "title": "Type",
+            "type": "string"
           },
-          "final_step_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "chunk_type": {
+            "default": "content",
+            "enum": [
+              "thinking",
+              "content",
+              "tool_call",
+              "result",
+              "done",
+              "error",
+              "metadata"
             ],
-            "default": null,
-            "description": "最终步骤标识",
-            "title": "Final Step Key"
+            "title": "Chunk Type",
+            "type": "string"
           },
-          "final_content": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "最终文本内容",
-            "title": "Final Content"
-          },
-          "step_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "步骤数量",
-            "title": "Step Count"
-          },
-          "execution_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "执行ID",
-            "title": "Execution Id"
-          },
-          "citations": {
-            "description": "引用列表",
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Citations",
-            "type": "array"
-          },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "路由决策",
-            "title": "Route Decision"
-          },
-          "retrieval_results": {
-            "description": "检索结果",
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Retrieval Results",
-            "type": "array"
-          },
-          "tool_result": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "工具结果",
-            "title": "Tool Result"
+          "content": {
+            "default": "",
+            "title": "Content"
           },
           "metadata": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -7988,188 +9697,30 @@
               }
             ],
             "default": null,
-            "description": "扩展元数据",
-            "title": "Metadata"
-          }
-        },
-        "title": "ChatResultPayload",
-        "type": "object"
-      },
-      "ChatDonePayload": {
-        "description": "Chat SSE `done` event payload contract.",
-        "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "工作流或结果状态",
-            "title": "Status"
-          },
-          "final_step_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "最终步骤标识",
-            "title": "Final Step Key"
-          },
-          "final_content": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "最终文本内容",
-            "title": "Final Content"
-          },
-          "step_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "步骤数量",
-            "title": "Step Count"
-          },
-          "execution_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "执行ID",
-            "title": "Execution Id"
-          },
-          "citations": {
-            "description": "引用列表",
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Citations",
-            "type": "array"
-          },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "路由决策",
-            "title": "Route Decision"
-          },
-          "retrieval_results": {
-            "description": "检索结果",
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Retrieval Results",
-            "type": "array"
-          },
-          "tool_result": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "工具结果",
-            "title": "Tool Result"
-          },
-          "metadata": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "扩展元数据",
             "title": "Metadata"
           },
-          "conversation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "会话ID",
-            "title": "Conversation Id"
-          },
-          "assistant_message_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "助手消息ID",
-            "title": "Assistant Message Id"
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
           }
         },
-        "title": "ChatDonePayload",
+        "title": "StreamChunkSchema",
         "type": "object"
       },
       "WorkflowContextSchema": {
         "additionalProperties": false,
         "properties": {
           "step_results": {
-            "additionalProperties": true,
             "title": "Step Results",
             "type": "object"
           },
           "step_config": {
-            "additionalProperties": true,
             "title": "Step Config",
             "type": "object"
           },
           "previous_output": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8210,9 +9761,6 @@
               "id": "chunk_1"
             }
           ],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "tool_results": [
             {
               "success": true,
@@ -8318,28 +9866,13 @@
           },
           "conversation_history": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Conversation History",
             "type": "array"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -8347,14 +9880,12 @@
           },
           "tool_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Tool Results",
             "type": "array"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -8376,208 +9907,6 @@
           "content"
         ],
         "title": "AgentInputSchema",
-        "type": "object"
-      },
-      "RouterAgentInputSchema": {
-        "additionalProperties": false,
-        "example": {
-          "content": "请总结这份资料",
-          "conversation_history": [
-            {
-              "content": "上一轮问题",
-              "role": "user"
-            }
-          ],
-          "conversation_id": "conv_123",
-          "document_id": "doc_123",
-          "enable_knowledge_base": true,
-          "execution_id": "exec_parent_123",
-          "knowledge_base_id": "kb_123",
-          "message_id": "msg_123",
-          "metadata": {
-            "debug": true
-          },
-          "protocol_version": "2.0.0",
-          "request_id": "req_123",
-          "retrieval_results": [
-            {
-              "content": "知识片段",
-              "id": "chunk_1"
-            }
-          ],
-          "route_decision": {
-            "action": "retrieval"
-          },
-          "tool_results": [
-            {
-              "success": true,
-              "tool_name": "weather"
-            }
-          ],
-          "user_id": "user_123",
-          "workflow_context": {
-            "previous_output": null,
-            "step_config": {},
-            "step_results": {}
-          }
-        },
-        "properties": {
-          "protocol_version": {
-            "default": "2.0.0",
-            "title": "Protocol Version",
-            "type": "string"
-          },
-          "user_id": {
-            "title": "User Id",
-            "type": "string"
-          },
-          "conversation_id": {
-            "title": "Conversation Id",
-            "type": "string"
-          },
-          "message_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Message Id"
-          },
-          "content": {
-            "title": "Content",
-            "type": "string"
-          },
-          "request_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Request Id"
-          },
-          "execution_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Execution Id"
-          },
-          "knowledge_base_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Knowledge Base Id"
-          },
-          "document_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Document Id"
-          },
-          "enable_knowledge_base": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Enable Knowledge Base"
-          },
-          "conversation_history": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Conversation History",
-            "type": "array"
-          },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
-          "retrieval_results": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Retrieval Results",
-            "type": "array"
-          },
-          "tool_results": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Tool Results",
-            "type": "array"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "workflow_context": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/WorkflowContextSchema"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null
-          },
-          "available_agents": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Available Agents",
-            "type": "array"
-          }
-        },
-        "required": [
-          "user_id",
-          "conversation_id",
-          "content"
-        ],
-        "title": "RouterAgentInputSchema",
         "type": "object"
       },
       "RetrievalAgentInputSchema": {
@@ -8607,9 +9936,6 @@
               "id": "chunk_1"
             }
           ],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "tool_results": [
             {
               "success": true,
@@ -8715,28 +10041,13 @@
           },
           "conversation_history": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Conversation History",
             "type": "array"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -8744,14 +10055,12 @@
           },
           "tool_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Tool Results",
             "type": "array"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -8767,7 +10076,6 @@
             "default": null
           },
           "vector_search_filter": {
-            "additionalProperties": true,
             "title": "Vector Search Filter",
             "type": "object"
           },
@@ -8852,6 +10160,18 @@
             ],
             "default": null,
             "title": "Enable Fusion Rank"
+          },
+          "enable_hybrid_retrieval": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Enable Hybrid Retrieval"
           }
         },
         "required": [
@@ -8889,9 +10209,6 @@
               "id": "chunk_1"
             }
           ],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "tool_results": [
             {
               "success": true,
@@ -8997,28 +10314,13 @@
           },
           "conversation_history": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Conversation History",
             "type": "array"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -9026,14 +10328,12 @@
           },
           "tool_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Tool Results",
             "type": "array"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -9062,7 +10362,6 @@
           },
           "sources": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Sources",
@@ -9104,9 +10403,6 @@
               "id": "chunk_1"
             }
           ],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "tool_results": [
             {
               "success": true,
@@ -9212,28 +10508,13 @@
           },
           "conversation_history": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Conversation History",
             "type": "array"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -9241,14 +10522,12 @@
           },
           "tool_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Tool Results",
             "type": "array"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -9295,7 +10574,6 @@
             "title": "Tool Name"
           },
           "tool_params": {
-            "additionalProperties": true,
             "title": "Tool Params",
             "type": "object"
           }
@@ -9335,9 +10613,6 @@
               "id": "chunk_1"
             }
           ],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "tool_results": [
             {
               "success": true,
@@ -9443,28 +10718,13 @@
           },
           "conversation_history": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Conversation History",
             "type": "array"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -9472,14 +10732,12 @@
           },
           "tool_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Tool Results",
             "type": "array"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -9531,7 +10789,6 @@
             "title": "File Type"
           },
           "file_metadata": {
-            "additionalProperties": true,
             "title": "File Metadata",
             "type": "object"
           }
@@ -9547,8 +10804,8 @@
       "AgentOutputSchema": {
         "additionalProperties": false,
         "example": {
-          "agent_name": "router_agent",
-          "agent_type": "router",
+          "agent_name": "retrieval_agent",
+          "agent_type": "retrieval",
           "content": "",
           "conversation_id": "conv_123",
           "document_id": null,
@@ -9563,9 +10820,6 @@
           "protocol_version": "2.0.0",
           "request_id": "req_123",
           "retrieval_results": [],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "status": "success",
           "tool_result": null
         },
@@ -9679,22 +10933,8 @@
             "default": null,
             "title": "Document Id"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -9703,7 +10943,6 @@
           "tool_result": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9714,7 +10953,6 @@
             "title": "Tool Result"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           }
@@ -9727,232 +10965,11 @@
         "title": "AgentOutputSchema",
         "type": "object"
       },
-      "RouterAgentOutputSchema": {
-        "additionalProperties": false,
-        "example": {
-          "agent_name": "router_agent",
-          "agent_type": "router",
-          "content": "",
-          "conversation_id": "conv_123",
-          "document_id": null,
-          "error_message": null,
-          "execution_id": "exec_123",
-          "execution_time_ms": 38,
-          "knowledge_base_id": "kb_123",
-          "message_id": "msg_123",
-          "metadata": {
-            "debug": true
-          },
-          "protocol_version": "2.0.0",
-          "request_id": "req_123",
-          "retrieval_results": [],
-          "route_decision": {
-            "action": "retrieval"
-          },
-          "status": "success",
-          "tool_result": null
-        },
-        "properties": {
-          "protocol_version": {
-            "default": "2.0.0",
-            "title": "Protocol Version",
-            "type": "string"
-          },
-          "execution_id": {
-            "title": "Execution Id",
-            "type": "string"
-          },
-          "agent_name": {
-            "title": "Agent Name",
-            "type": "string"
-          },
-          "agent_type": {
-            "title": "Agent Type",
-            "type": "string"
-          },
-          "content": {
-            "default": "",
-            "title": "Content",
-            "type": "string"
-          },
-          "status": {
-            "default": "success",
-            "enum": [
-              "success",
-              "failed",
-              "partial"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Error Message"
-          },
-          "execution_time_ms": {
-            "default": 0,
-            "title": "Execution Time Ms",
-            "type": "integer"
-          },
-          "request_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Request Id"
-          },
-          "conversation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Conversation Id"
-          },
-          "message_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Message Id"
-          },
-          "knowledge_base_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Knowledge Base Id"
-          },
-          "document_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Document Id"
-          },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
-          "retrieval_results": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Retrieval Results",
-            "type": "array"
-          },
-          "tool_result": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Tool Result"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Confidence"
-          },
-          "reasoning": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Reasoning"
-          },
-          "suggested_agents": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Suggested Agents",
-            "type": "array"
-          },
-          "suggested_tools": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Suggested Tools",
-            "type": "array"
-          }
-        },
-        "required": [
-          "execution_id",
-          "agent_name",
-          "agent_type"
-        ],
-        "title": "RouterAgentOutputSchema",
-        "type": "object"
-      },
       "RetrievalAgentOutputSchema": {
         "additionalProperties": false,
         "example": {
-          "agent_name": "router_agent",
-          "agent_type": "router",
+          "agent_name": "retrieval_agent",
+          "agent_type": "retrieval",
           "content": "",
           "conversation_id": "conv_123",
           "document_id": null,
@@ -9967,9 +10984,6 @@
           "protocol_version": "2.0.0",
           "request_id": "req_123",
           "retrieval_results": [],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "status": "success",
           "tool_result": null
         },
@@ -10083,22 +11097,8 @@
             "default": null,
             "title": "Document Id"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -10107,7 +11107,6 @@
           "tool_result": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10118,14 +11117,12 @@
             "title": "Tool Result"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
           "rewrite_info": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10147,8 +11144,8 @@
       "GenerationAgentOutputSchema": {
         "additionalProperties": false,
         "example": {
-          "agent_name": "router_agent",
-          "agent_type": "router",
+          "agent_name": "retrieval_agent",
+          "agent_type": "retrieval",
           "content": "",
           "conversation_id": "conv_123",
           "document_id": null,
@@ -10163,9 +11160,6 @@
           "protocol_version": "2.0.0",
           "request_id": "req_123",
           "retrieval_results": [],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "status": "success",
           "tool_result": null
         },
@@ -10279,22 +11273,8 @@
             "default": null,
             "title": "Document Id"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -10303,7 +11283,6 @@
           "tool_result": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10314,13 +11293,11 @@
             "title": "Tool Result"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
           "citations": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Citations",
@@ -10328,7 +11305,6 @@
           },
           "sources": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Sources",
@@ -10363,8 +11339,8 @@
       "ToolAgentOutputSchema": {
         "additionalProperties": false,
         "example": {
-          "agent_name": "router_agent",
-          "agent_type": "router",
+          "agent_name": "retrieval_agent",
+          "agent_type": "retrieval",
           "content": "",
           "conversation_id": "conv_123",
           "document_id": null,
@@ -10379,9 +11355,6 @@
           "protocol_version": "2.0.0",
           "request_id": "req_123",
           "retrieval_results": [],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "status": "success",
           "tool_result": null
         },
@@ -10495,22 +11468,8 @@
             "default": null,
             "title": "Document Id"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -10519,7 +11478,6 @@
           "tool_result": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10530,7 +11488,6 @@
             "title": "Tool Result"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -10547,14 +11504,12 @@
             "title": "Tool Name"
           },
           "tool_params": {
-            "additionalProperties": true,
             "title": "Tool Params",
             "type": "object"
           },
           "interpreted_result": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10578,23 +11533,10 @@
           },
           "tool_calls": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Tool Calls",
             "type": "array"
-          },
-          "no_tool_needed": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "No Tool Needed"
           },
           "reasoning": {
             "anyOf": [
@@ -10607,18 +11549,6 @@
             ],
             "default": null,
             "title": "Reasoning"
-          },
-          "route_action": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Action"
           },
           "total_calls": {
             "default": 0,
@@ -10647,8 +11577,8 @@
       "FileProcessorAgentOutputSchema": {
         "additionalProperties": false,
         "example": {
-          "agent_name": "router_agent",
-          "agent_type": "router",
+          "agent_name": "retrieval_agent",
+          "agent_type": "retrieval",
           "content": "",
           "conversation_id": "conv_123",
           "document_id": null,
@@ -10663,9 +11593,6 @@
           "protocol_version": "2.0.0",
           "request_id": "req_123",
           "retrieval_results": [],
-          "route_decision": {
-            "action": "retrieval"
-          },
           "status": "success",
           "tool_result": null
         },
@@ -10779,22 +11706,8 @@
             "default": null,
             "title": "Document Id"
           },
-          "route_decision": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Route Decision"
-          },
           "retrieval_results": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Retrieval Results",
@@ -10803,7 +11716,6 @@
           "tool_result": {
             "anyOf": [
               {
-                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10814,7 +11726,6 @@
             "title": "Tool Result"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -10875,14 +11786,12 @@
           },
           "extracted_tables": {
             "items": {
-              "additionalProperties": true,
               "type": "object"
             },
             "title": "Extracted Tables",
             "type": "array"
           },
           "file_metadata": {
-            "additionalProperties": true,
             "title": "File Metadata",
             "type": "object"
           },
@@ -10907,43 +11816,114 @@
         "title": "FileProcessorAgentOutputSchema",
         "type": "object"
       },
-      "SuccessResponse_AskResponse_": {
-        "example": {
-          "code": 200,
-          "data": {
-            "key": "value"
-          },
-          "message": "success",
-          "timestamp": "2024-01-01T00:00:00+00:00"
-        },
+      "TaskRuntimeExecutionSummaryResponse": {
+        "additionalProperties": false,
+        "description": "任务执行摘要响应 DTO。",
         "properties": {
-          "code": {
-            "default": 200,
-            "title": "Code",
-            "type": "integer"
-          },
-          "message": {
-            "default": "success",
-            "title": "Message",
-            "type": "string"
-          },
-          "data": {
+          "task_id": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/AskResponse"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "default": null
+            "default": null,
+            "title": "Task Id"
           },
-          "timestamp": {
-            "title": "Timestamp",
+          "request_id": {
+            "title": "Request Id",
             "type": "string"
+          },
+          "execution_id": {
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "pending",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "timed_out"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Checkpoint Id"
+          },
+          "current_plan_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Plan Id"
+          },
+          "current_step_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Current Step Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Updated At"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
           }
         },
-        "title": "SuccessResponse[AskResponse]",
+        "required": [
+          "request_id",
+          "execution_id"
+        ],
+        "title": "TaskRuntimeExecutionSummaryResponse",
         "type": "object"
       }
     },

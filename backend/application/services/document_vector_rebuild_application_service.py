@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
+from backend.contracts.async_task import AsyncTaskStatus
 from backend.application.services.document_service_support import (
     DocumentServiceSupport,
     _clone_full_rebuild_task,
@@ -10,12 +12,18 @@ from backend.application.services.document_service_support import (
     _utcnow_iso,
     logger,
 )
-from backend.models.file import FileUpdate
-from backend.utils.embedding_client import get_embedding_client
+from backend.domain.knowledge import build_chunk_vector_metadata, is_knowledge_managed_file
+from backend.models.file import FileChunk, FileUpdate
 from backend.utils.time_utils import utc_now
 
 
 class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
+    def __init__(self, *args, embedding_gateway=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if embedding_gateway is None:
+            raise ValueError("DocumentVectorRebuildApplicationService requires injected embedding_gateway")
+        self.embedding_gateway = embedding_gateway
+
     def retry_document_vectorization(
         self,
         *,
@@ -56,7 +64,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
             file_record,
             stage="vectorizing",
             progress=85,
-            status="retrying",
+            status=AsyncTaskStatus.RUNNING.value,
             error_message=None,
         )
 
@@ -111,7 +119,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
                 file_record,
                 stage="vectorizing_failed",
                 progress=100,
-                status="failed",
+                status=AsyncTaskStatus.FAILED.value,
                 error_message=error_message,
             )
             snapshot = self._build_document_snapshot(refreshed_file)
@@ -126,7 +134,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
                 "document": snapshot,
             }
 
-        embedding_client = get_embedding_client()
+        embedding_client = self.embedding_gateway
         embeddings = embedding_client.embed_texts(documents)
         valid_data = [
             (document, embedding, metadata, chunk_id)
@@ -153,7 +161,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
                 file_record,
                 stage="vectorizing_failed",
                 progress=100,
-                status="failed",
+                status=AsyncTaskStatus.FAILED.value,
                 error_message=error_message,
             )
             snapshot = self._build_document_snapshot(refreshed_file)
@@ -190,7 +198,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
                 file_record,
                 stage="vectorizing_failed",
                 progress=100,
-                status="failed",
+                status=AsyncTaskStatus.FAILED.value,
                 error_message=error_message,
             )
             snapshot = self._build_document_snapshot(refreshed_file)
@@ -234,7 +242,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
             file_record,
             stage="completed" if missing_after == 0 else "vectorizing_partial",
             progress=100,
-            status="completed" if missing_after == 0 else "partial",
+            status=AsyncTaskStatus.SUCCEEDED.value if missing_after == 0 else AsyncTaskStatus.FAILED.value,
             error_message=error_message,
         )
         snapshot = self._build_document_snapshot(refreshed_file)
@@ -324,8 +332,21 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
         user_id: str,
         knowledge_base_id: str | None = None,
         request_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         self._purge_expired_full_rebuild_tasks()
+        idempotent_record = self._get_idempotent_record(
+            namespace="full_vector_rebuild",
+            user_id=user_id,
+            idempotency_key=idempotency_key,
+        )
+        if idempotent_record:
+            existing_task_id = idempotent_record.get("task_id")
+            with _full_vector_rebuild_tasks_lock:
+                existing_task = _full_vector_rebuild_tasks.get(existing_task_id)
+            if existing_task is not None:
+                return _clone_full_rebuild_task(existing_task)
+
         task_id = str(uuid.uuid4())
         task = {
             "task_id": task_id,
@@ -333,7 +354,8 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
             "knowledge_base_id": knowledge_base_id,
             "scope": "knowledge_base" if knowledge_base_id else "all_knowledge_bases",
             "request_id": request_id,
-            "status": "pending",
+            "idempotency_key": idempotency_key,
+            "status": AsyncTaskStatus.PENDING.value,
             "total_documents": 0,
             "processed_documents": 0,
             "succeeded_documents": 0,
@@ -355,6 +377,15 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
         }
         with _full_vector_rebuild_tasks_lock:
             _full_vector_rebuild_tasks[task_id] = task
+        self._remember_idempotent_record(
+            namespace="full_vector_rebuild",
+            user_id=user_id,
+            idempotency_key=idempotency_key,
+            payload={
+                "task_id": task_id,
+                "knowledge_base_id": knowledge_base_id,
+            },
+        )
 
         logger.warning(
             "Created full vector rebuild task: task_id=%s request_id=%s user_id=%s knowledge_base_id=%s",
@@ -372,6 +403,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
             task = _full_vector_rebuild_tasks.get(task_id)
             if task is None:
                 raise FileNotFoundError("Full rebuild task not found")
+            if task.get("user_id") != user_id:
                 raise PermissionError("Rebuild task access denied")
             return _clone_full_rebuild_task(task)
 
@@ -394,7 +426,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
         self._update_full_rebuild_task(
             task_id=task_id,
             updates={
-                "status": "running",
+                "status": AsyncTaskStatus.RUNNING.value,
                 "started_at": _utcnow_iso(),
                 "error": None,
             },
@@ -421,7 +453,11 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
                 request_id=request_id,
                 progress_callback=progress_callback,
             )
-            final_status = "succeeded" if not result.get("error") and int(result.get("failed_documents", 0) or 0) == 0 else "failed"
+            final_status = (
+                AsyncTaskStatus.SUCCEEDED.value
+                if not result.get("error") and int(result.get("failed_documents", 0) or 0) == 0
+                else AsyncTaskStatus.FAILED.value
+            )
             self._update_full_rebuild_task(
                 task_id=task_id,
                 updates={
@@ -446,7 +482,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
             self._update_full_rebuild_task(
                 task_id=task_id,
                 updates={
-                    "status": "failed",
+                    "status": AsyncTaskStatus.FAILED.value,
                     "error": str(error),
                     "current_document_id": None,
                     "current_file_name": None,
@@ -476,7 +512,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
             user_id,
             knowledge_base_id,
         )
-        embedding_client = get_embedding_client()
+        embedding_client = self.embedding_gateway
         target_dimension = embedding_client.get_dimension()
         file_records = self._list_knowledge_managed_files(user_id=user_id, knowledge_base_id=knowledge_base_id)
 
@@ -544,7 +580,8 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
             metadata = dict(getattr(file_record, "metadata", {}) or {})
             metadata["processing_stage"] = "vectorizing"
             metadata["processing_progress"] = 80
-            metadata["vectorization_status"] = "pending"
+            metadata["task_status"] = AsyncTaskStatus.RUNNING.value
+            metadata["vectorization_status"] = AsyncTaskStatus.PENDING.value
             metadata["vector_dimension"] = target_dimension
             metadata["vector_model"] = embedding_client.model_name
             self.file_repo.update_file(file_record.file_id, FileUpdate(metadata=metadata))
@@ -577,7 +614,7 @@ class DocumentVectorRebuildApplicationService(DocumentServiceSupport):
                     file_record,
                     stage="failed",
                     progress=100,
-                    status="failed",
+                    status=AsyncTaskStatus.FAILED.value,
                     error_message=str(error),
                 )
                 stats_after_failure = self._get_vectorization_stats(file_record.file_id)

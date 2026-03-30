@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import re
 import time
+from uuid import uuid4
 from typing import Any, Dict, Optional
 
-from backend.database.repositories.agent_execution_repository import get_agent_execution_repository
-from backend.database.repositories.tool_call_repository import get_tool_call_repository
+from backend.contracts.tools import ToolCallContext, ToolResult
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
 from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionUpdate
 from backend.models.tool_call import ToolCallCreate, ToolCallUpdate
-from backend.tools import get_all_tools, get_tool
-from backend.tools.tool_config import get_tool_config
 from backend.utils.logger import get_logger
 from backend.utils.time_utils import utc_now
 
@@ -31,17 +30,23 @@ _SENSITIVE_PATTERNS = (
 class ToolApplicationService:
     """Centralize tool visibility, querying, and audited execution."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        execution_repo,
+        tool_call_repo,
+        tool_registry,
+        tool_resolver,
+        tool_catalog_provider,
+        tool_config,
+    ):
         self.logger = get_logger(self.__class__.__name__)
-        self.tool_config = get_tool_config()
-
-    @staticmethod
-    def _get_execution_repo():
-        return get_agent_execution_repository()
-
-    @staticmethod
-    def _get_tool_call_repo():
-        return get_tool_call_repository()
+        self.execution_repo = execution_repo
+        self.tool_call_repo = tool_call_repo
+        self.tool_registry = tool_registry
+        self.tool_resolver = tool_resolver
+        self.tool_catalog_provider = tool_catalog_provider
+        self.tool_config = tool_config
 
     @staticmethod
     def _sanitize_text(value: Any, fallback: str = "") -> str:
@@ -71,7 +76,7 @@ class ToolApplicationService:
         if not self.tool_config.is_tool_enabled(tool_name):
             raise ToolNotAvailableError(f"Tool is disabled: {tool_name}")
 
-        tool = get_tool(tool_name)
+        tool = self.tool_resolver(tool_name)
         if tool is None:
             raise ToolNotAvailableError(f"Tool is not registered: {tool_name}")
 
@@ -89,14 +94,24 @@ class ToolApplicationService:
             "required": parameter.required,
             "default": parameter.default,
             "enum": parameter.enum,
+            "minimum": parameter.minimum,
+            "maximum": parameter.maximum,
+            "min_length": parameter.min_length,
+            "max_length": parameter.max_length,
+            "pattern": parameter.pattern,
+            "items": parameter.items,
+            "properties": parameter.properties,
+            "additional_properties": parameter.additional_properties,
         }
 
     def _serialize_tool_info(self, tool_instance: Any) -> dict[str, Any]:
         definition = tool_instance.get_definition()
+        descriptor = tool_instance.get_descriptor()
         return {
             "name": definition.name,
             "description": definition.description,
             "category": definition.category,
+            "capabilities": list(descriptor.capabilities),
             "transport_protocol": tool_instance.get_transport_protocol(),
             "tool_origin": tool_instance.get_tool_origin(),
             "mcp_server": tool_instance.get_mcp_server(),
@@ -107,7 +122,7 @@ class ToolApplicationService:
     def _get_visible_tools(self, *, is_admin: bool) -> dict[str, Any]:
         return {
             tool_name: tool_instance
-            for tool_name, tool_instance in get_all_tools().items()
+            for tool_name, tool_instance in self.tool_catalog_provider().items()
             if self.is_tool_visible(tool_name, is_admin=is_admin)
         }
 
@@ -134,7 +149,7 @@ class ToolApplicationService:
         if not self.is_tool_visible(tool_name, is_admin=is_admin):
             raise ToolNotAvailableError(f"Tool is not visible: {tool_name}")
 
-        tool_instance = get_tool(tool_name)
+        tool_instance = self.tool_resolver(tool_name)
         if tool_instance is None or not self.tool_config.is_tool_enabled(tool_name):
             raise ToolNotAvailableError(f"Tool is not available: {tool_name}")
 
@@ -152,8 +167,8 @@ class ToolApplicationService:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         tool = self.ensure_tool_access(tool_name, is_admin=is_admin)
-        execution_repo = self._get_execution_repo()
-        tool_call_repo = self._get_tool_call_repo()
+        execution_repo = self.execution_repo
+        tool_call_repo = self.tool_call_repo
 
         execution = execution_repo.create_execution(
             AgentExecutionCreate(
@@ -180,29 +195,54 @@ class ToolApplicationService:
         )
 
         start_time = time.time()
+        request_id = str((metadata or {}).get("request_id") or uuid4())
+        context = ToolCallContext(
+            request_id=request_id,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            message_id=message_id,
+            execution_id=execution.execution_id,
+            tool_call_id=tool_call.call_id,
+            tool_name=tool_name,
+            transport_protocol=tool.get_transport_protocol(),
+            mcp_server=tool.get_mcp_server(),
+            metadata={
+                **(metadata or {}),
+                "tool_origin": tool.get_tool_origin(),
+            },
+        )
         try:
             self.logger.info(
-                "[TOOL-SVC] execute_start: tool_name=%s, user_id=%s, payload=%s",
+                "[TOOL-SVC] execute_start: request_id=%s tool_name=%s user_id=%s transport=%s mcp_server=%s payload=%s",
+                request_id,
                 tool_name,
                 user_id,
+                tool.get_transport_protocol(),
+                tool.get_mcp_server(),
                 self._summarize_payload(parameters),
             )
-            result = await tool.safe_execute(**parameters)
+            result_model = await tool.invoke(parameters, context=context)
+            result = result_model.to_dict() if isinstance(result_model, ToolResult) else ToolResult.from_mapping(result_model).to_dict()
         except Exception as error:
             result = {
                 "success": False,
                 "data": None,
                 "error": self._sanitize_text(error, fallback="Tool execution failed"),
-                "error_code": "TOOL_EXECUTION_ERROR",
-                "error_type": "execution_error",
-                "metadata": {"tool_name": tool_name},
+                "error_code": ToolErrorCode.TOOL_EXECUTION_ERROR.value,
+                "error_type": ToolErrorType.EXECUTION_ERROR.value,
+                "metadata": {
+                    "tool_name": tool_name,
+                    "request_id": request_id,
+                    "transport_protocol": tool.get_transport_protocol(),
+                    "mcp_server": tool.get_mcp_server(),
+                },
             }
 
         execution_time_ms = int((time.time() - start_time) * 1000)
         result_metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
         safe_error = self._sanitize_text(result.get("error"), fallback="Tool execution failed") if not result.get("success") else None
         status = "success" if result.get("success") else (
-            "timeout" if result.get("error_code") == "TOOL_TIMEOUT" else "failed"
+            "timeout" if result.get("error_code") == ToolErrorCode.TOOL_TIMEOUT.value else "failed"
         )
 
         tool_call_update = ToolCallUpdate(
@@ -223,26 +263,35 @@ class ToolApplicationService:
             completed_at=utc_now(),
             metadata={
                 **(metadata or {}),
+                "request_id": request_id,
                 "tool_name": tool_name,
                 "tool_call_id": tool_call.call_id,
+                "transport_protocol": tool.get_transport_protocol(),
+                "mcp_server": tool.get_mcp_server(),
+                "error_code": result.get("error_code"),
             },
         )
         execution_repo.update_execution(execution.execution_id, execution_update)
 
         final_metadata = {
             **result_metadata,
+            "request_id": request_id,
             "execution_id": execution.execution_id,
             "tool_call_id": tool_call.call_id,
             "tool_name": tool_name,
+            "transport_protocol": tool.get_transport_protocol(),
+            "mcp_server": tool.get_mcp_server(),
         }
         result["metadata"] = final_metadata
 
         self.logger.info(
-            "[TOOL-SVC] execute_done: tool_name=%s, success=%s, execution_id=%s, tool_call_id=%s, cost_ms=%s",
+            "[TOOL-SVC] execute_done: request_id=%s tool_name=%s success=%s execution_id=%s tool_call_id=%s cost_ms=%s error_code=%s",
+            request_id,
             tool_name,
             result.get("success"),
             execution.execution_id,
             tool_call.call_id,
             execution_time_ms,
+            result.get("error_code"),
         )
         return result

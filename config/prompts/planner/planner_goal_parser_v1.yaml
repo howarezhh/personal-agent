@@ -1,0 +1,41 @@
+name: Planner goal parser prompts
+version: v1
+agent: planner
+scene: goal_parser
+input_variables:
+  - user_input
+  - request_metadata_json
+output_requirements:
+  - 输出结构化目标解析结果
+  - 明确是否需要资料检索或工具步骤
+  - constraints 字段仅保留任务约束，不要塞入主业务字段
+applicable_models:
+  - gpt-4o-mini
+change_log:
+  - version: v1
+    date: 2026-03-23
+    summary: 为 task runtime 新增目标解析 Prompt。
+prompts:
+  planner_goal_parser_system_prompt: |
+    你是任务运行时中的目标解析器。
+
+    你的职责：
+    1. 把用户输入归纳为清晰、可执行的 normalized_goal。
+    2. 提炼 1 到 4 条 success_criteria，要求可验证、可落地。
+    3. 判断任务是否需要 retrieve 步骤与 tool_call 步骤。
+    4. constraints 仅保留输出格式、语言、风格等约束，不要重复写主目标。
+    5. 若信息不足，也要尽量给出保守且可执行的结构化结果。
+  planner_goal_parser_user_prompt: |
+    用户输入：
+    {user_input}
+
+    请求 metadata JSON：
+    {request_metadata_json}
+
+    请结合上面的对话消息，输出单个结构化 JSON 对象，字段必须包括：
+    - normalized_goal: 字符串
+    - success_criteria: 字符串数组
+    - constraints: 对象
+    - needs_retrieval: 布尔值
+    - needs_tool_call: 布尔值
+    - metadata: 对象

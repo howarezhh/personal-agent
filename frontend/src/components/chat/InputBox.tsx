@@ -22,7 +22,7 @@ export const InputBox = ({ onSend, isStreaming, onStop, currentConversationId }:
 
     onSend(trimmedInput, currentConversationId);
     setInput('');
-    console.log('[InputBox] 已触发发送消息');
+    console.log('[InputBox] submitted');
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
@@ -33,23 +33,24 @@ export const InputBox = ({ onSend, isStreaming, onStop, currentConversationId }:
   };
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }} size="small">
-      <Space.Compact style={{ width: '100%' }}>
+    <Space direction="vertical" className="chat-input-box" style={{ width: '100%' }} size="small">
+      <Space.Compact className="chat-input-compact" style={{ width: '100%' }}>
         <TextArea
+          className="chat-input-textarea"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyPress}
-          placeholder="输入消息... (Shift+Enter 换行)"
-          autoSize={{ minRows: 1, maxRows: 4 }}
+          placeholder={'\u8f93\u5165\u6d88\u606f...\uff08Shift + Enter \u6362\u884c\uff09'}
+          autoSize={{ minRows: 2, maxRows: 6 }}
           disabled={isStreaming}
         />
         {isStreaming ? (
-          <Button type="primary" danger icon={<StopOutlined />} onClick={onStop}>
-            暂停对话
+          <Button className="chat-action-button" type="primary" danger icon={<StopOutlined />} onClick={onStop}>
+            {'\u505c\u6b62\u56de\u7b54'}
           </Button>
         ) : (
-          <Button type="primary" icon={<SendOutlined />} onClick={handleSend} disabled={!input.trim()}>
-            发送
+          <Button className="chat-action-button" type="primary" icon={<SendOutlined />} onClick={handleSend} disabled={!input.trim()}>
+            {'\u53d1\u9001'}
           </Button>
         )}
       </Space.Compact>

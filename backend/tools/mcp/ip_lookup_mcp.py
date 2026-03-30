@@ -15,17 +15,22 @@ class IPLookupMCP(BuiltinMCPTool):
     def _create_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name="ip_lookup_mcp",
-            description="查询 IP 地址的地理位置、网络运营商和 ASN 信息。",
+            description="查询 IP 地址的地理位置、运营商和 ASN 信息，并按指定语言生成摘要。",
             category="network",
-            version="1.0.0",
-            timeout=10,
+            version="1.1.0",
+            timeout=15,
             strict_validation=True,
             parameters=[
-                ToolParameter(name="ip_address", type="string", description="IP 地址，支持 IPv4/IPv6；为空时查询当前出口 IP。", required=False),
+                ToolParameter(
+                    name="ip_address",
+                    type="string",
+                    description="IP 地址，支持 IPv4/IPv6；为空时查询当前出口 IP。",
+                    required=False,
+                ),
                 ToolParameter(
                     name="language",
                     type="string",
-                    description="返回语言，默认 zh-CN。",
+                    description="返回摘要语言，默认 zh-CN。",
                     required=False,
                     default="zh-CN",
                     enum=["zh-CN", "en"],
@@ -38,6 +43,22 @@ class IPLookupMCP(BuiltinMCPTool):
 
     def get_api_key(self) -> Optional[str]:
         return None
+
+    @staticmethod
+    def _build_summary(ip_data: dict[str, Any], language: str) -> str:
+        country = ip_data.get("country_name", "")
+        region = ip_data.get("region", "")
+        city = ip_data.get("city", "")
+        org = ip_data.get("org", "")
+        ip_address = ip_data.get("ip", "")
+        if language == "en":
+            location_text = ", ".join([item for item in [city, region, country] if item]) or "unknown location"
+            isp_text = org or "unknown ISP"
+            return f"IP {ip_address} is located in {location_text}; ISP: {isp_text}."
+
+        location_text = " ".join([item for item in [country, region, city] if item]) or "未知位置"
+        isp_text = org or "未知运营商"
+        return f"IP {ip_address} 位于 {location_text}，运营商为 {isp_text}。"
 
     async def execute(self, ip_address: Optional[str] = None, language: str = "zh-CN", **kwargs) -> Dict[str, Any]:
         try:
@@ -53,6 +74,7 @@ class IPLookupMCP(BuiltinMCPTool):
 
             result = {
                 "ip": ip_data.get("ip", ""),
+                "language": language,
                 "location": {
                     "country": ip_data.get("country_name", ""),
                     "country_code": ip_data.get("country_code", ""),
@@ -69,6 +91,7 @@ class IPLookupMCP(BuiltinMCPTool):
                     "organization": ip_data.get("org", ""),
                     "as": ip_data.get("asn", ""),
                 },
+                "summary": self._build_summary(ip_data, language),
             }
             return {"success": True, "data": result}
         except (ToolExecutionError, ToolNetworkError):

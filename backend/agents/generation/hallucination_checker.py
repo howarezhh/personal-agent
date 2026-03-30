@@ -9,7 +9,6 @@ from typing import List, Dict, Any, Optional
 from backend.utils.logger import get_logger
 from backend.core.llm_manager import get_langchain_model_manager
 from backend.core.prompt_manager import get_prompt_manager
-from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 
@@ -139,53 +138,26 @@ class HallucinationChecker:
         user_question: str
     ) -> Dict[str, Any]:
         """
-        通过大模型从语义层面评估答案与上下文的一致性。
+        检查生成内容是否与检索上下文一致，并返回结构化判定结果。
         """
         try:
-            # 构建检查上下文
             context = self._format_retrieval_context(retrieval_results)
-
-            # Prefer the configured hallucination-check prompt.
-            check_prompt_source = self.prompt_manager.get_prompt(
-                "generation.hallucination_check_prompt"
+            prompt_template, prompt_variables = self._build_check_prompt_call(
+                user_question=user_question,
+                context=context,
+                generated_content=generated_content,
+            )
+            result_model = await self.model_manager.with_structured_output(
+                HallucinationCheckStructuredResult
+            ).invoke_chat_prompt_template(
+                prompt_template,
+                prompt_variables,
+                temperature=0.1,
+                max_tokens=500,
             )
 
-            if not check_prompt_source:
-                # Fall back to the built-in prompt when config is missing.
-                self.logger.warning("Hallucination check prompt not found, using fallback")
-                fallback_prompt = self._build_fallback_prompt(user_question, context, generated_content)
-                # Keep structured-output constraints in the fallback path as well.
-                result_model = await self.model_manager.with_structured_output(
-                    HallucinationCheckStructuredResult
-                ).invoke_prompt_template(
-                    PromptTemplate.from_template("{prompt_text}"),
-                    {"prompt_text": fallback_prompt},
-                    temperature=0.1,
-                    max_tokens=500,
-                )
-            else:
-                check_prompt_template = self.prompt_manager.get_prompt_template(
-                    "generation.hallucination_check_prompt"
-                )
-                result_model = await self.model_manager.with_structured_output(
-                    HallucinationCheckStructuredResult
-                ).invoke_prompt_template(
-                    check_prompt_template,
-                    {
-                        "question": user_question,
-                        "context": context,
-                        "answer": generated_content,
-                    },
-                    system_prompt="You are a factual consistency checker. Judge the answer strictly by the provided context.",
-                    temperature=0.1,
-                    max_tokens=500,
-                )
-
-            # Convert the structured result to dict and append check type.
-            result = result_model.model_dump()
             result = result_model.model_dump()
             result["check_type"] = "llm_based"
-
             return result
 
         except Exception as e:
@@ -197,71 +169,30 @@ class HallucinationChecker:
                 "error": str(e)
             }
 
-    def _build_fallback_prompt(self, user_question: str, context: str, generated_content: str) -> str:
-        """
-        构建用于 LLM 幻觉检查的充底 Prompt。
-        """
-        return f"""请检查以下生成的回答是否基于提供的上下文，是否存在幻觉（即编造的、不在上下文中的信息）。
-
-用户问题：
-{user_question}
-
-提供的上下文：
-{context}
-
-生成的回答：
-{generated_content}
-
-请分析：
-1. 回答中的每个关键信息是否都能在上下文中找到依据
-2. 是否存在编造的信息
-3. 是否存在过度推断或猜测
-
-请以JSON格式返回结果：
-{{
-    "has_hallucination": true/false,
-    "consistency_score": 0.0-1.0,
-    "hallucination_points": ["具体的幻觉点1", "具体的幻觉点2"],
-    "reasoning": "判断理由"
-}}
-"""
-
-    def _parse_llm_response(self, response: str) -> Dict[str, Any]:
-        """
-        解析 LLM 返回的结构化幻觉检查结果。
-        """
-        import json
-
-        try:
-            # 尝试提取JSON
-            if "```json" in response:
-                start = response.find("```json") + 7
-                end = response.find("```", start)
-                json_str = response[start:end].strip()
-            elif "```" in response:
-                start = response.find("```") + 3
-                end = response.find("```", start)
-                json_str = response[start:end].strip()
-            else:
-                json_str = response.strip()
-
-            result = json.loads(json_str)
-
-            # 验证必需字段
-            if "has_hallucination" not in result:
-                result["has_hallucination"] = False
-            if "consistency_score" not in result:
-                result["consistency_score"] = 0.7
-
-            return result
-
-        except json.JSONDecodeError as e:
-            self.logger.error(f"Failed to parse LLM response: {str(e)}")
-            return {
-                "has_hallucination": False,
-                "consistency_score": 0.5,
-                "reasoning": "Failed to parse LLM response"
-            }
+    def _build_check_prompt_call(
+        self,
+        *,
+        user_question: str,
+        context: str,
+        generated_content: str,
+    ):
+        """构造用于幻觉检查的 ChatPromptTemplate 调用参数。"""
+        check_prompt_key = "generation.hallucination_check_prompt"
+        system_prompt_key = "generation.hallucination_check_system_prompt"
+        if not self.prompt_manager.get_prompt(check_prompt_key):
+            raise ValueError(f"{check_prompt_key} is not configured")
+        if not self.prompt_manager.get_prompt(system_prompt_key):
+            raise ValueError(f"{system_prompt_key} is not configured")
+        return self.prompt_manager.build_chat_prompt_call(
+            user_prompt_key=check_prompt_key,
+            user_variables={
+                "question": user_question,
+                "context": context,
+                "answer": generated_content,
+            },
+            system_prompt_key=system_prompt_key,
+            user_prompt_default="{question}",
+        )
 
     def _combine_results(
         self,

@@ -3,40 +3,57 @@ version: v1
 agent: generation
 scene: creative_writing
 input_variables:
-  - user_input
-  - tool_catalog
-  - tool_result_json
+- user_input
+- tool_catalog
+- tool_result_json
 output_requirements:
-  - 生成创作请求分析提示和结果解读提示
+- 生成创作请求分析提示和结果解读提示
 applicable_models:
-  - gpt-4o-mini
+- gpt-4o-mini
 change_log:
-  - version: v1
-    date: 2026-03-09
-    summary: 外置创意写作代理提示词
+- version: v1
+  date: 2026-03-09
+  summary: 外置创意写作代理提示词
+- version: v1
+  date: '2026-03-19'
+  summary: Remove legacy structured-output wording and old history placeholder coupling.
 prompts:
-  creative_writing_request_analysis_prompt: |
-    请分析以下用户创作请求，判断应该调用哪个创作工具和操作。
+  creative_writing_request_analysis_prompt: '请分析以下用户创作请求，判断应该调用哪个创作工具和操作。
+
 
     用户请求：{user_input}
+
 
     可用工具：
+
     {tool_catalog}
 
-    请只返回 JSON：
-    {{
-      "tool": "工具名",
-      "action": "操作名",
-      "parameters": {{}}
-    }}
-  creative_writing_response_prompt: |
-    请将以下工具执行结果整理成自然、友好的中文回复。
+
+    输出要求：
+
+    1. `tool` 必须是可用工具中的一个。
+
+    2. `action` 必须是该工具支持的操作。
+
+    3. `parameters` 只包含必要参数，不要编造额外字段。
+
+    '
+  creative_writing_response_prompt: '请将以下工具执行结果整理成自然、友好的中文回复。
+
 
     用户请求：{user_input}
+
     工具结果：
+
     {tool_result_json}
 
+
     要求：
+
     1. 提炼重点
+
     2. 如为创作内容，可简短点评
+
     3. 给出下一步建议
+
+    '

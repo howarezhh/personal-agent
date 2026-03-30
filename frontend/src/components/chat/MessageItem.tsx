@@ -2,13 +2,35 @@ import { Card, Avatar, Typography } from 'antd';
 import { UserOutlined, RobotOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import markdown from 'react-syntax-highlighter/dist/esm/languages/prism/markdown';
+import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
+import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message } from '@/types';
 import { formatRelativeTime } from '@/utils/formatters';
+import { CitationList } from './CitationList';
 import './MessageItem.css';
 
 const { Text } = Typography;
+
+SyntaxHighlighter.registerLanguage('bash', bash);
+SyntaxHighlighter.registerLanguage('shell', bash);
+SyntaxHighlighter.registerLanguage('sh', bash);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('js', javascript);
+SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage('markdown', markdown);
+SyntaxHighlighter.registerLanguage('md', markdown);
+SyntaxHighlighter.registerLanguage('python', python);
+SyntaxHighlighter.registerLanguage('py', python);
+SyntaxHighlighter.registerLanguage('sql', sql);
+SyntaxHighlighter.registerLanguage('typescript', typescript);
+SyntaxHighlighter.registerLanguage('ts', typescript);
 
 interface MessageItemProps {
   message: Message;
@@ -17,6 +39,7 @@ interface MessageItemProps {
 
 export const MessageItem = ({ message, isStreaming }: MessageItemProps) => {
   const isUser = message.messageType === 'user';
+  const messageCitations = Array.isArray(message.citations) ? message.citations : [];
 
   // Markdown 组件配置 - 不使用 useMemo，确保每次都能正确渲染
   const markdownComponents = {
@@ -161,6 +184,7 @@ export const MessageItem = ({ message, isStreaming }: MessageItemProps) => {
           )}
           {isStreaming && <span className="streaming-cursor">▊</span>}
         </div>
+        {!isUser && messageCitations.length > 0 ? <CitationList citations={messageCitations} /> : null}
       </Card>
     </div>
   );

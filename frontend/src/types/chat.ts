@@ -1,6 +1,7 @@
 export type {
-  AskRequest,
-  AskResponse,
+  CheckpointHistory,
+  CheckpointHistoryItem,
+  CheckpointState,
   Citation,
   DoneEventContent,
   Message,
@@ -9,3 +10,10 @@ export type {
   ThinkingStep,
   WorkflowTrace,
 } from '@/adapters/chatAdapter';
+export {
+  adaptCheckpointHistory,
+  adaptCheckpointState,
+  adaptDoneEventContent,
+  adaptStreamEventMetadata,
+} from '@/adapters/chatAdapter';
+

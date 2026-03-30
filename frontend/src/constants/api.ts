@@ -1,4 +1,4 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : '';
+﻿export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : '';
 
 export const API_PATHS = {
   auth: {
@@ -8,9 +8,16 @@ export const API_PATHS = {
     profile: '/api/v1/auth/profile',
     refresh: '/api/v1/auth/refresh',
   },
-  chat: {
-    ask: '/api/v1/chat/ask',
-    pause: '/api/v1/chat/pause',
+  taskRuntime: {
+    prepare: '/api/v1/task-runtime/tasks',
+    stream: '/api/v1/task-runtime/tasks/stream',
+    status: (taskId: string) => `/api/v1/task-runtime/tasks/${encodeURIComponent(taskId)}`,
+    pause: (taskId: string) => `/api/v1/task-runtime/tasks/${encodeURIComponent(taskId)}/pause`,
+    resume: (taskId: string) => `/api/v1/task-runtime/tasks/${encodeURIComponent(taskId)}/resume`,
+    cancel: (taskId: string) => `/api/v1/task-runtime/tasks/${encodeURIComponent(taskId)}/cancel`,
+    retry: (taskId: string) => `/api/v1/task-runtime/tasks/${encodeURIComponent(taskId)}/retry`,
+    checkpointState: (graphName: string, threadId: string) => `/api/v1/chat/checkpoints/${encodeURIComponent(graphName)}/${encodeURIComponent(threadId)}`,
+    checkpointHistory: (graphName: string, threadId: string) => `/api/v1/chat/checkpoints/${encodeURIComponent(graphName)}/${encodeURIComponent(threadId)}/history`,
   },
   conversations: '/api/v1/conversations',
   knowledge: {

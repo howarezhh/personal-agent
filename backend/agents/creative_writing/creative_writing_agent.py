@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from typing import Any, AsyncGenerator, Dict, Optional
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from backend.agents.base.agent_input import AgentInput
 from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.stream_chunk import StreamChunk
@@ -11,6 +13,16 @@ from backend.core.config_manager import get_config_manager
 from backend.core.llm_manager import get_langchain_model_manager
 from backend.core.prompt_manager import get_prompt_manager
 from backend.tools.tool_registry import get_tool
+
+
+class CreativeWritingRequestAnalysisResult(BaseModel):
+    """创作请求分析的结构化结果。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    tool: str = "novel_generator"
+    action: str = "outline"
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CreativeWritingAgent(BaseAgent):
@@ -83,24 +95,21 @@ class CreativeWritingAgent(BaseAgent):
         prompt_template = self.prompt_manager.get_prompt_template(
             "generation.creative_writing_request_analysis_prompt"
         )
-        response = await self.llm_manager.invoke_prompt_template(
-            prompt_template,
-            {
-                "user_input": user_input,
-                "tool_catalog": tool_catalog,
-            },
-            temperature=0.3,
-        )
-
         try:
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            if json_start >= 0 and json_end > json_start:
-                return json.loads(response[json_start:json_end])
+            structured_result = await self.llm_manager.with_structured_output(
+                CreativeWritingRequestAnalysisResult
+            ).invoke_prompt_template(
+                prompt_template,
+                {
+                    "user_input": user_input,
+                    "tool_catalog": tool_catalog,
+                },
+                temperature=0.3,
+            )
+            return structured_result.model_dump()
         except Exception as error:
-            self.logger.warning("Failed to parse creative writing analysis: %s", error)
-
-        return {"tool": "novel_generator", "action": "outline", "parameters": {}}
+            self.logger.warning("Failed to analyze creative writing request: %s", error)
+            return {"tool": "novel_generator", "action": "outline", "parameters": {}}
 
     async def _generate_response(self, user_input: str, tool_result: Dict[str, Any]) -> str:
         if not tool_result.get("success"):

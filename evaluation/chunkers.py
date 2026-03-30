@@ -82,16 +82,19 @@ class ParagraphChunker:
         chunks: List[ExperimentChunk] = []
 
         for text_chunk in self._chunker.chunk_text(text, base_metadata):
+            # ?????DocumentChunker ???? FileChunk??????? chunk_index?
+            # ????????????????? index ???
+            chunk_index = int(text_chunk.chunk_index)
             chunk_metadata = {
                 **dict(text_chunk.metadata or {}),
                 "chunking_strategy": self.name,
             }
             chunks.append(
                 ExperimentChunk(
-                    chunk_id=f"{self.name}::{document_id}::{text_chunk.index}",
+                    chunk_id=f"{self.name}::{document_id}::{chunk_index}",
                     document_id=document_id,
                     text=text_chunk.content,
-                    chunk_index=text_chunk.index,
+                    chunk_index=chunk_index,
                     metadata=chunk_metadata,
                 )
             )

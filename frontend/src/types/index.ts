@@ -4,3 +4,4 @@ export * from '@/adapters/chatAdapter';
 export * from '@/adapters/conversationAdapter';
 export * from '@/adapters/knowledgeAdapter';
 export * from '@/adapters/contentAdapter';
+export * from '@/adapters/taskRuntimeAdapter';

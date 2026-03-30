@@ -84,11 +84,13 @@ class MessageCreate:
     message_type: MessageType
     content: str
     sequence_number: int
+    message_id: Optional[str] = None
     parent_message_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
     def to_message(self) -> Message:
         return Message(
+            message_id=self.message_id or str(uuid.uuid4()),
             conversation_id=self.conversation_id,
             message_type=self.message_type,
             content=self.content,

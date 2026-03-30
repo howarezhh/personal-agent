@@ -1,9 +1,7 @@
 /* MCP服务管理页面样式 */
 
 .mcp-page {
-  padding: 24px;
   background: #f0f2f5;
-  min-height: calc(100vh - 64px);
 }
 
 .page-header {
@@ -81,10 +79,6 @@ pre {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .mcp-page {
-    padding: 16px;
-  }
-
   .page-header {
     padding: 16px;
   }

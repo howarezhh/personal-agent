@@ -18,8 +18,15 @@ from backend.tools.base_tool import (
     ToolParameterError,
     ToolExecutionError,
     ToolConfigurationError,
-    ToolNetworkError
+    ToolNetworkError,
+    ToolPermissionError,
+    ToolUpstreamError,
+    ToolProtocolBoundaryError,
+    ToolInitializationError,
+    ToolCloseError,
 )
+from backend.tools.adapters.local_tool_adapter import LocalToolAdapter
+from backend.tools.adapters.mcp_tool_adapter import MCPToolAdapter
 from backend.tools.tool_registry import (
     ToolRegistry,
     get_tool_registry,
@@ -43,6 +50,13 @@ __all__ = [
     "ToolExecutionError",
     "ToolConfigurationError",
     "ToolNetworkError",
+    "ToolPermissionError",
+    "ToolUpstreamError",
+    "ToolProtocolBoundaryError",
+    "ToolInitializationError",
+    "ToolCloseError",
+    "LocalToolAdapter",
+    "MCPToolAdapter",
     "ToolRegistry",
     "get_tool_registry",
     "register_tool",

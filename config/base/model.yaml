@@ -31,6 +31,26 @@ embedding_model:
   device: "cpu"
   normalize_embeddings: true
   pooling: "cls"
+  enable_retrieval_instruction: true
+  query_instruction_for_retrieval: "为这个句子生成表示以用于检索相关文档："
+  document_instruction_for_retrieval: ""
+
+rerank_model:
+  provider: "local_cross_encoder"
+  model_name: "models/bge-reranker-base"
+  local_model_path: "models/bge-reranker-base"
+  local_files_only: true
+  batch_size: 8
+  device: "auto"
+  enable_secondary_rerank: true
+  secondary_local_model_path: "models/bge-reranker-large"
+  secondary_local_files_only: true
+  secondary_batch_size: 4
+  secondary_device: "auto"
+  secondary_top_n: 8
+  secondary_score_weight: 0.75
+  secondary_trigger_min_score: 0.72
+  secondary_trigger_score_gap: 0.04
 
 streaming:
   enabled: true

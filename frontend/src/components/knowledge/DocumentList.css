@@ -1,0 +1,22 @@
+﻿.knowledge-document-list {
+  min-width: 0;
+}
+
+.knowledge-document-list .ant-table-wrapper {
+  min-width: 0;
+}
+
+.knowledge-document-list .ant-table-container {
+  overflow: auto;
+}
+
+.knowledge-document-list .ant-table-body,
+.knowledge-document-list .ant-table-content {
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 768px) {
+  .knowledge-document-list .ant-table {
+    font-size: 12px;
+  }
+}

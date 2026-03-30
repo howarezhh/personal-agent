@@ -30,6 +30,8 @@ from backend.utils.logger import get_logger
 class EmbeddingClient:
     """统一封装远程与本地 embedding 能力。"""
 
+    DEFAULT_QUERY_INSTRUCTION_FOR_RETRIEVAL = "为这个句子生成表示以用于检索相关文档："
+
     def __init__(self):
         self.logger = get_logger("embedding_client")
         self.config_manager = get_config_manager()
@@ -61,6 +63,18 @@ class EmbeddingClient:
         self.pooling = str(embedding_config.get("pooling", "cls") or "cls").lower()
         self.max_input_tokens = int(embedding_config.get("max_input_tokens", 512) or 512)
         self.reserved_tokens = int(embedding_config.get("reserved_tokens", 32) or 32)
+        # `enable_retrieval_instruction`：是否对检索 query/doc 注入模型推荐指令。
+        self.enable_retrieval_instruction = bool(embedding_config.get("enable_retrieval_instruction", True))
+        # `query_instruction_for_retrieval`：query 侧 instruction，默认使用 BGE 官方推荐中文模板。
+        self.query_instruction_for_retrieval = str(
+            embedding_config.get("query_instruction_for_retrieval")
+            or self.DEFAULT_QUERY_INSTRUCTION_FOR_RETRIEVAL
+        )
+        # `document_instruction_for_retrieval`：文档侧 instruction，默认留空避免污染正文语义。
+        self.document_instruction_for_retrieval = str(
+            embedding_config.get("document_instruction_for_retrieval")
+            or ""
+        )
 
         retry_config = self.config_manager.get("model.retry", {})
         self.max_retries = int(retry_config.get("max_retries", 3) or 3)
@@ -137,7 +151,7 @@ class EmbeddingClient:
             self.logger.warning("提供的文本为空，无法生成向量嵌入")
             return None
 
-        embeddings = self.embed_texts([text])
+        embeddings = self.embed_documents([text])
         result = embeddings[0] if embeddings else None
 
         if result:
@@ -151,8 +165,65 @@ class EmbeddingClient:
 
         return result
 
+    def embed_query(self, query: str) -> Optional[List[float]]:
+        """为检索 query 生成向量。
+
+        中文说明：
+        - BGE 类模型在 query 侧使用 retrieval instruction，通常能显著提升召回精度；
+        - 文档向量保持原始正文，不与 query instruction 混用。
+        """
+        if not query or not query.strip():
+            self.logger.warning("提供的 query 为空，无法生成检索向量")
+            return None
+
+        embeddings = self._embed_texts_with_mode([query], mode="query")
+        return embeddings[0] if embeddings else None
+
+    def embed_documents(self, texts: List[str]) -> List[Optional[List[float]]]:
+        """为文档/切块生成向量。"""
+        return self._embed_texts_with_mode(texts, mode="document")
+
+    def count_tokens(self, text: str) -> int:
+        """统计文本 token 数。
+
+        优先使用底层 tokenizer 的真实切词结果；如果当前 provider 不支持，
+        则回退到与历史实现兼容的轻量估算，保证调用方始终有稳定返回值。
+        """
+        normalized_text = str(text or "").strip()
+        if not normalized_text:
+            return 0
+
+        if self.provider in {"local", "transformers_local"} and hasattr(self, "tokenizer"):
+            try:
+                token_ids = self.tokenizer.encode(
+                    normalized_text,
+                    add_special_tokens=False,
+                    truncation=False,
+                )
+                return len(token_ids)
+            except Exception as error:
+                self.logger.warning("使用 tokenizer 精确计数 token 失败，回退启发式估算: %s", error)
+
+        # 远程 provider 没暴露 tokenizer 时，优先退到 tiktoken，而不是旧的 len(split)/len//2 粗略估算。
+        try:
+            import tiktoken
+
+            encoder = tiktoken.get_encoding("cl100k_base")
+            return len(encoder.encode(normalized_text, disallowed_special=()))
+        except Exception as error:
+            self.logger.warning("使用 tiktoken 计数 token 失败，回退启发式估算: %s", error)
+
+        return max(1, len(normalized_text.split())) if " " in normalized_text else max(1, len(normalized_text) // 2)
+
     def embed_texts(self, texts: List[str]) -> List[Optional[List[float]]]:
-        """批量生成向量。"""
+        """批量生成文档向量。
+
+        兼容旧调用方；新代码应优先使用 `embed_query` / `embed_documents`。
+        """
+        return self.embed_documents(texts)
+
+    def _embed_texts_with_mode(self, texts: List[str], *, mode: str) -> List[Optional[List[float]]]:
+        """按用途批量生成向量。"""
         if not texts:
             return []
 
@@ -167,7 +238,7 @@ class EmbeddingClient:
             batch_end = min(batch_start + self.batch_size, len(valid_texts))
             batch = valid_texts[batch_start:batch_end]
             batch_indices = [index for index, _ in batch]
-            batch_texts = [text for _, text in batch]
+            batch_texts = [self._prepare_text_for_embedding(text, mode=mode) for _, text in batch]
             batch_embeddings = self._embed_batch_with_retry(batch_texts)
 
             for index, embedding in enumerate(batch_embeddings):
@@ -180,6 +251,30 @@ class EmbeddingClient:
             )
 
         return all_embeddings
+
+    def _prepare_text_for_embedding(self, text: str, *, mode: str) -> str:
+        """根据用途为 embedding 模型准备输入文本。"""
+        normalized_text = str(text or "").strip()
+        if not normalized_text:
+            return ""
+        if not self._should_apply_retrieval_instruction():
+            return normalized_text
+
+        if mode == "query":
+            instruction = self.query_instruction_for_retrieval.strip()
+        else:
+            instruction = self.document_instruction_for_retrieval.strip()
+
+        if not instruction:
+            return normalized_text
+        return f"{instruction}{normalized_text}"
+
+    def _should_apply_retrieval_instruction(self) -> bool:
+        """判断当前 embedding 模型是否应启用 retrieval instruction。"""
+        if not self.enable_retrieval_instruction:
+            return False
+        normalized_model_name = f"{self.model_name} {self.local_model_path}".lower()
+        return "bge" in normalized_model_name
 
     def _embed_batch_with_retry(self, texts: List[str]) -> List[Optional[List[float]]]:
         """带重试的批量嵌入。"""

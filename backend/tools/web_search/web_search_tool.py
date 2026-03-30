@@ -1,27 +1,34 @@
+from __future__ import annotations
 
-from typing import Dict, Any, List
-from backend.tools.base_tool import (
-    BaseTool,
-    ToolDefinition,
-    ToolParameter,
-    ToolConfigurationError,
-    ToolExecutionError,
-    ToolNetworkError,
-    ToolError,
-)
-from backend.tools.tool_config import get_tool_config
+import base64
+import logging
+import re
+from typing import Any, Dict
+from urllib.parse import quote_plus, urlparse, parse_qs
+
 import aiohttp
+
+from backend.tools.base_tool import BaseTool, ToolDefinition, ToolExecutionError, ToolNetworkError, ToolParameter
+from backend.tools.tool_config import get_tool_config
 
 
 class WebSearchTool(BaseTool):
-    def __init__(self):
+    """基于 Jina Reader + Bing 的实时搜索工具。"""
+
+    SEARCH_RESULT_PATTERN = re.compile(
+        r"^\s*\d+\.\s+##\s+\[(?P<title>.*?)\]\((?P<link>.*?)\)\s*(?P<snippet>.*?)(?=^\s*\d+\.\s+##\s+\[|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+
+    def __init__(self) -> None:
         super().__init__()
-        # 使用统一配置管理
         config = get_tool_config()
-        self.api_key = config.get('web_search', 'api_key', '')
-        self.api_url = config.get('web_search', 'api_url', 'https://serpapi.com/search')
-        self.timeout = config.get('web_search', 'timeout', 15)
-        self.max_results = config.get('web_search', 'max_results', 10)
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.proxy_base_url = str(config.get("web_search", "proxy_base_url", "https://r.jina.ai/http://") or "https://r.jina.ai/http://")
+        self.search_base_url = str(config.get("web_search", "search_base_url", "https://www.bing.com/search") or "https://www.bing.com/search")
+        self.timeout = int(config.get("web_search", "timeout", 20) or 20)
+        self.max_results = int(config.get("web_search", "max_results", 10) or 10)
+        self.region = str(config.get("web_search", "region", "zh-CN") or "zh-CN")
         self._definition.timeout = self.timeout
         for parameter in self._definition.parameters:
             if parameter.name == "num_results":
@@ -31,14 +38,14 @@ class WebSearchTool(BaseTool):
     def _create_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name="web_search",
-            description="搜索互联网获取实时信息，返回相关网页的标题、摘要和链接",
+            description="搜索互联网获取实时信息，返回标题、摘要与链接。",
             category="search",
             strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="query",
                     type="string",
-                    description="搜索关键词或问题，例如：'最新AI技术'、'Python教程'",
+                    description="搜索关键词或问题，例如：'最新 AI 技术'、'Python 教程'。",
                     required=True,
                     min_length=1,
                     max_length=200,
@@ -46,97 +53,89 @@ class WebSearchTool(BaseTool):
                 ToolParameter(
                     name="num_results",
                     type="integer",
-                    description="返回结果数量，默认为5",
+                    description="返回结果数量，默认 5。",
                     required=False,
                     default=5,
                     minimum=1,
-                )
-            ]
+                ),
+            ],
         )
 
-    async def execute(self, query: str, num_results: int = 5, **kwargs) -> Dict[str, Any]:
+    def _build_search_proxy_url(self, query: str) -> str:
+        encoded_query = quote_plus(query)
+        target_url = f"{self.search_base_url}?q={encoded_query}&setlang={quote_plus(self.region)}"
+        normalized_proxy_base_url = self.proxy_base_url if self.proxy_base_url.endswith("/") else f"{self.proxy_base_url}/"
+        return f"{normalized_proxy_base_url}https://{target_url.removeprefix('https://')}"
+
+    @staticmethod
+    def _decode_bing_redirect(link: str) -> str:
+        parsed_url = urlparse(link)
+        if parsed_url.netloc != "www.bing.com":
+            return link
+        encoded_target = parse_qs(parsed_url.query).get("u", [""])[0]
+        if not encoded_target.startswith("a1"):
+            return link
+        base64_payload = encoded_target[2:]
+        padding = "=" * (-len(base64_payload) % 4)
         try:
-            self.logger.info(f"开始网络搜索: 关键词={query}, 结果数量={num_results}")
+            decoded = base64.b64decode(base64_payload + padding).decode("utf-8", errors="strict")
+        except Exception:
+            return link
+        return decoded if decoded.startswith(("http://", "https://")) else link
 
-            # 检查API密钥
-            if not self.api_key:
-                self.logger.warning("未配置搜索API密钥")
-                raise ToolConfigurationError("未配置搜索API密钥，请检查 web_search 配置")
+    @classmethod
+    def _extract_markdown_payload(cls, raw_text: str) -> str:
+        marker = "Markdown Content:"
+        payload = raw_text.split(marker, 1)[1] if marker in raw_text else raw_text
+        return payload.strip()
 
-            # 限制结果数量
-            num_results = min(max(1, int(num_results)), self.max_results)
+    @classmethod
+    def _parse_search_results(cls, markdown_payload: str, *, query: str, limit: int) -> Dict[str, Any]:
+        results: list[dict[str, Any]] = []
+        normalized_payload = cls._extract_markdown_payload(markdown_payload)
 
-            # 构建请求参数
-            params = {
-                "q": query,
-                "api_key": self.api_key,
-                "num": num_results,
-                "engine": "google",  # 使用Google搜索引擎
-                "hl": "zh-cn",       # 中文结果
-                "gl": "cn"           # 中国地区
-            }
+        for index, match in enumerate(cls.SEARCH_RESULT_PATTERN.finditer(normalized_payload), start=1):
+            title = re.sub(r"\s+", " ", match.group("title")).strip()
+            snippet = re.sub(r"\s+", " ", match.group("snippet")).strip()
+            raw_link = match.group("link").strip()
+            results.append(
+                {
+                    "index": index,
+                    "title": title,
+                    "link": cls._decode_bing_redirect(raw_link),
+                    "snippet": snippet,
+                }
+            )
+            if len(results) >= limit:
+                break
 
-            # 发送请求
-            self.logger.debug(f"发送搜索API请求: {self.api_url}")
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.api_url, params=params, timeout=aiohttp.ClientTimeout(total=self.timeout)) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        result_count = len(data.get('organic_results', []))
-                        self.logger.info(f"搜索成功: 找到 {result_count} 条结果")
-                        return self._format_search_results(data, query)
-                    else:
-                        self.logger.error(f"搜索API请求失败: status={response.status}")
-                        return {
-                            "success": False,
-                            "data": None,
-                            "error": f"搜索服务请求失败（HTTP {response.status}）",
-                            "error_code": "TOOL_NETWORK_ERROR",
-                            "error_type": "network_error",
-                        }
-
-        except aiohttp.ClientError as e:
-            self.logger.error(f"网络请求失败: {str(e)}")
-            raise ToolNetworkError(f"网络请求失败：{str(e)}") from e
-        except ToolError:
-            raise
-        except Exception as e:
-            self.logger.error(f"搜索失败: {str(e)}", exc_info=True)
-            raise ToolExecutionError(f"搜索失败：{str(e)}") from e
-
-    def _format_search_results(self, data: dict, query: str) -> Dict[str, Any]:
-        results = []
-
-        # 提取有机搜索结果
-        organic_results = data.get("organic_results", [])
-
-        for i, result in enumerate(organic_results, start=1):
-            results.append({
-                "index": i,
-                "title": result.get("title", ""),
-                "link": result.get("link", ""),
-                "snippet": result.get("snippet", ""),
-                "source": result.get("displayed_link", "")
-            })
-
-        # 构建描述文本
-        if results:
-            description = f"搜索关键词：{query}\n找到 {len(results)} 条结果：\n\n"
-            for result in results:
-                description += f"[{result['index']}] {result['title']}\n"
-                description += f"来源：{result['source']}\n"
-                description += f"摘要：{result['snippet']}\n"
-                description += f"链接：{result['link']}\n\n"
-        else:
-            description = f"搜索关键词：{query}\n未找到相关结果"
+        if not results:
+            raise ToolExecutionError("搜索结果解析失败：未提取到任何标准结果")
 
         return {
-            "success": True,
-            "data": {
-                "query": query,
-                "results": results,
-                "total_results": len(results),
-                "description": description
-            },
-            "error": None
+            "query": query,
+            "total_results": len(results),
+            "search_engine": "bing_via_jina",
+            "results": results,
         }
+
+    async def execute(self, query: str, num_results: int = 5, **kwargs) -> Dict[str, Any]:
+        normalized_result_count = min(max(1, int(num_results)), self.max_results)
+        search_url = self._build_search_proxy_url(query)
+        self.logger.info("开始网络搜索: query=%s num_results=%s", query, normalized_result_count)
+
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
+                async with session.get(search_url, headers={"User-Agent": "personal-agent/1.0"}) as response:
+                    if response.status != 200:
+                        raise ToolNetworkError(f"搜索代理请求失败: HTTP {response.status}")
+                    raw_text = await response.text()
+        except aiohttp.ClientError as error:
+            self.logger.error("网络搜索请求失败: %s", error)
+            raise ToolNetworkError(f"网络搜索请求失败: {error}") from error
+        except Exception as error:
+            self.logger.error("网络搜索执行失败: %s", error, exc_info=True)
+            raise ToolExecutionError(f"网络搜索执行失败: {error}") from error
+
+        parsed_result = self._parse_search_results(raw_text, query=query, limit=normalized_result_count)
+        return {"success": True, "data": parsed_result}

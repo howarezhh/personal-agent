@@ -1,5 +1,7 @@
 
 from typing import Dict, Any
+
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter, ToolExecutionError
 from backend.database.database_manager import DatabaseManager
 
@@ -108,8 +110,8 @@ class DatabaseQueryTool(BaseTool):
                     "success": False,
                     "data": None,
                     "error": f"不支持的查询类型：{query_type}",
-                    "error_code": "TOOL_INVALID_PARAMETER",
-                    "error_type": "parameter_error",
+                    "error_code": ToolErrorCode.TOOL_INVALID_PARAMETER.value,
+                    "error_type": ToolErrorType.PARAMETER_ERROR.value,
                 }
 
             # 检查数据库管理器是否可用

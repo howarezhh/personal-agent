@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from backend.database.database_manager import get_database_manager
-from backend.database.repositories.retrieval_result_repository import get_retrieval_result_repository
 from backend.models.retrieval_result import RetrievalResultCreate
 from backend.utils.logger import get_logger
 
@@ -12,9 +10,9 @@ class RetrievalPersistenceApplicationService:
     """Application service for retrieval persistence."""
 
 
-    def __init__(self, *, database_manager=None, retrieval_result_repository=None):
-        self.db_manager = database_manager or get_database_manager()
-        self.retrieval_result_repo = retrieval_result_repository or get_retrieval_result_repository()
+    def __init__(self, *, database_manager, retrieval_result_repository):
+        self.db_manager = database_manager
+        self.retrieval_result_repo = retrieval_result_repository
         self.logger = get_logger(self.__class__.__name__)
 
     def fetch_fallback_rows(self, user_id: str) -> List[Dict[str, Any]]:

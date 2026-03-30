@@ -10,7 +10,7 @@ class DocumentInfo(BaseModel):
     file_name: str = Field(..., description="文件名")
     file_type: str = Field(..., description="文件类型")
     file_size: int = Field(..., description="文件大小（字节）")
-    chunk_count: int = Field(..., description="文本分块数")
+    chunk_count: int = Field(..., description="切块数量")
     upload_time: str = Field(..., description="上传时间")
     user_id: str = Field(..., description="所属用户 ID")
     knowledge_base_id: Optional[str] = Field(default=None, description="所属知识库 ID")
@@ -19,10 +19,11 @@ class DocumentInfo(BaseModel):
     processing_stage: Optional[str] = Field(default=None, description="处理阶段")
     processing_progress: Optional[int] = Field(default=None, description="处理进度百分比")
     error_message: Optional[str] = Field(default=None, description="错误信息")
-    vectorized_chunk_count: int = Field(default=0, description="已向量化分块数")
-    missing_vector_chunk_count: int = Field(default=0, description="待向量化分块数")
+    vectorized_chunk_count: int = Field(default=0, description="已向量化切块数")
+    missing_vector_chunk_count: int = Field(default=0, description="待向量化切块数")
     vectorization_status: str = Field(default="unknown", description="向量化状态")
     can_retry_vectorization: bool = Field(default=False, description="是否可重试向量化")
+    idempotency_key: Optional[str] = Field(default=None, description="幂等键")
 
 
 class VectorRebuildRequest(BaseModel):
@@ -67,6 +68,7 @@ class FullVectorRebuildTaskResponse(FullVectorRebuildResponse):
     updated_at: Optional[str] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
+    idempotency_key: Optional[str] = Field(default=None, description="幂等键")
 
 
 class BatchUploadItemResponse(BaseModel):
@@ -121,8 +123,9 @@ class KnowledgeSearchResponse(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="搜索词")
-    top_k: int = Field(default=5, ge=1, le=20, description="返回结果数量")
+    top_k: int = Field(default=5, ge=1, le=10, description="返回结果数量，最多 10 条")
     knowledge_base_id: Optional[str] = Field(default=None, description="限定搜索的知识库 ID")
+    file_type: Optional[str] = Field(default=None, description="限定搜索的文件类型，如 pdf、docx、pptx")
     enable_query_rewrite: bool = Field(default=True, description="是否启用 query rewrite")
     enable_exact_phrase: bool = Field(default=True, description="是否启用 exact phrase 检索")
     enable_sparse_keyword: bool = Field(default=True, description="是否启用 sparse keyword 检索")

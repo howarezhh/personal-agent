@@ -32,7 +32,6 @@ from backend.agents.base.agent_output import (
     FileProcessorAgentOutput,
     GenerationAgentOutput,
     RetrievalAgentOutput,
-    RouterAgentOutput,
     ToolAgentOutput,
 )
 from backend.agents.base.stream_chunk import StreamChunk
@@ -44,7 +43,6 @@ class BaseAgent(ABC):
     # `OUTPUT_CLASS_BY_TYPE`：Agent 类型到输出模型的映射表。
     # 这样基类就能按 `agent_type` 自动构造对应输出对象，避免子类重复判断。
     OUTPUT_CLASS_BY_TYPE = {
-        "router": RouterAgentOutput,
         "retrieval": RetrievalAgentOutput,
         "generation": GenerationAgentOutput,
         "tool": ToolAgentOutput,
@@ -312,23 +310,31 @@ class BaseAgent(ABC):
             return self.prompt_manager.render_prompt(full_key, **kwargs)
         return self.prompt_manager.get_prompt(full_key, "")
 
-    def _build_messages(
+    def _build_chat_prompt_call(
         self,
         user_content: str,
         conversation_history: Optional[list] = None,
+        *,
+        user_prompt_key: str | None = None,
+        system_prompt_key: str | None = None,
+        user_prompt_default: str = "{question}",
         **kwargs,
-    ) -> list:
-        """统一构造 LLM messages。
+    ):
+        """统一构造 `ChatPromptTemplate` 调用参数。
 
-        说明：
-        - 由 PromptManager 决定系统提示词、历史消息和用户输入如何组装；
-        - 基类只负责传递必要参数，不关心具体模板细节。
+        关键点：
+        - 默认按 Agent 类型解析 system/user Prompt 键
+        - 对话历史直接保留为真实聊天消息
+        - 具体 Prompt 加载与兼容逻辑统一下沉到 PromptManager
         """
-        return self.prompt_manager.build_chat_messages(
-            agent_type=self.agent_type,
-            user_content=user_content,
+        resolved_user_prompt_key = user_prompt_key or f"{self.agent_type}.{self.agent_type}_user_prompt"
+        resolved_system_prompt_key = system_prompt_key or f"{self.agent_type}.{self.agent_type}_system_prompt"
+        return self.prompt_manager.build_chat_prompt_call(
+            user_prompt_key=resolved_user_prompt_key,
+            user_variables={"question": user_content, **kwargs},
             conversation_history=conversation_history,
-            **kwargs,
+            system_prompt_key=resolved_system_prompt_key,
+            user_prompt_default=user_prompt_default,
         )
 
     async def safe_execute(self, agent_input: AgentInput) -> AgentOutput:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, Query, Request, UploadFile, status
 
 from backend.api.app_services import get_knowledge_management_application_service
 from backend.api.dependencies import get_current_user_id
@@ -35,6 +35,10 @@ router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge"])
 
 def _request_id(request: Request) -> str | None:
     return getattr(getattr(request, "state", None), "request_id", None)
+
+
+def _idempotency_key(request: Request, header_value: str | None) -> str | None:
+    return header_value or request.headers.get("Idempotency-Key")
 
 
 def _build_vector_rebuild_items(details: list[dict[str, Any]]) -> list[VectorRebuildItem]:
@@ -175,6 +179,7 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="待上传的知识库文档"),
     knowledge_base_id: Optional[str] = Form(default=None, description="所属知识库 ID"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     user_id: str = Depends(get_current_user_id),
 ):
     try:
@@ -184,6 +189,7 @@ async def upload_document(
             upload_file=file,
             knowledge_base_id=knowledge_base_id,
             request_id=_request_id(request),
+            idempotency_key=_idempotency_key(request, idempotency_key),
         )
         background_tasks.add_task(service.process_uploaded_document, upload_result.file_id, _request_id(request))
         return SuccessResponse.create(
@@ -341,6 +347,7 @@ async def start_full_rebuild_vectors_task(
     payload: VectorRebuildRequest,
     background_tasks: BackgroundTasks,
     request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     user_id: str = Depends(get_current_user_id),
 ):
     try:
@@ -349,6 +356,7 @@ async def start_full_rebuild_vectors_task(
             user_id=user_id,
             knowledge_base_id=payload.knowledge_base_id,
             request_id=_request_id(request),
+            idempotency_key=_idempotency_key(request, idempotency_key),
         )
         background_tasks.add_task(
             service.run_full_vector_rebuild_task,
@@ -438,6 +446,7 @@ async def search_knowledge(
             query=payload.query,
             top_k=payload.top_k,
             knowledge_base_id=payload.knowledge_base_id,
+            file_type=payload.file_type,
             retrieval_options={
                 "enable_query_rewrite": payload.enable_query_rewrite,
                 "enable_exact_phrase": payload.enable_exact_phrase,

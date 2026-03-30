@@ -12,17 +12,17 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.api import auth, chat, content_generation, conversations, knowledge, tools
+from backend.api import auth, content_generation, conversations, knowledge, task_runtime, tools
 from backend.api.error_handlers import register_exception_handlers
 from backend.api.middleware import RequestIDMiddleware
-from backend.application.services.runtime_application_service import RuntimeApplicationService
+from backend.application.service_factory import build_runtime_application_service
 from backend.contracts.responses import MessageResponse
 from backend.core.openapi import build_custom_openapi
 from backend.utils.logger import get_logger
 
 
 logger = get_logger(__name__)
-runtime_service = RuntimeApplicationService()
+runtime_service = build_runtime_application_service()
 
 
 @asynccontextmanager
@@ -85,11 +85,11 @@ async def log_requests(request: Request, call_next):
 
 ROUTERS = (
     (auth.router, "/api/v1/auth", "auth"),
-    (chat.router, "/api/v1/chat", "chat"),
     (conversations.router, "/api/v1/conversations", "conversations"),
     (knowledge.router, "/api/v1/knowledge", "knowledge"),
     (tools.router, "/api/v1/tools", "tools"),
     (content_generation.router, "/api/v1/content", "content"),
+    (task_runtime.router, "/api/v1/task-runtime", "task-runtime"),
 )
 
 

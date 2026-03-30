@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from backend.application.services.document_service_support import (
     DocumentServiceSupport,
@@ -15,7 +15,7 @@ class DocumentQueryApplicationService(DocumentServiceSupport):
         file_record = self.file_repo.get_file_by_id(document_id)
         if file_record and is_knowledge_managed_file(file_record):
             if file_record.user_id != user_id:
-                raise PermissionError("鏃犳潈璁块棶璇ョ煡璇嗗簱鏂囨。")
+                raise PermissionError("You do not have permission to access this document")
             document = self._build_document_snapshot(file_record)
             self._remember_document_status(document)
             return document
@@ -44,7 +44,7 @@ class DocumentQueryApplicationService(DocumentServiceSupport):
         if not file_record or not is_knowledge_managed_file(file_record):
             raise FileNotFoundError("Document not found")
         if file_record.user_id != user_id:
-            raise PermissionError("鏃犳潈鍒犻櫎璇ョ煡璇嗗簱鏂囨。")
+            raise PermissionError("You do not have permission to delete this document")
 
         knowledge_base_id = None
         metadata = getattr(file_record, "metadata", None)
@@ -71,4 +71,5 @@ class DocumentQueryApplicationService(DocumentServiceSupport):
             cleanup_result.setdefault("request_id", request_id)
             cleanup_result.setdefault("document_id", document_id)
         return cleanup_result
+
 

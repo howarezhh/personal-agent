@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class ToolErrorCode(StrEnum):
+    """Tool/MCP 平台统一错误码。"""
+
+    TOOL_ERROR = "TOOL_ERROR"
+    TOOL_INVALID_PARAMETER = "TOOL_INVALID_PARAMETER"
+    TOOL_PERMISSION_DENIED = "TOOL_PERMISSION_DENIED"
+    TOOL_CONFIGURATION_ERROR = "TOOL_CONFIGURATION_ERROR"
+    TOOL_NETWORK_ERROR = "TOOL_NETWORK_ERROR"
+    TOOL_UPSTREAM_ERROR = "TOOL_UPSTREAM_ERROR"
+    TOOL_TIMEOUT = "TOOL_TIMEOUT"
+    TOOL_EXECUTION_ERROR = "TOOL_EXECUTION_ERROR"
+    TOOL_PROTOCOL_ERROR = "TOOL_PROTOCOL_ERROR"
+    TOOL_INITIALIZATION_ERROR = "TOOL_INITIALIZATION_ERROR"
+    TOOL_CLOSE_ERROR = "TOOL_CLOSE_ERROR"
+    TOOL_STREAM_UNAVAILABLE = "TOOL_STREAM_UNAVAILABLE"
+    TOOL_STREAM_CANCELLED = "TOOL_STREAM_CANCELLED"
+    TOOL_RESULT_INTERPRETATION_ERROR = "TOOL_RESULT_INTERPRETATION_ERROR"
+
+
+class ToolErrorType(StrEnum):
+    """Tool/MCP 平台统一错误类型。"""
+
+    PARAMETER_ERROR = "parameter_error"
+    PERMISSION_ERROR = "permission_error"
+    CONFIGURATION_ERROR = "configuration_error"
+    NETWORK_ERROR = "network_error"
+    UPSTREAM_ERROR = "upstream_error"
+    TIMEOUT = "timeout"
+    EXECUTION_ERROR = "execution_error"
+    PROTOCOL_ERROR = "protocol_error"
+    INITIALIZATION_ERROR = "initialization_error"
+    CLOSE_ERROR = "close_error"
+    STREAM_ERROR = "stream_error"
+

@@ -3,7 +3,6 @@ from importlib import import_module
 from typing import Any
 
 _EXPORTS = {
-    "RouterAgent": "backend.agents.router",
     "RetrievalAgent": "backend.agents.retrieval",
     "GenerationAgent": "backend.agents.generation",
     "ToolAgent": "backend.agents.tool",

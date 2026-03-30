@@ -20,6 +20,7 @@ class ParsedContent:
     pages: Optional[List[Dict[str, Any]]] = None
     tables: Optional[List[Dict[str, Any]]] = None
     images: Optional[List[Dict[str, Any]]] = None
+    blocks: Optional[List[Dict[str, Any]]] = None
 
     def to_dict(self) -> dict:
         return {
@@ -28,6 +29,7 @@ class ParsedContent:
             "pages": self.pages,
             "tables": self.tables,
             "images": self.images,
+            "blocks": self.blocks,
         }
 
 
@@ -36,6 +38,7 @@ class TextCleaningProfile:
     preserve_line_breaks: bool = False
     merge_paragraph_lines: bool = True
     preserve_indentation: bool = False
+    deduplicate_consecutive_lines: bool = True
 
 
 class BaseParser(ABC):
@@ -44,10 +47,12 @@ class BaseParser(ABC):
     _STRUCTURED_EXTENSIONS = {
         ".json",
         ".xml",
+        ".svg",
         ".yaml",
         ".yml",
         ".toml",
         ".ini",
+        ".cfg",
         ".conf",
         ".env",
         ".properties",
@@ -59,18 +64,29 @@ class BaseParser(ABC):
         ".tsx",
         ".jsx",
         ".java",
+        ".cc",
         ".cpp",
+        ".cxx",
         ".c",
         ".h",
         ".hpp",
+        ".cs",
         ".go",
+        ".rb",
+        ".php",
         ".rs",
+        ".swift",
+        ".kt",
+        ".kts",
+        ".scala",
         ".sh",
         ".bash",
+        ".zsh",
         ".bat",
         ".ps1",
         ".sql",
         ".html",
+        ".gitignore",
         ".css",
         ".scss",
         ".less",
@@ -138,6 +154,7 @@ class BaseParser(ABC):
             preserve_line_breaks=True,
             merge_paragraph_lines=False,
             preserve_indentation=False,
+            deduplicate_consecutive_lines=False,
         )
 
         content.metadata = self._clean_nested_value(content.metadata or {}, metadata_profile)
@@ -147,6 +164,7 @@ class BaseParser(ABC):
                 preserve_line_breaks=True,
                 merge_paragraph_lines=False,
                 preserve_indentation=False,
+                deduplicate_consecutive_lines=text_profile.deduplicate_consecutive_lines,
             )
             cleaned_pages: List[Dict[str, Any]] = []
             for page in content.pages:
@@ -160,16 +178,29 @@ class BaseParser(ABC):
 
             cleaned_pages = self._strip_repeated_page_noise(cleaned_pages, text_profile)
             cleaned_pages = [page for page in cleaned_pages if page.get("text")]
+            cleaned_pages = self._annotate_page_offsets(cleaned_pages)
             content.pages = cleaned_pages
             content.text = "\n\n".join(page["text"] for page in cleaned_pages)
         else:
             content.text = self._clean_text_value(content.text, text_profile)
+
+        if content.blocks is not None:
+            block_profile = TextCleaningProfile(
+                preserve_line_breaks=True,
+                merge_paragraph_lines=False,
+                preserve_indentation=False,
+                deduplicate_consecutive_lines=False,
+            )
+            content.blocks = self._clean_content_blocks(content.blocks, block_profile)
+            if content.blocks and content.pages is None:
+                content.text = "\n\n".join(block["text"] for block in content.blocks if block.get("text"))
 
         if content.tables is not None:
             table_profile = TextCleaningProfile(
                 preserve_line_breaks=True,
                 merge_paragraph_lines=False,
                 preserve_indentation=False,
+                deduplicate_consecutive_lines=False,
             )
             content.tables = self._clean_nested_value(content.tables, table_profile)
 
@@ -190,17 +221,20 @@ class BaseParser(ABC):
                 preserve_line_breaks=True,
                 merge_paragraph_lines=False,
                 preserve_indentation=True,
+                deduplicate_consecutive_lines=False,
             )
         if normalized_extension in self._MARKUP_EXTENSIONS:
             return TextCleaningProfile(
                 preserve_line_breaks=True,
                 merge_paragraph_lines=False,
                 preserve_indentation=False,
+                deduplicate_consecutive_lines=False,
             )
         return TextCleaningProfile(
             preserve_line_breaks=False,
             merge_paragraph_lines=True,
             preserve_indentation=False,
+            deduplicate_consecutive_lines=True,
         )
 
     def _clean_nested_value(self, value: Any, profile: TextCleaningProfile) -> Any:
@@ -238,7 +272,8 @@ class BaseParser(ABC):
                 continue
             cleaned_lines.append(cleaned_line)
 
-        cleaned_lines = self._deduplicate_consecutive_lines(cleaned_lines)
+        if profile.deduplicate_consecutive_lines:
+            cleaned_lines = self._deduplicate_consecutive_lines(cleaned_lines)
         if profile.merge_paragraph_lines and not profile.preserve_line_breaks:
             cleaned_lines = self._merge_broken_lines(cleaned_lines)
 
@@ -266,6 +301,45 @@ class BaseParser(ABC):
                 continue
             deduplicated.append(line)
         return deduplicated
+
+    def _clean_content_blocks(
+        self,
+        blocks: List[Dict[str, Any]],
+        profile: TextCleaningProfile,
+    ) -> List[Dict[str, Any]]:
+        """清洗结构化块，并重新计算块内全局字符偏移。"""
+        cleaned_blocks: List[Dict[str, Any]] = []
+        current_start = 0
+        for block in blocks or []:
+            if not isinstance(block, dict):
+                continue
+
+            cleaned_block = self._clean_nested_value(dict(block), profile)
+            cleaned_text = str(cleaned_block.get("text") or "").strip()
+            if not cleaned_text:
+                continue
+
+            cleaned_block["text"] = cleaned_text
+            cleaned_block["start"] = current_start
+            cleaned_block["char_count"] = len(cleaned_text)
+            cleaned_blocks.append(cleaned_block)
+            current_start += len(cleaned_text) + 2
+        return cleaned_blocks
+
+    def _annotate_page_offsets(self, pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """为页级内容补充全局字符偏移，供 PDF 分块直接复用。"""
+        annotated_pages: List[Dict[str, Any]] = []
+        current_start = 0
+        for page in pages or []:
+            if not isinstance(page, dict):
+                continue
+            page_text = str(page.get("text") or "")
+            annotated_page = dict(page)
+            annotated_page["start_char"] = current_start
+            annotated_page["end_char"] = current_start + len(page_text)
+            annotated_pages.append(annotated_page)
+            current_start = annotated_page["end_char"] + 2
+        return annotated_pages
 
     def _merge_broken_lines(self, lines: List[str]) -> List[str]:
         merged: List[str] = []
@@ -344,11 +418,14 @@ class BaseParser(ABC):
         return bool(re.search(r"\S+\s{2,}\S+", line))
 
     def _looks_like_heading(self, line: str) -> bool:
+        # 常见编号标题需要在清洗阶段被识别出来，避免与下一行正文误合并。
         if len(line) > 60:
             return False
         if re.search(r"[.!?。！？；;:：]$", line):
             return False
         if re.match(r"^(?:chapter|section|appendix)\b", line, re.IGNORECASE):
+            return True
+        if re.match(r"^\d+(?:\.\d+){0,5}\s+\S+", line):
             return True
         if re.match(r"^第[一二三四五六七八九十0-9]+(?:章|节|部分|条)", line):
             return True
@@ -414,6 +491,9 @@ class BaseParser(ABC):
             return False
         if self._is_page_noise_line(normalized):
             return True
+        # 对论文标题、法规标题等真实页眉保持克制，避免仅因“重复出现”就误删正文语义线索。
+        if self._looks_like_heading(normalized):
+            return False
         if self._looks_like_table_row(normalized) or self._BULLET_LINE_RE.match(normalized):
             return False
         return not bool(re.search(r"[.!?;:]$", normalized))

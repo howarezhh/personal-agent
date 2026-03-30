@@ -1,13 +1,24 @@
 .conversation-item {
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.24s ease;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.conversation-item .ant-card-body {
+  padding: 14px 16px !important;
 }
 
 .conversation-item.active {
-  border-color: #1890ff;
-  background: #e6f7ff;
+  border-color: rgba(22, 119, 255, 0.28);
+  background: linear-gradient(180deg, #eef6ff 0%, #ffffff 100%);
+  box-shadow: 0 12px 28px rgba(22, 119, 255, 0.12);
 }
 
 .conversation-item:hover {
-  border-color: #1890ff;
+  border-color: rgba(22, 119, 255, 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
 }

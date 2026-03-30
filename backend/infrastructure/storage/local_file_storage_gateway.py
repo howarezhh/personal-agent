@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 
 
 class LocalFileStorageGateway:
@@ -16,6 +17,11 @@ class LocalFileStorageGateway:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "wb") as buffer:
             buffer.write(content)
+
+    def write_fileobj(self, path: str, file_obj) -> None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as buffer:
+            shutil.copyfileobj(file_obj, buffer)
 
     def delete(self, path: str) -> None:
         if self.exists(path):

@@ -53,6 +53,7 @@ def _serialize_summary(summary) -> ConversationSummaryResponse:
 
 
 def _serialize_message(message) -> ConversationMessageItem:
+    # 历史消息接口必须返回完整消息对象，确保刷新后仍能还原引用和链路字段。
     return ConversationMessageItem(
         message_id=message.message_id,
         conversation_id=message.conversation_id,
@@ -61,6 +62,7 @@ def _serialize_message(message) -> ConversationMessageItem:
         sequence_number=message.sequence_number,
         parent_message_id=message.parent_message_id,
         created_at=_iso(message.created_at),
+        metadata=dict(message.metadata or {}),
     )
 
 

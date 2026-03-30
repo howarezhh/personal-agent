@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ChatInterface } from '@/components/chat/ChatInterface';
 import { ConversationList } from '@/components/conversation/ConversationList';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { useChat } from '@/hooks/useChat';
+import { useTaskRuntimeChat } from '@/hooks/useTaskRuntimeChat';
 import { useConversation } from '@/hooks/useConversation';
 
 import './ChatPage.css';
@@ -13,18 +13,51 @@ import './ChatPage.css';
 const { Sider, Content } = Layout;
 
 const ChatPage = () => {
-  const { conversations, loadConversations, createConversation } = useConversation();
-  const { currentConversationId, loadMessages, reset } = useChat();
+  const {
+    conversations,
+    loadConversations,
+    createConversation,
+    ensureConversationVisible,
+  } = useConversation();
+  const { currentConversationId, loadMessages, reset } = useTaskRuntimeChat();
   const [searchParams, setSearchParams] = useSearchParams();
   const pendingConversationRefreshRef = useRef<string | null>(null);
   const loadedConversationIdRef = useRef<string | null>(null);
 
   const conversationIdFromUrl = searchParams.get('conversationId');
-  const availableConversationIds = useMemo(() => new Set(conversations.map((conversation) => conversation.conversationId)), [conversations]);
+  const availableConversationIds = useMemo(
+    () => new Set(conversations.map((conversation) => conversation.conversationId)),
+    [conversations]
+  );
 
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleConversationUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: string }>).detail;
+      const updatedConversationId = detail?.conversationId;
+
+      if (!updatedConversationId) {
+        void loadConversations();
+        return;
+      }
+
+      void loadConversations()
+        .then(() => ensureConversationVisible(updatedConversationId))
+        .catch(() => undefined);
+    };
+
+    window.addEventListener('conversation:updated', handleConversationUpdated as EventListener);
+    return () => {
+      window.removeEventListener('conversation:updated', handleConversationUpdated as EventListener);
+    };
+  }, [ensureConversationVisible, loadConversations]);
 
   useEffect(() => {
     const targetConversationId = conversationIdFromUrl || currentConversationId;
@@ -35,16 +68,21 @@ const ChatPage = () => {
     }
 
     if (!availableConversationIds.has(targetConversationId)) {
-      if (pendingConversationRefreshRef.current !== targetConversationId) {
-        pendingConversationRefreshRef.current = targetConversationId;
-        void loadConversations();
+      if (pendingConversationRefreshRef.current === targetConversationId) {
         return;
       }
 
-      pendingConversationRefreshRef.current = null;
-      loadedConversationIdRef.current = null;
-      setSearchParams({}, { replace: true });
-      reset();
+      pendingConversationRefreshRef.current = targetConversationId;
+      void ensureConversationVisible(targetConversationId).catch(() => {
+        if (pendingConversationRefreshRef.current !== targetConversationId) {
+          return;
+        }
+
+        pendingConversationRefreshRef.current = null;
+        loadedConversationIdRef.current = null;
+        setSearchParams({}, { replace: true });
+        reset();
+      });
       return;
     }
 
@@ -64,7 +102,15 @@ const ChatPage = () => {
         loadedConversationIdRef.current = null;
       }
     });
-  }, [availableConversationIds, conversationIdFromUrl, currentConversationId, loadConversations, loadMessages, reset, setSearchParams]);
+  }, [
+    availableConversationIds,
+    conversationIdFromUrl,
+    currentConversationId,
+    ensureConversationVisible,
+    loadMessages,
+    reset,
+    setSearchParams,
+  ]);
 
   const handleCreateConversation = async () => {
     const conversation = await createConversation({ title: '新对话' });
@@ -74,9 +120,14 @@ const ChatPage = () => {
 
   return (
     <MainLayout>
-      <Layout style={{ height: '100%' }}>
+      <Layout className="chat-page-layout">
         <Sider width={280} theme="light" className="conversation-sider">
-          <ConversationList conversations={conversations} currentConversationId={currentConversationId} onSelect={(conversationId) => setSearchParams({ conversationId }, { replace: false })} onCreate={handleCreateConversation} />
+          <ConversationList
+            conversations={conversations}
+            currentConversationId={currentConversationId}
+            onSelect={(conversationId) => setSearchParams({ conversationId }, { replace: false })}
+            onCreate={handleCreateConversation}
+          />
         </Sider>
         <Content className="chat-content">
           <ChatInterface />

@@ -1,16 +1,10 @@
 # -*- coding: utf-8 -*-
-"""`backend.agents.router` 包的统一导出入口。"""
+"""Router Agent 包导出。
 
-from importlib import import_module
-from typing import Any
+当前项目的主聊天链路已经切到 task-runtime，
+这里补齐标准 `router` Agent 源码，确保注册表中的标准 Agent 类型完整可用。
+"""
 
+from backend.agents.router.router_agent import RouterAgent
 
 __all__ = ["RouterAgent"]
-
-
-def __getattr__(name: str) -> Any:
-    """按需导出路由能力。"""
-    if name != "RouterAgent":
-        raise AttributeError(f"module 'backend.agents.router' has no attribute {name!r}")
-    module = import_module("backend.agents.router.router_agent")
-    return getattr(module, name)

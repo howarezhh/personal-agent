@@ -11,7 +11,8 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header />
-      <Content style={{ height: 'calc(100vh - 64px)' }}>
+      {/* 主内容区改为弹性布局，避免使用固定视口高度导致页面被裁切 */}
+      <Content className="app-layout__content">
         {children}
       </Content>
     </Layout>

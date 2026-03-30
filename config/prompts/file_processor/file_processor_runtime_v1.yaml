@@ -1,214 +1,69 @@
-name: Runtime prompts for file processor agent
+name: File processor runtime prompts
 version: v1
 agent: file_processor
 scene: runtime_defaults
-input_variables: []
-output_requirements: []
-applicable_models: []
+input_variables:
+  - filename
+  - file_type
+  - total_pages
+  - chunk_count
+  - content_preview
+  - max_size
+  - current_size
+  - file_format
+  - supported_formats
+  - error_message
+output_requirements:
+  - 提供文件摘要生成提示词
+  - 提供统一文件处理错误提示词
+applicable_models:
+  - gpt-4o-mini
 change_log:
-- version: v1
-  date: '2026-03-18'
-summary: Migrated file_processor_prompts.yaml into versioned prompt schema.
+  - version: v1
+    date: 2026-03-18
+    summary: 初始化文件处理运行时提示词。
+  - version: v1
+    date: 2026-03-21
+    summary: 删除重复摘要 Prompt、死 Prompt 与旧历史模板，仅保留实际使用项。
 prompts:
-  file_processor_system_prompt: '你是一个专业的文档分析助手，负责为上传的文档生成简洁、准确的摘要。
+  file_processor_system_prompt: |
+    你是专业的文档分析助手，负责为上传文档生成简洁、准确、客观的摘要。
 
+    要求：
+    1. 准确提炼主题与核心观点。
+    2. 优先保留关键事实、数据与结论。
+    3. 摘要控制在 200 字以内。
+    4. 不添加原文之外的臆测与评价。
+  summary_generation_prompt: |
+    请为以下文档生成简洁摘要。
 
-    核心原则：
+    文件名：{filename}
+    文件类型：{file_type}
+    总页数：{total_pages}
+    文本块数：{chunk_count}
 
-    1. 准确性：准确提取文档的核心内容
-
-    2. 简洁性：摘要应简洁明了，不超过200字
-
-    3. 结构化：使用清晰的结构组织摘要
-
-    4. 客观性：保持客观中立，不添加主观评价
-
-
-    摘要要求：
-
-    - 提取文档的主题和核心观点
-
-    - 突出关键信息和数据
-
-    - 使用简洁的语言
-
-    - 保持逻辑清晰
-
-    '
-  summary_generation_prompt: '请为以下文档生成一个简洁的摘要（不超过200字）。
-
-
-    文档信息：
-
-    - 文件名：{filename}
-
-    - 文件类型：{file_type}
-
-    - 总页数：{total_pages}
-
-    - 文本块数：{chunk_count}
-
-
-    文档内容（前1000字）：
-
+    文档内容预览：
     {content_preview}
 
-
-    请生成摘要，要求：
-
-    1. 概括文档的主要内容和目的
-
-    2. 提取关键信息点
-
-    3. 保持简洁（不超过200字）
-
-    4. 使用客观的语言
-
-    '
-  file_type_detection_prompt: "请识别以下文件的类型和用途。\n\n文件名：{filename}\n文件扩展名：{extension}\n\
-    文件大小：{file_size}\n\n返回JSON格式：\n{\n  \"file_type\": \"文件类型\",\n  \"category\":\
-    \ \"文档/表格/代码/其他\",\n  \"description\": \"文件用途描述\",\n  \"suggested_parser\": \"\
-    建议使用的解析器\"\n}\n"
-  document_quality_prompt: "请评估以下文档的质量和可读性。\n\n文档信息：\n- 文件名：{filename}\n- 总字数：{total_chars}\n\
-    - 段落数：{paragraph_count}\n- 表格数：{table_count}\n\n内容预览：\n{content_preview}\n\n返回JSON格式：\n\
-    {\n  \"readability_score\": 0.85,\n  \"structure_score\": 0.9,\n  \"completeness_score\"\
-    : 0.8,\n  \"overall_score\": 0.85,\n  \"issues\": [\"发现的问题列表\"],\n  \"suggestions\"\
-    : [\"改进建议\"]\n}\n"
-  chunking_strategy_prompt: "根据文档特征，建议最佳的分块策略。\n\n文档特征：\n- 文档类型：{file_type}\n- 总字数：{total_chars}\n\
-    - 段落数：{paragraph_count}\n- 是否有章节：{has_sections}\n\n返回JSON格式：\n{\n  \"chunk_size\"\
-    : 1000,\n  \"chunk_overlap\": 100,\n  \"strategy\": \"按段落/按页/按章节\",\n  \"reasoning\"\
-    : \"选择理由\"\n}\n"
+    请直接输出摘要正文。
   error_handling:
-    file_too_large: '文件大小超过限制（{max_size}MB）。
-
-      当前文件大小：{current_size}MB
-
-
-      建议：
-
-      - 压缩文件后重新上传
-
-      - 分割成多个小文件
-
-      - 联系管理员提高限制
-
-      '
-    unsupported_format: '不支持的文件格式：{file_format}
-
-
-      当前支持的格式：
-
-      {supported_formats}
-
-
-      建议：
-
-      - 转换为支持的格式
-
-      - 使用其他工具处理
-
-      '
-    corrupted_file: '文件可能已损坏，无法正常解析。
-
-
-      建议：
-
-      - 检查文件完整性
-
-      - 重新下载或导出文件
-
-      - 尝试使用修复工具
-
-      '
-    parsing_failed: '文件解析失败：{error_message}
-
-
-      可能原因：
-
-      - 文件格式异常
-
-      - 文件内容加密
-
-      - 文件结构复杂
-
-
-      建议：
-
-      - 检查文件是否正常打开
-
-      - 尝试另存为标准格式
-
-      - 联系技术支持
-
-      '
-    vectorization_failed: '文档向量化失败，但文件已成功解析和分块。
-
-
-      影响：
-
-      - 文档无法被智能检索
-
-      - 仍可查看文档内容和分块
-
-
-      建议：
-
-      - 稍后重试向量化
-
-      - 检查向量数据库状态
-
-      '
-  success_messages:
-    processing_completed: '✅ 文件处理完成
-
-
-      📄 文件信息：
-
-      - 文件名：{filename}
-
-      - 文件类型：{file_type}
-
-      - 文件大小：{file_size}
-
-
-      📊 处理结果：
-
-      - 文本块数：{chunk_count}
-
-      - 总字数：{total_chars}
-
-      - 处理时间：{processing_time}ms
-
-
-      📝 摘要：
-
-      {summary}
-
-      '
-    batch_processing_completed: '✅ 批量处理完成
-
-
-      📊 处理统计：
-
-      - 总文件数：{total_files}
-
-      - 成功：{success_count}
-
-      - 失败：{failed_count}
-
-      - 总耗时：{total_time}ms
-
-
-      详细结果：
-
-      {results_summary}
-
-      '
-  progress_messages:
-    parsing: 正在解析文件：{filename}...
-    chunking: 正在分割文档（{chunk_count}个文本块）...
-    vectorizing: 正在向量化文档...
-    saving: 正在保存处理结果...
-    generating_summary: 正在生成文档摘要...
-  conversation_history_format: '{role}: {content}'
-  no_history_placeholder: （这是新对话的第一条消息）
+    file_too_large: |
+      文件大小超过限制（{max_size}MB）。
+      当前文件大小：{current_size}MB。
+      请压缩文件后重试，或联系管理员调整限制。
+    unsupported_format: |
+      不支持的文件格式：{file_format}。
+      当前支持的格式：{supported_formats}。
+      请转换为支持的格式后再上传。
+    corrupted_file: |
+      文件可能已损坏，暂时无法解析。
+      请检查文件完整性，或重新导出后重试。
+    parsing_failed: |
+      文件解析失败：{error_message}
+      请确认文件内容可正常打开，或改用标准格式后重试。
+    vectorization_failed: |
+      文档已完成解析与分块，但向量化失败，暂时无法参与检索。
+      请稍后重试，或联系管理员检查向量服务状态。
+    unknown_error: |
+      文件处理失败：{error_message}
+      请稍后重试，或联系管理员协助排查。

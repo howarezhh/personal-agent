@@ -242,15 +242,116 @@ class KeywordRetriever:
 
         return results
 
-    def _build_source_text(self, metadata: Dict[str, Any]) -> str:
-        """从元数据中拼接来源文本，用于增强召回。
+    def search_exact_phrases(
+        self,
+        index: Dict[str, Any],
+        phrases: Sequence[str],
+        *,
+        top_k: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        """在已构建的关键词索引上执行精确短语匹配。
 
-        这里优先选择对用户可感知、且常被用于检索定位的字段，
-        如来源路径、标题、文件名和原始文件名等。
+        优化点：
+        - 先用 phrase 的 token postings 预选候选文档；
+        - 再对候选文档做 compact_text / compact_source_text 的包含判断；
+        - 避免每次短语查询都全量扫描整个语料。
+        """
+        if not index or not phrases:
+            return []
+
+        documents: List[KeywordDocument] = index.get("documents", [])
+        postings: Dict[str, List[tuple[int, int]]] = index.get("postings", {})
+        if not documents:
+            return []
+
+        matched_results: Dict[str, Dict[str, Any]] = {}
+        for phrase in phrases:
+            compact_phrase = self._normalize_compact_text(phrase)
+            if not compact_phrase:
+                continue
+
+            phrase_tokens = [token for token in self._tokenize_text(phrase) if token]
+            candidate_indices: set[int] = set()
+            for token in phrase_tokens:
+                candidate_indices.update(doc_index for doc_index, _ in postings.get(token, []))
+
+            if not candidate_indices:
+                candidate_indices = set(range(len(documents)))
+
+            for doc_index in sorted(candidate_indices):
+                document = documents[doc_index]
+                matched_in_content = compact_phrase in document.compact_text
+                matched_in_source = compact_phrase in document.compact_source_text
+                if not matched_in_content and not matched_in_source:
+                    continue
+
+                # 中文说明：正文中的短语命中仍然视为强信号；
+                # 但仅文件名/来源字段命中时，只保留弱辅助分，避免“大总结”类文件名长期霸榜。
+                score = 0.98 if matched_in_content else 0.35
+                existing = matched_results.get(document.doc_id)
+                if existing is None:
+                    metadata = dict(document.metadata)
+                    metadata["matched_phrases"] = [phrase]
+                    metadata["exact_phrase_match"] = matched_in_content
+                    metadata["exact_phrase_in_source"] = bool(matched_in_source and not matched_in_content)
+                    metadata["exact_phrase_score"] = score
+                    matched_results[document.doc_id] = {
+                        "id": document.doc_id,
+                        "content": document.content,
+                        "score": score,
+                        "metadata": metadata,
+                    }
+                    continue
+
+                existing_metadata = dict(existing.get("metadata") or {})
+                matched_phrases = list(existing_metadata.get("matched_phrases") or [])
+                if phrase not in matched_phrases:
+                    matched_phrases.append(phrase)
+                existing_metadata["matched_phrases"] = matched_phrases
+                existing_metadata["exact_phrase_match"] = bool(
+                    existing_metadata.get("exact_phrase_match") or matched_in_content
+                )
+                existing_metadata["exact_phrase_in_source"] = bool(
+                    existing_metadata.get("exact_phrase_in_source") or (matched_in_source and not matched_in_content)
+                )
+                existing_metadata["exact_phrase_score"] = max(
+                    float(existing_metadata.get("exact_phrase_score", 0.0) or 0.0),
+                    score,
+                )
+                existing["score"] = max(float(existing.get("score", 0.0) or 0.0), score)
+                existing["metadata"] = existing_metadata
+
+        ranked = sorted(
+            matched_results.values(),
+            key=lambda item: (
+                float(item.get("score", 0.0) or 0.0),
+                len(item.get("metadata", {}).get("matched_phrases", []) or []),
+            ),
+            reverse=True,
+        )
+        return ranked[:top_k] if top_k else ranked
+
+    def _build_source_text(self, metadata: Dict[str, Any]) -> str:
+        """从元数据中拼接辅助检索文本。
+
+        这里改成“结构化上下文优先”，不再把文件名、原始文件名和通用 source
+        直接并入主关键词语料，避免单个总结类文档仅凭文件名就长期压制正文更相关的结果。
         """
         parts = [
             str(metadata.get(field, "") or "")
-            for field in ("source", "file_name", "filename", "title", "original_filename")
+            for field in (
+                "title",
+                "section_title",
+                "section_path",
+                "sheet_name",
+                "structured_terms",
+                "symbol_name",
+                "node_name",
+                "leaf_value",
+                "column_headers",
+                "slide_title",
+                "source_region",
+            )
         ]
         return " ".join(part for part in parts if part)
 

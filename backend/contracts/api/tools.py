@@ -28,6 +28,14 @@ class ToolParameterInfo(BaseModel):
     required: bool = Field(..., description="Whether the parameter is required")
     default: Any = Field(None, description="Default value")
     enum: Optional[List[Any]] = Field(None, description="Allowed enum values")
+    minimum: Optional[float] = Field(None, description="Minimum numeric value")
+    maximum: Optional[float] = Field(None, description="Maximum numeric value")
+    min_length: Optional[int] = Field(None, description="Minimum string length")
+    max_length: Optional[int] = Field(None, description="Maximum string length")
+    pattern: Optional[str] = Field(None, description="Regex pattern")
+    items: Optional[Dict[str, Any]] = Field(None, description="Array item schema")
+    properties: Optional[Dict[str, Any]] = Field(None, description="Object property schema")
+    additional_properties: Optional[bool] = Field(None, description="Whether object accepts extra fields")
 
 
 class ToolInfo(BaseModel):
@@ -37,6 +45,7 @@ class ToolInfo(BaseModel):
                 "name": "translation",
                 "description": "Multilingual translation tool",
                 "category": "language",
+                "capabilities": ["invoke", "local_direct"],
                 "transport_protocol": "mcp",
                 "tool_origin": "local",
                 "mcp_server": "builtin",
@@ -49,6 +58,7 @@ class ToolInfo(BaseModel):
     name: str = Field(..., description="Tool name")
     description: str = Field(..., description="Tool description")
     category: str = Field(..., description="Business category")
+    capabilities: List[str] = Field(default_factory=list, description="Declared tool capabilities")
     transport_protocol: str = Field(..., description="Runtime transport protocol")
     tool_origin: str = Field(..., description="Tool origin")
     mcp_server: Optional[str] = Field(None, description="Bound MCP server")
@@ -94,7 +104,7 @@ class ToolExecuteResponse(BaseModel):
     )
 
     success: bool = Field(..., description="Whether tool execution succeeded")
-    data: Optional[Dict[str, Any]] = Field(None, description="Tool result payload")
+    data: Any = Field(None, description="Tool result payload")
     error: Optional[str] = Field(None, description="Error message")
     error_code: Optional[str] = Field(None, description="Stable error code")
     error_type: Optional[str] = Field(None, description="Error category")

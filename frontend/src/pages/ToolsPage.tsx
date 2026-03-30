@@ -7,15 +7,19 @@ import React, { useEffect, useState } from 'react';
 import { Card, Row, Col, Tag, Input, Select, message, Spin, Modal, Form, Button } from 'antd';
 import { ToolOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import {
+  buildToolInitialValues,
   getToolsList,
   getToolCategories,
   executeTool,
   getToolExecutionErrorMessage,
+  getToolParameterDefaultText,
   normalizeToolParameters,
   Tool,
   ToolCategory,
+  ToolExecuteResponse,
 } from '@/services/toolService';
 import { MainLayout } from '@/components/layout/MainLayout';
+import ToolExecutionResult from '@/components/tools/ToolExecutionResult';
 import './ToolsPage.css';
 
 const { Search, TextArea } = Input;
@@ -32,6 +36,7 @@ const ToolsPage: React.FC = () => {
   const [executeModalVisible, setExecuteModalVisible] = useState<boolean>(false);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [executing, setExecuting] = useState<boolean>(false);
+  const [executeResult, setExecuteResult] = useState<ToolExecuteResponse | null>(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -108,8 +113,10 @@ const ToolsPage: React.FC = () => {
 
   const handleToolClick = (tool: Tool) => {
     setSelectedTool(tool);
+    setExecuteResult(null);
     setExecuteModalVisible(true);
     form.resetFields();
+    form.setFieldsValue(buildToolInitialValues(tool));
   };
 
   const handleExecuteTool = async () => {
@@ -121,21 +128,10 @@ const ToolsPage: React.FC = () => {
 
       const parameters = normalizeToolParameters(selectedTool, values);
       const result = await executeTool(selectedTool.name, parameters);
+      setExecuteResult(result);
 
       if (result.success) {
-        const modalPayload = result.metadata ? { data: result.data, metadata: result.metadata } : result.data;
-        Modal.success({
-          title: '执行成功',
-          content: (
-            <div>
-              <pre style={{ maxHeight: '400px', overflow: 'auto' }}>
-                {JSON.stringify(modalPayload, null, 2)}
-              </pre>
-            </div>
-          ),
-          width: 600,
-        });
-        setExecuteModalVisible(false);
+        message.success('执行成功');
       } else {
         message.error(getToolExecutionErrorMessage(result));
       }
@@ -193,7 +189,7 @@ const ToolsPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="tools-page">
+      <div className="app-page-scroll tools-page">
         <div className="tools-header">
           <h1><ToolOutlined /> 工具管理</h1>
           <p>统一展示所有经标准 MCP 封装后的工具能力</p>
@@ -283,9 +279,18 @@ const ToolsPage: React.FC = () => {
         <Modal
           title={selectedTool ? `执行工具：${selectedTool.name}` : '执行工具'}
           open={executeModalVisible}
-          onCancel={() => setExecuteModalVisible(false)}
+          onCancel={() => {
+            setExecuteModalVisible(false);
+            setExecuteResult(null);
+          }}
           footer={[
-            <Button key="cancel" onClick={() => setExecuteModalVisible(false)}>
+            <Button
+              key="cancel"
+              onClick={() => {
+                setExecuteModalVisible(false);
+                setExecuteResult(null);
+              }}
+            >
               取消
             </Button>,
             <Button key="execute" type="primary" loading={executing} onClick={handleExecuteTool}>
@@ -311,13 +316,19 @@ const ToolsPage: React.FC = () => {
                     key={param.name}
                     name={param.name}
                     label={param.name}
-                    extra={param.description}
+                    extra={`${param.description}（默认值：${getToolParameterDefaultText(param)}）`}
                     rules={[{ required: param.required, message: `请填写参数 ${param.name}` }]}
                   >
                     {renderParameterInput(param)}
                   </Form.Item>
                 ))}
               </Form>
+
+              {executeResult && (
+                <Card title="执行结果" style={{ marginTop: 16 }} type="inner">
+                  <ToolExecutionResult result={executeResult} />
+                </Card>
+              )}
             </>
           )}
         </Modal>

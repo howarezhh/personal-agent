@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+﻿import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Button, List, Progress, Space, Tag, Typography, message } from 'antd';
 import { ClearOutlined, UploadOutlined } from '@ant-design/icons';
 
 import { knowledgeService } from '@/services/knowledgeService';
+import type { DocumentUploadResponse } from '@/types';
 import { getDocumentStageLabel } from '@/utils/knowledgeStatus';
 
 interface DocumentUploadProps {
@@ -12,6 +13,10 @@ interface DocumentUploadProps {
 }
 
 type UploadTaskStatus = 'uploading' | 'processing' | 'completed' | 'failed';
+
+type UploadResult = { success: true } | { success: false; errorMessage: string };
+type UploadSettledResult = PromiseSettledResult<UploadResult>;
+type NormalizedUploadDocument = DocumentUploadResponse & { status: string };
 
 interface UploadTaskItem {
   id: string;
@@ -33,6 +38,15 @@ const ACCEPTED_EXTENSIONS = [
 
 const ACCEPT_ATTR = ACCEPTED_EXTENSIONS.map((ext) => `.${ext}`).join(',');
 
+const statusTagConfig: Record<UploadTaskStatus, { color: string; label: string }> = {
+  uploading: { color: 'processing', label: '上传中' },
+  processing: { color: 'warning', label: '处理中' },
+  completed: { color: 'success', label: '成功' },
+  failed: { color: 'error', label: '失败' },
+};
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
 const isAcceptedExtension = (filename: string) => {
   const fileExtension = filename.split('.').pop()?.toLowerCase() || '';
 
@@ -42,14 +56,10 @@ const isAcceptedExtension = (filename: string) => {
   };
 };
 
-const statusTagConfig: Record<UploadTaskStatus, { color: string; label: string }> = {
-  uploading: { color: 'processing', label: '上传中' },
-  processing: { color: 'warning', label: '处理中' },
-  completed: { color: 'success', label: '成功' },
-  failed: { color: 'error', label: '失败' },
-};
-
-const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const normalizeUploadResult = (document: DocumentUploadResponse): NormalizedUploadDocument => ({
+  ...document,
+  status: document.status ?? 'processing',
+});
 
 export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUploadProps) => {
   const singleInputRef = useRef<HTMLInputElement>(null);
@@ -63,10 +73,10 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
     setUploadTasks((currentTasks) => currentTasks.map((task) => (task.id === taskId ? updater(task) : task)));
   };
 
-  const pollDocumentStatus = async (taskId: string, documentId: string) => {
+  const pollDocumentStatus = async (taskId: string, documentId: string): Promise<UploadResult> => {
     while (true) {
       try {
-        const document = await knowledgeService.getDocumentStatus(documentId);
+        const document = normalizeUploadResult(await knowledgeService.getDocumentStatus(documentId));
         const normalizedProgress = Math.max(1, Math.min(100, document.processingProgress ?? 100));
         const taskStatus: UploadTaskStatus =
           document.status === 'completed'
@@ -85,11 +95,11 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
         }));
 
         if (document.status === 'completed') {
-          return { success: true as const };
+          return { success: true };
         }
 
         if (document.status === 'failed') {
-          return { success: false as const, errorMessage: document.errorMessage || '文档处理失败' };
+          return { success: false, errorMessage: document.errorMessage || '文档处理失败' };
         }
 
         await sleep(1000);
@@ -101,7 +111,7 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
           status: 'failed',
           error: errorMessage,
         }));
-        return { success: false as const, errorMessage };
+        return { success: false, errorMessage };
       }
     }
   };
@@ -121,6 +131,126 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
     return validFiles;
   };
 
+  const createTaskEntries = (files: File[]) =>
+    files.map((file, index) => ({
+      id: `${Date.now()}-${index}-${file.name}`,
+      fileName: file.name,
+      progress: 0,
+      status: 'uploading' as const,
+    }));
+
+  const createRefreshTrigger = () => {
+    let acceptedRefreshTriggered = false;
+
+    return async () => {
+      if (acceptedRefreshTriggered) {
+        return;
+      }
+      acceptedRefreshTriggered = true;
+      await onUploadSuccess?.();
+    };
+  };
+
+  const handleAcceptedDocument = async (taskId: string, rawDocument: DocumentUploadResponse): Promise<UploadResult> => {
+    const document = normalizeUploadResult(rawDocument);
+
+    updateTask(taskId, (task) => ({
+      ...task,
+      documentId: document.documentId,
+      progress: Math.max(task.progress, document.processingProgress ?? 100),
+      status: document.status === 'completed' ? 'completed' : document.status === 'failed' ? 'failed' : 'processing',
+      stage: document.processingStage,
+      error: document.errorMessage,
+    }));
+
+    if (document.status === 'completed') {
+      updateTask(taskId, (task) => ({
+        ...task,
+        progress: 100,
+        status: 'completed',
+        stage: document.processingStage,
+        error: undefined,
+      }));
+      return { success: true };
+    }
+
+    if (document.status === 'failed') {
+      return { success: false, errorMessage: document.errorMessage || '文档上传失败' };
+    }
+
+    return pollDocumentStatus(taskId, document.documentId);
+  };
+
+  const uploadSingleFile = async (file: File, taskId: string): Promise<UploadResult> => {
+    try {
+      const document = await knowledgeService.uploadDocument(file, knowledgeBaseId!, {
+        onProgress: (percent) => {
+          updateTask(taskId, (task) => ({
+            ...task,
+            progress: percent,
+            status: percent >= 100 ? 'processing' : 'uploading',
+          }));
+        },
+      });
+
+      return handleAcceptedDocument(taskId, document);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '文档上传失败';
+      updateTask(taskId, (task) => ({
+        ...task,
+        status: 'failed',
+        error: errorMessage,
+      }));
+      return { success: false, errorMessage };
+    }
+  };
+
+  const uploadBatchFiles = async (files: File[], taskEntries: UploadTaskItem[]): Promise<UploadSettledResult[]> => {
+    const taskByFileName = new Map(taskEntries.map((task) => [task.fileName, task.id]));
+
+    taskEntries.forEach((task) => {
+      updateTask(task.id, (current) => ({
+        ...current,
+        progress: 10,
+        status: 'uploading',
+      }));
+    });
+
+    try {
+      const result = await knowledgeService.uploadDocumentsBatch(files, knowledgeBaseId!);
+      return Promise.allSettled(
+        result.results.map(async (item): Promise<UploadResult> => {
+          const taskId = taskByFileName.get(item.fileName);
+          if (!taskId) {
+            return { success: false, errorMessage: item.error || '未找到上传任务' };
+          }
+
+          if (!item.success || !item.document) {
+            const errorMessage = item.error || '文档上传失败';
+            updateTask(taskId, (task) => ({
+              ...task,
+              status: 'failed',
+              error: errorMessage,
+            }));
+            return { success: false, errorMessage };
+          }
+
+          return handleAcceptedDocument(taskId, item.document);
+        })
+      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '批量上传失败';
+      taskEntries.forEach((task) => {
+        updateTask(task.id, (current) => ({
+          ...current,
+          status: 'failed',
+          error: errorMessage,
+        }));
+      });
+      return taskEntries.map((): UploadSettledResult => ({ status: 'fulfilled', value: { success: false, errorMessage } }));
+    }
+  };
+
   const uploadFiles = async (files: File[]) => {
     if (!knowledgeBaseId) {
       message.warning('请先选择知识库');
@@ -132,79 +262,27 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
       return;
     }
 
-    const taskEntries = validFiles.map((file, index) => ({
-      id: `${Date.now()}-${index}-${file.name}`,
-      fileName: file.name,
-      progress: 0,
-      status: 'uploading' as const,
-    }));
-
+    const taskEntries = createTaskEntries(validFiles);
     setUploadTasks((currentTasks) => [...taskEntries, ...currentTasks]);
-    let acceptedRefreshTriggered = false;
 
-    const triggerAcceptedRefresh = async () => {
-      if (acceptedRefreshTriggered) {
-        return;
-      }
-      acceptedRefreshTriggered = true;
-      await onUploadSuccess?.();
-    };
+    const triggerAcceptedRefresh = createRefreshTrigger();
+    let settledResults: UploadSettledResult[];
 
-    const settledResults = await Promise.allSettled(
-      validFiles.map(async (file, index) => {
-        const taskId = taskEntries[index].id;
-
-        try {
-          const document = await knowledgeService.uploadDocument(file, knowledgeBaseId, {
-            onProgress: (percent) => {
-              updateTask(taskId, (task) => ({
-                ...task,
-                progress: percent,
-                status: percent >= 100 ? 'processing' : 'uploading',
-              }));
-            },
-          });
-
-          updateTask(taskId, (task) => ({
-            ...task,
-            documentId: document.documentId,
-            progress: Math.max(task.progress, document.processingProgress ?? 100),
-            status: document.status === 'completed' ? 'completed' : 'processing',
-            stage: document.processingStage,
-            error: document.errorMessage,
-          }));
-
-          await triggerAcceptedRefresh();
-
-          if (document.status === 'completed') {
-            updateTask(taskId, (task) => ({
-              ...task,
-              progress: 100,
-              status: 'completed',
-              stage: document.processingStage,
-              error: undefined,
-            }));
-            return { success: true as const };
-          }
-
-          return pollDocumentStatus(taskId, document.documentId);
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : '文档上传失败';
-          updateTask(taskId, (task) => ({
-            ...task,
-            status: 'failed',
-            error: errorMessage,
-          }));
-          return { success: false, errorMessage };
-        }
-      })
-    );
+    if (validFiles.length === 1) {
+      settledResults = await Promise.allSettled([uploadSingleFile(validFiles[0], taskEntries[0].id)]);
+    } else {
+      settledResults = await uploadBatchFiles(validFiles, taskEntries);
+    }
 
     const successCount = settledResults.filter((result) => result.status === 'fulfilled' && result.value.success).length;
     const failedResults = settledResults.filter(
       (result): result is PromiseFulfilledResult<{ success: false; errorMessage: string }> =>
         result.status === 'fulfilled' && !result.value.success
     );
+
+    if (successCount > 0) {
+      await triggerAcceptedRefresh();
+    }
 
     if (failedResults.length === 0) {
       message.success(successCount > 1 ? `批量上传完成，共成功 ${successCount} 个文档` : '文档上传成功');
@@ -234,11 +312,7 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
         <Button icon={<UploadOutlined />} disabled={isDisabled} onClick={() => batchInputRef.current?.click()}>
           批量上传文档
         </Button>
-        <Button
-          icon={<ClearOutlined />}
-          disabled={isUploading || uploadTasks.length === 0}
-          onClick={() => setUploadTasks([])}
-        >
+        <Button icon={<ClearOutlined />} disabled={isUploading || uploadTasks.length === 0} onClick={() => setUploadTasks([])}>
           清空记录
         </Button>
         {!knowledgeBaseId ? <Typography.Text type="secondary">请先选择知识库后再上传</Typography.Text> : null}
@@ -277,7 +351,7 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
                   <Space style={{ justifyContent: 'space-between', width: '100%' }} wrap>
                     <Typography.Text>{task.fileName}</Typography.Text>
                     <Tag color={statusTag.color}>
-                      {task.stage ? `${statusTag.label} · ${getDocumentStageLabel(task.stage)}` : statusTag.label}
+                      {task.stage ? `${statusTag.label} / ${getDocumentStageLabel(task.stage)}` : statusTag.label}
                     </Tag>
                   </Space>
                   <Progress
@@ -295,3 +369,5 @@ export const DocumentUpload = ({ knowledgeBaseId, onUploadSuccess }: DocumentUpl
     </Space>
   );
 };
+
+

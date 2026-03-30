@@ -17,8 +17,8 @@ from __future__ import annotations
 重复查询去重和兜底回退，保证外部调用方始终拿到可用的查询列表。
 """
 
-import json
 import re
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -33,6 +33,7 @@ class QueryRewriteStructuredResult(BaseModel):
     """Query rewriter."""
 
     rewritten_queries: List[str] = Field(default_factory=list)
+    decomposed_queries: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
     reasoning: str = ""
 
@@ -66,6 +67,7 @@ class QueryRewriter:
         self,
         query: str,
         conversation_history: Optional[List[Dict[str, str]]] = None,
+        retrieval_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """执行查询改写流程并返回结构化结果。
 
@@ -84,28 +86,25 @@ class QueryRewriter:
             }
 
         try:
-            # `history_str`：格式化后的多轮对话历史，供 Prompt 使用。
-            history_str = ""
-            if conversation_history:
-                history_str = self.prompt_manager.format_conversation_history(
-                    conversation_history,
-                    prompt_type="retrieval",
-                )
-
-            # `prompt_template`: standardized rewrite prompt from PromptManager.
-            prompt_template = self.prompt_manager.get_prompt_template(
-                "retrieval.query_rewrite_prompt"
+            # 统一走 ChatPromptTemplate，避免先把历史拼成大字符串再交给模型。
+            # `normalized_context`：把检索上下文压缩为 Prompt 可稳定消费的短文本。
+            normalized_context = self._format_retrieval_context(retrieval_context)
+            prompt_template, prompt_variables = self.prompt_manager.build_chat_prompt_call(
+                user_prompt_key="retrieval.query_rewrite_prompt",
+                user_variables={
+                    "question": query,
+                    "file_type_hint": normalized_context.get("file_type_hint", "未指定"),
+                    "retrieval_context": normalized_context.get("retrieval_context", "无额外检索上下文"),
+                },
+                conversation_history=conversation_history,
             )
 
             # `structured_result`: structured model output validated by the declared schema.
             structured_result = await self.model_manager.with_structured_output(
                 QueryRewriteStructuredResult
-            ).invoke_prompt_template(
+            ).invoke_chat_prompt_template(
                 prompt_template,
-                {
-                    "question": query,
-                    "conversation_history": history_str,
-                },
+                prompt_variables,
                 temperature=self.temperature,
                 max_tokens=500,
             )
@@ -114,8 +113,10 @@ class QueryRewriter:
             result = {
                 "original_query": query,
                 "rewritten_queries": self._sanitize_rewritten_queries(query, structured_result.rewritten_queries),
+                "decomposed_queries": self._sanitize_rewritten_queries(query, structured_result.decomposed_queries),
                 "keywords": structured_result.keywords or self.extract_keywords(query),
                 "reasoning": structured_result.reasoning or "LLM structured rewrite",
+                "rewrite_applied": True,
             }
             self.logger.info(
                 f"Query rewritten: '{query}' -> {len(result['rewritten_queries'])} queries"
@@ -126,51 +127,10 @@ class QueryRewriter:
             return {
                 "original_query": query,
                 "rewritten_queries": [query],
-                "keywords": [],
+                "decomposed_queries": [query],
+                "keywords": self.extract_keywords(query),
                 "reasoning": f"Rewrite failed: {exc}",
-            }
-
-    def _parse_rewrite_response(self, response: str, original_query: str) -> Dict[str, Any]:
-        """解析模型返回内容，尽量提取稳定的改写结果。
-
-        解析策略分三级：
-        1. 优先提取 ```json``` 代码块中的内容。
-        2. 其次尝试提取普通文本里的 JSON 对象片段。
-        3. 最后把完整响应交给 JSON 解析，并在失败时回退原始查询。
-        """
-        try:
-            json_match = re.search(r"```json\s*(.*?)\s*```", response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                json_match = re.search(r"\{.*\}", response, re.DOTALL)
-                json_str = json_match.group(0) if json_match else response
-
-            # `result`：反序列化后的模型结构化输出。
-            result = json.loads(json_str)
-            result.setdefault("original_query", original_query)
-            result.setdefault("keywords", [])
-            result.setdefault("reasoning", "No reasoning provided")
-            result["rewritten_queries"] = self._sanitize_rewritten_queries(
-                original_query=original_query,
-                rewritten_queries=result.get("rewritten_queries", []),
-            )
-            return result
-        except json.JSONDecodeError as exc:
-            self.logger.warning(f"Failed to parse rewrite JSON: {exc}; fallback to original query")
-            return {
-                "original_query": original_query,
-                "rewritten_queries": [original_query],
-                "keywords": [],
-                "reasoning": "JSON parse failed",
-            }
-        except Exception as exc:
-            self.logger.error(f"Failed to parse rewrite response: {exc}")
-            return {
-                "original_query": original_query,
-                "rewritten_queries": [original_query],
-                "keywords": [],
-                "reasoning": f"Parse failed: {exc}",
+                "rewrite_applied": False,
             }
 
     def _sanitize_rewritten_queries(self, original_query: str, rewritten_queries: Any) -> List[str]:
@@ -245,14 +205,46 @@ class QueryRewriter:
 
         这是一个轻量规则实现，主要用于在模型不可用时补充基础关键词能力。
         """
-        cleaned = re.sub(r"[^\w\s\u4e00-\u9fff]", " ", query)
-        words = cleaned.split()
+        normalized_query = unicodedata.normalize("NFKC", str(query or "")).lower()
+        exact_phrases = self._extract_exact_phrases(normalized_query)
+        segments = re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]+", normalized_query)
         stopwords = {
             "的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都",
             "一个", "也", "很", "到", "说", "要", "去", "你", "会", "着",
             "没有", "看", "好", "自己", "这",
         }
-        keywords = [word for word in words if word and word not in stopwords and len(word) > 1]
+        keywords: List[str] = []
+
+        # 中文说明：优先保留用户明确用引号指定的短语，对标题、列名、键名类查询更稳定。
+        for phrase in exact_phrases:
+            if phrase not in keywords:
+                keywords.append(phrase)
+
+        for segment in segments:
+            if re.fullmatch(r"[a-z0-9]+", segment):
+                if len(segment) > 1 and segment not in stopwords and segment not in keywords:
+                    keywords.append(segment)
+                continue
+
+            if len(segment) <= 2:
+                if segment not in stopwords and segment not in keywords:
+                    keywords.append(segment)
+                continue
+
+            if len(segment) <= 8 and segment not in stopwords and segment not in keywords:
+                keywords.append(segment)
+
+            for token_length in (4, 3, 2):
+                if len(segment) < token_length:
+                    continue
+                for start_index in range(0, len(segment) - token_length + 1):
+                    token = segment[start_index:start_index + token_length]
+                    if token in stopwords or token in keywords:
+                        continue
+                    keywords.append(token)
+                    if len(keywords) >= 10:
+                        return keywords[:10]
+
         return keywords[:10]
 
     def expand_synonyms(self, keywords: List[str]) -> List[str]:
@@ -271,8 +263,54 @@ class QueryRewriter:
             if keyword in synonym_map:
                 expanded.extend(synonym_map[keyword])
 
-        # 使用集合去重，避免同义词扩展后重复参与检索。
-        return list(set(expanded))
+        # 中文说明：这里不能直接 `set()` 去重，否则会打乱关键词顺序，
+        # 从而导致 query plan 在不同进程/不同运行中出现抖动。
+        deduplicated: List[str] = []
+        for keyword in expanded:
+            if keyword not in deduplicated:
+                deduplicated.append(keyword)
+        return deduplicated
+
+    @staticmethod
+    def _extract_exact_phrases(query: str) -> List[str]:
+        """提取查询中的精确短语，供关键词兜底提取优先保留。"""
+        if not query:
+            return []
+
+        phrases: List[str] = []
+        for pattern in (r'["“](.{2,}?)[”"]', r"[《「](.{2,}?)[》」]"):
+            for match in re.findall(pattern, query):
+                candidate = str(match or "").strip()
+                if candidate and candidate not in phrases:
+                    phrases.append(candidate)
+        return phrases
+
+    @staticmethod
+    def _format_retrieval_context(retrieval_context: Optional[Dict[str, Any]]) -> Dict[str, str]:
+        """把检索上下文压缩成稳定、简短的 Prompt 变量。"""
+        if not isinstance(retrieval_context, dict):
+            return {
+                "file_type_hint": "未指定",
+                "retrieval_context": "无额外检索上下文",
+            }
+
+        file_type = str(retrieval_context.get("file_type") or "").strip() or "未指定"
+        knowledge_base_id = str(retrieval_context.get("knowledge_base_id") or "").strip()
+        filter_summary = retrieval_context.get("vector_search_filter")
+        filter_text = ""
+        if isinstance(filter_summary, dict) and filter_summary:
+            filter_pairs = [f"{key}={value}" for key, value in filter_summary.items() if value is not None]
+            filter_text = ", ".join(filter_pairs)
+
+        context_parts = [f"目标文档类型: {file_type}"]
+        if knowledge_base_id:
+            context_parts.append(f"知识库: {knowledge_base_id}")
+        if filter_text:
+            context_parts.append(f"过滤条件: {filter_text}")
+        return {
+            "file_type_hint": file_type,
+            "retrieval_context": "；".join(context_parts),
+        }
 
     def __repr__(self) -> str:
         """返回查询改写器的调试表示。"""

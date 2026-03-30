@@ -1,5 +1,7 @@
 
 from typing import Dict, Any
+
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter, ToolExecutionError
 from backend.tools.tool_config import get_tool_config
 import re
@@ -46,8 +48,8 @@ class CalculatorTool(BaseTool):
                     "success": False,
                     "data": None,
                     "error": f"表达式长度不能超过 {self.max_expression_length} 个字符",
-                    "error_code": "TOOL_INVALID_PARAMETER",
-                    "error_type": "parameter_error",
+                    "error_code": ToolErrorCode.TOOL_INVALID_PARAMETER.value,
+                    "error_type": ToolErrorType.PARAMETER_ERROR.value,
                 }
 
             # 安全检查：只允许数字、运算符和数学函数
@@ -57,8 +59,8 @@ class CalculatorTool(BaseTool):
                     "success": False,
                     "data": None,
                     "error": "表达式包含不安全的字符或函数",
-                    "error_code": "TOOL_INVALID_PARAMETER",
-                    "error_type": "parameter_error",
+                    "error_code": ToolErrorCode.TOOL_INVALID_PARAMETER.value,
+                    "error_type": ToolErrorType.PARAMETER_ERROR.value,
                 }
 
             # 替换数学函数为Python函数
@@ -111,8 +113,8 @@ class CalculatorTool(BaseTool):
                 "success": False,
                 "data": None,
                 "error": "除数不能为零",
-                "error_code": "TOOL_EXECUTION_ERROR",
-                "error_type": "execution_error",
+                "error_code": ToolErrorCode.TOOL_EXECUTION_ERROR.value,
+                "error_type": ToolErrorType.EXECUTION_ERROR.value,
             }
         except ValueError as e:
             self.logger.error(f"数值错误: {str(e)} - {expression}")
@@ -120,8 +122,8 @@ class CalculatorTool(BaseTool):
                 "success": False,
                 "data": None,
                 "error": f"数值错误: {str(e)}",
-                "error_code": "TOOL_EXECUTION_ERROR",
-                "error_type": "execution_error",
+                "error_code": ToolErrorCode.TOOL_EXECUTION_ERROR.value,
+                "error_type": ToolErrorType.EXECUTION_ERROR.value,
             }
         except SyntaxError:
             self.logger.error(f"语法错误: {expression}")
@@ -129,8 +131,8 @@ class CalculatorTool(BaseTool):
                 "success": False,
                 "data": None,
                 "error": "表达式语法错误",
-                "error_code": "TOOL_INVALID_PARAMETER",
-                "error_type": "parameter_error",
+                "error_code": ToolErrorCode.TOOL_INVALID_PARAMETER.value,
+                "error_type": ToolErrorType.PARAMETER_ERROR.value,
             }
         except Exception as e:
             self.logger.error(f"计算失败: {str(e)} - {expression}", exc_info=True)

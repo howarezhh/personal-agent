@@ -7,6 +7,8 @@ import logging
 
 
 class ContentOptimizerTool(BaseTool):
+    # 中文说明：内容优化工具支持本地直连与流式生成。
+    declared_capabilities = ("invoke", "stream", "local_direct")
     # 优化类型
     OPTIMIZATION_TYPES = {
         "polish": "润色",

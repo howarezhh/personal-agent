@@ -37,7 +37,6 @@ class AgentInputSchema(BaseModel):
                 "document_id": "doc_123",
                 "enable_knowledge_base": True,
                 "conversation_history": [{"role": "user", "content": "上一轮问题"}],
-                "route_decision": {"action": "retrieval"},
                 "retrieval_results": [{"id": "chunk_1", "content": "知识片段"}],
                 "tool_results": [{"tool_name": "weather", "success": True}],
                 "metadata": {"debug": True},
@@ -61,15 +60,10 @@ class AgentInputSchema(BaseModel):
     document_id: Optional[str] = None
     enable_knowledge_base: Optional[bool] = None
     conversation_history: List[Dict[str, Any]] = Field(default_factory=list)
-    route_decision: Optional[Dict[str, Any]] = None
     retrieval_results: List[Dict[str, Any]] = Field(default_factory=list)
     tool_results: List[Dict[str, Any]] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     workflow_context: Optional[WorkflowContextSchema] = None
-
-
-class RouterAgentInputSchema(AgentInputSchema):
-    available_agents: List[str] = Field(default_factory=list)
 
 
 class RetrievalAgentInputSchema(AgentInputSchema):
@@ -82,6 +76,7 @@ class RetrievalAgentInputSchema(AgentInputSchema):
     enable_sparse_keyword: Optional[bool] = None
     enable_dense_vector: Optional[bool] = None
     enable_fusion_rank: Optional[bool] = None
+    enable_hybrid_retrieval: Optional[bool] = None
 
 
 class GenerationAgentInputSchema(AgentInputSchema):
@@ -110,8 +105,8 @@ class AgentOutputSchema(BaseModel):
             "example": {
                 "protocol_version": AGENT_IO_PROTOCOL_VERSION,
                 "execution_id": "exec_123",
-                "agent_name": "router_agent",
-                "agent_type": "router",
+                "agent_name": "retrieval_agent",
+                "agent_type": "retrieval",
                 "content": "",
                 "status": "success",
                 "error_message": None,
@@ -121,7 +116,6 @@ class AgentOutputSchema(BaseModel):
                 "message_id": "msg_123",
                 "knowledge_base_id": "kb_123",
                 "document_id": None,
-                "route_decision": {"action": "retrieval"},
                 "retrieval_results": [],
                 "tool_result": None,
                 "metadata": {"debug": True},
@@ -142,17 +136,9 @@ class AgentOutputSchema(BaseModel):
     message_id: Optional[str] = None
     knowledge_base_id: Optional[str] = None
     document_id: Optional[str] = None
-    route_decision: Optional[Dict[str, Any]] = None
     retrieval_results: List[Dict[str, Any]] = Field(default_factory=list)
     tool_result: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class RouterAgentOutputSchema(AgentOutputSchema):
-    confidence: Optional[float] = None
-    reasoning: Optional[str] = None
-    suggested_agents: List[str] = Field(default_factory=list)
-    suggested_tools: List[str] = Field(default_factory=list)
 
 
 class RetrievalAgentOutputSchema(AgentOutputSchema):
@@ -172,9 +158,7 @@ class ToolAgentOutputSchema(AgentOutputSchema):
     interpreted_result: Optional[Dict[str, Any]] = None
     tool_call_id: Optional[str] = None
     tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
-    no_tool_needed: Optional[bool] = None
     reasoning: Optional[str] = None
-    route_action: Optional[str] = None
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
@@ -194,8 +178,6 @@ class FileProcessorAgentOutputSchema(AgentOutputSchema):
 _INPUT_SCHEMA_BY_NAME = {
     "AgentInput": AgentInputSchema,
     "AgentInputSchema": AgentInputSchema,
-    "RouterAgentInput": RouterAgentInputSchema,
-    "RouterAgentInputSchema": RouterAgentInputSchema,
     "RetrievalAgentInput": RetrievalAgentInputSchema,
     "RetrievalAgentInputSchema": RetrievalAgentInputSchema,
     "GenerationAgentInput": GenerationAgentInputSchema,
@@ -209,8 +191,6 @@ _INPUT_SCHEMA_BY_NAME = {
 _OUTPUT_SCHEMA_BY_NAME = {
     "AgentOutput": AgentOutputSchema,
     "AgentOutputSchema": AgentOutputSchema,
-    "RouterAgentOutput": RouterAgentOutputSchema,
-    "RouterAgentOutputSchema": RouterAgentOutputSchema,
     "RetrievalAgentOutput": RetrievalAgentOutputSchema,
     "RetrievalAgentOutputSchema": RetrievalAgentOutputSchema,
     "GenerationAgentOutput": GenerationAgentOutputSchema,
@@ -379,13 +359,11 @@ __all__ = [
     "AgentExecutionStatus",
     "WorkflowContextSchema",
     "AgentInputSchema",
-    "RouterAgentInputSchema",
     "RetrievalAgentInputSchema",
     "GenerationAgentInputSchema",
     "ToolAgentInputSchema",
     "FileProcessorAgentInputSchema",
     "AgentOutputSchema",
-    "RouterAgentOutputSchema",
     "RetrievalAgentOutputSchema",
     "GenerationAgentOutputSchema",
     "ToolAgentOutputSchema",

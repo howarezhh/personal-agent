@@ -24,27 +24,27 @@ export const Header = () => {
     {
       key: '/',
       icon: <MessageOutlined />,
-      label: '对话',
+      label: '\u5bf9\u8bdd',
     },
     {
       key: '/knowledge',
       icon: <DatabaseOutlined />,
-      label: '知识库',
+      label: '\u77e5\u8bc6\u5e93',
     },
     {
       key: '/tools',
       icon: <ToolOutlined />,
-      label: '工具',
+      label: '\u5de5\u5177',
     },
     {
       key: '/content-generation',
       icon: <EditOutlined />,
-      label: '内容生成',
+      label: '\u5185\u5bb9\u751f\u6210',
     },
     {
       key: '/mcp',
       icon: <ApiOutlined />,
-      label: 'MCP服务',
+      label: 'MCP\u670d\u52a1',
     },
   ];
 
@@ -52,7 +52,7 @@ export const Header = () => {
     {
       key: 'profile',
       icon: <UserOutlined />,
-      label: '个人信息',
+      label: '\u4e2a\u4eba\u4fe1\u606f',
     },
     {
       type: 'divider',
@@ -60,27 +60,37 @@ export const Header = () => {
     {
       key: 'logout',
       icon: <LogoutOutlined />,
-      label: '退出登录',
+      label: '\u9000\u51fa\u767b\u5f55',
       onClick: logout,
     },
   ];
 
   return (
-    <AntHeader style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
-      <Space size="large">
-        <Text strong style={{ fontSize: 18 }}>Personal Agent</Text>
+    <AntHeader
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        paddingInline: 16,
+        background: '#fff',
+        borderBottom: '1px solid #f0f0f0',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, minWidth: 0, flex: 1, overflow: 'hidden' }}>
+        <Text strong style={{ fontSize: 18, flexShrink: 0 }}>Personal Agent</Text>
         <Menu
           mode="horizontal"
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ border: 'none', flex: 1 }}
+          style={{ border: 'none', minWidth: 0, flex: 1 }}
         />
-      </Space>
+      </div>
       <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
         <Space style={{ cursor: 'pointer' }}>
           <Avatar icon={<UserOutlined />} />
-          <Text>{user?.username || '用户'}</Text>
+          <Text>{user?.username || '\u7528\u6237'}</Text>
         </Space>
       </Dropdown>
     </AntHeader>

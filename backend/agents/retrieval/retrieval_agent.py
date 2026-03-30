@@ -24,11 +24,12 @@ from backend.agents.base.agent_input import AgentInput
 from backend.agents.base.agent_output import AgentOutput
 from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.stream_chunk import StreamChunk
+from backend.agents.retrieval.hybrid_langchain_retriever import HybridLangChainRetriever
 from backend.agents.retrieval.keyword_retriever import KeywordRetriever
 from backend.agents.retrieval.query_rewriter import QueryRewriter
 from backend.agents.retrieval.reranker import Reranker
-from backend.application.services.agent_execution_application_service import AgentExecutionApplicationService
-from backend.application.services.retrieval_persistence_application_service import RetrievalPersistenceApplicationService
+from backend.agents.retrieval.semantic_reranker import build_semantic_reranker
+from backend.agents.retrieval.sparse_index_cache import SparseIndexBundle, get_sparse_index_cache
 from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionUpdate
 from backend.utils.vector_db_client import get_vector_db_client
 
@@ -58,7 +59,17 @@ class RetrievalAgent(BaseAgent):
     负责串联查询改写、精确短语匹配、关键词检索、向量检索、
     结果融合、重排和执行记录持久化，是检索链路的核心编排入口。
     """
-    def __init__(self):
+    # 中文说明：以下常量仅作为配置缺失时的默认兜底值；权威来源已经下沉到 `config/base/agent.yaml`。
+    DEFAULT_MAX_RETRIEVAL_CANDIDATES = 30
+    DEFAULT_MAX_RERANK_RESULTS = 10
+
+    def __init__(
+        self,
+        *,
+        execution_service: Any | None = None,
+        execution_repo: Any | None = None,
+        retrieval_persistence_service: Any | None = None,
+    ):
         """
         初始化检索 Agent 依赖、配置参数和可选向量库客户端。
         
@@ -72,10 +83,41 @@ class RetrievalAgent(BaseAgent):
         # `keyword_retriever`: builds and searches keyword indexes.
         # `reranker`: reranks recalled documents.
         self.keyword_retriever = KeywordRetriever()
-        # `execution_service`: persists agent execution records.
-        self.reranker = Reranker(enable_rerank=self.enable_rerank)
-        # `retrieval_persistence_service`: persists retrieval results and fallback rows.
-        self.retrieval_persistence_service = RetrievalPersistenceApplicationService()
+        # `semantic_reranker`：真实语义重排模型，初始化失败时会回退为 None。
+        self.semantic_reranker = build_semantic_reranker()
+        # `semantic_rerank_weight`：真实语义重排占最终重排得分的比例。
+        self.semantic_rerank_weight = float(self._get_config_value("semantic_rerank_weight", 0.75))
+        # `diversity_weight`：轻量来源多样性辅助权重。
+        self.diversity_weight = float(self._get_config_value("diversity_weight", 0.05))
+        # `min_query_relevance_score`：结果至少需要达到的词法/结构化相关性强信号阈值。
+        self.min_query_relevance_score = float(self._get_config_value("min_query_relevance_score", 0.28))
+        # `min_semantic_rerank_score`：结果至少需要达到的语义重排强信号阈值。
+        self.min_semantic_rerank_score = float(self._get_config_value("min_semantic_rerank_score", 0.55))
+        # `semantic_agreement_bonus`：语义与词法一致时的奖励系数。
+        self.semantic_agreement_bonus = float(self._get_config_value("semantic_agreement_bonus", 0.08))
+        # `semantic_disagreement_penalty`：语义与词法同时偏弱时的惩罚系数。
+        self.semantic_disagreement_penalty = float(self._get_config_value("semantic_disagreement_penalty", 0.12))
+        # `reranker`：负责对召回结果执行重排。
+        self.reranker = Reranker(
+            enable_rerank=self.enable_rerank,
+            semantic_reranker=self.semantic_reranker.score if self.semantic_reranker is not None else None,
+            semantic_weight=self.semantic_rerank_weight,
+            diversity_weight=self.diversity_weight,
+            min_query_relevance_score=self.min_query_relevance_score,
+            min_semantic_rerank_score=self.min_semantic_rerank_score,
+            semantic_agreement_bonus=self.semantic_agreement_bonus,
+            semantic_disagreement_penalty=self.semantic_disagreement_penalty,
+        )
+        # `execution_service`：负责创建与更新 Agent 执行记录。
+        # 这里采用延迟导入，避免模块加载阶段形成循环依赖。
+        self.execution_service = execution_service or self._build_execution_service()
+        # `execution_repo`：兼容旧注入方式，作为执行记录持久化兜底入口。
+        self.execution_repo = execution_repo
+        # `retrieval_persistence_service`：负责持久化检索结果与兜底检索记录。
+        # 这里采用延迟导入，避免模块加载阶段形成循环依赖。
+        self.retrieval_persistence_service = (
+            retrieval_persistence_service or self._build_retrieval_persistence_service()
+        )
 
         # `top_k`: default number of recalled items.
         self.top_k = int(self._get_config_value("top_k", 10))
@@ -97,10 +139,69 @@ class RetrievalAgent(BaseAgent):
             True,
         )
         self.vector_weight = float(self._get_config_value("vector_weight", 0.65))
-        # `keyword_weight`：融合排序中关键词检索分数的权重。
+        # `keyword_weight`：保留兼容旧配置，但 RRF 融合不再依赖 score 同尺度。
         self.keyword_weight = float(self._get_config_value("keyword_weight", 0.35))
+        # `fusion_strategy`：融合策略，默认启用更稳健的 RRF。
+        self.fusion_strategy = str(self._get_config_value("fusion_strategy", "rrf") or "rrf").lower()
+        # `rrf_k`：RRF 的 rank 平滑参数。
+        self.rrf_k = int(self._get_config_value("rrf_k", 60))
+        # `query_decomposition_max_queries`：长问句拆解查询的最大数量。
+        self.query_decomposition_max_queries = int(self._get_config_value("query_decomposition_max_queries", 2))
+        # `keyword_query_max_queries`：由关键词/实体生成的附加 sparse 查询数量。
+        self.keyword_query_max_queries = int(self._get_config_value("keyword_query_max_queries", 2))
+        # `sparse_index_cache_enabled`：是否启用按作用域缓存的稀疏索引。
+        self.sparse_index_cache_enabled = self._coerce_bool(
+            self._get_config_value("sparse_index_cache_enabled", True),
+            True,
+        )
+        # `sparse_index_cache_ttl_seconds`：稀疏索引缓存 TTL。
+        self.sparse_index_cache_ttl_seconds = int(self._get_config_value("sparse_index_cache_ttl_seconds", 1800))
+        # `sparse_index_cache_max_entries`：稀疏索引缓存最大作用域数。
+        self.sparse_index_cache_max_entries = int(self._get_config_value("sparse_index_cache_max_entries", 64))
+        # `sparse_index_cache`：供检索时复用、入库时预热的进程级缓存实例。
+        self.sparse_index_cache = get_sparse_index_cache(
+            enabled=self.sparse_index_cache_enabled,
+            ttl_seconds=self.sparse_index_cache_ttl_seconds,
+            max_entries=self.sparse_index_cache_max_entries,
+        )
+        # 中文说明：知识库检索的固定策略统一从配置中心读取，避免 30/10 与强制混合开关散落在代码里。
+        self.max_retrieval_candidates = self._coerce_positive_int(
+            self._get_config_value("max_retrieval_candidates", self.DEFAULT_MAX_RETRIEVAL_CANDIDATES),
+            self.DEFAULT_MAX_RETRIEVAL_CANDIDATES,
+        )
+        self.max_rerank_results = self._coerce_positive_int(
+            self._get_config_value("max_rerank_results", self.DEFAULT_MAX_RERANK_RESULTS),
+            self.DEFAULT_MAX_RERANK_RESULTS,
+        )
+        self.force_hybrid_retrieval = self._coerce_bool(
+            self._get_config_value("force_hybrid_retrieval", True),
+            True,
+        )
+        self.force_exact_phrase = self._coerce_bool(
+            self._get_config_value("force_exact_phrase", True),
+            True,
+        )
+        self.force_sparse_keyword = self._coerce_bool(
+            self._get_config_value("force_sparse_keyword", True),
+            True,
+        )
+        self.force_dense_vector = self._coerce_bool(
+            self._get_config_value("force_dense_vector", True),
+            True,
+        )
+        self.force_rerank = self._coerce_bool(
+            self._get_config_value("force_rerank", True),
+            True,
+        )
+        self.min_rerank_score = float(self._get_config_value("min_rerank_score", 0.45))
+        self.relative_score_floor_ratio = float(self._get_config_value("relative_score_floor_ratio", 0.75))
+        self.max_score_gap = float(self._get_config_value("max_score_gap", 0.18))
         # `distance_metric`：向量库返回距离值所采用的度量方式。
-        self.distance_metric = "l2"
+        self.distance_metric = str(self._get_config_value("vector_distance_metric", "l2") or "l2").lower()
+        # `vector_similarity_calibration`：向量距离转相似度的校准方式。
+        self.vector_similarity_calibration = str(
+            self._get_config_value("vector_similarity_calibration", "auto") or "auto"
+        ).lower()
 
         try:
             # `vector_store`：向量数据库客户端，负责执行向量召回。
@@ -112,6 +213,30 @@ class RetrievalAgent(BaseAgent):
             self.vector_store = None
             # `vector_enabled`：当前环境未启用向量检索能力。
             self.vector_enabled = False
+
+    @staticmethod
+    def _build_retrieval_persistence_service():
+        """
+        延迟构建检索结果持久化服务。
+
+        该方法在实例初始化阶段再导入工厂函数，
+        用于打断 `service_factory -> retrieval_agent -> service_factory` 的循环导入链路。
+        """
+        from backend.application.service_factory import build_retrieval_persistence_application_service
+
+        return build_retrieval_persistence_application_service()
+
+    @staticmethod
+    def _build_execution_service():
+        """
+        延迟构建执行记录应用服务。
+
+        该方法与检索结果持久化服务保持同样的延迟导入策略，
+        避免在模块导入阶段引入 `service_factory` 循环依赖。
+        """
+        from backend.application.service_factory import build_agent_execution_application_service
+
+        return build_agent_execution_application_service()
 
     @staticmethod
     def _safe_preview(value: Any, max_length: int = 120) -> str:
@@ -215,6 +340,14 @@ class RetrievalAgent(BaseAgent):
         """
         return self._coerce_bool(self._get_retrieval_options(agent_input).get(option_name), default)
 
+    def _clamp_retrieval_candidate_limit(self, requested_limit: int) -> int:
+        """把召回候选上限钳制到固定范围内。"""
+        return max(1, min(int(requested_limit), int(self.max_retrieval_candidates)))
+
+    def _clamp_rerank_result_limit(self, requested_limit: int) -> int:
+        """把重排输出上限钳制到固定范围内。"""
+        return max(1, min(int(requested_limit), int(self.max_rerank_results)))
+
     @staticmethod
     def _get_conversation_history(agent_input: Any) -> List[Dict[str, Any]]:
         """
@@ -238,6 +371,8 @@ class RetrievalAgent(BaseAgent):
             ("'", "'"),
             ("\u201c", "\u201d"),
             ("\u2018", "\u2019"),
+            ("《", "》"),
+            ("「", "」"),
         ]
         for start_quote, end_quote in quote_pairs:
             search_from = 0
@@ -271,11 +406,111 @@ class RetrievalAgent(BaseAgent):
             include_exact_phrase = self._resolve_retrieval_bool_option(agent_input, "enable_exact_phrase", True)
         queries: List[str] = []
         exact_phrases = self._extract_exact_phrases(original_query) if include_exact_phrase else []
-        for query in [original_query, *exact_phrases, *(rewrite_result.get("rewritten_queries", []) or [])]:
+        short_focused_query = self._is_short_focused_query(original_query)
+
+        # `decomposed_queries`：由 LLM 输出的子问题拆解，主要用于提升复杂问句召回。
+        decomposed_queries = []
+        if not short_focused_query:
+            decomposed_queries = list(rewrite_result.get("decomposed_queries", []) or [])[: self.query_decomposition_max_queries]
+        # `keyword_queries`：由关键词、同义词与实体拼装出的短查询，更偏向 sparse 召回。
+        keyword_queries = [] if short_focused_query else self._build_keyword_queries(rewrite_result)
+        rewritten_queries = list(rewrite_result.get("rewritten_queries", []) or [])
+        if short_focused_query:
+            rewritten_queries = rewritten_queries[:1]
+
+        for query in [
+            original_query,
+            *exact_phrases,
+            *rewritten_queries,
+            *decomposed_queries,
+            *keyword_queries,
+        ]:
             normalized = re.sub(r"\s+", " ", str(query or "")).strip()
             if normalized and normalized not in queries:
                 queries.append(normalized)
         return queries
+
+    @staticmethod
+    def _is_short_focused_query(query: str) -> bool:
+        compact_query = re.sub(r"\s+", "", str(query or "")).strip()
+        if not compact_query:
+            return False
+        if any(symbol in compact_query for symbol in ("?", "？", "，", ",", "。", ";", "；", ":", "：")):
+            return False
+        if any(keyword in compact_query for keyword in ("怎么", "如何", "什么", "为何", "为什么", "多少", "是否", "能否")):
+            return False
+        return len(compact_query) <= 12
+
+    def _filter_low_relevance_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not results:
+            return []
+
+        scored_results: List[tuple[float, Dict[str, Any]]] = []
+        for result in results:
+            score = float(result.get("rerank_score", result.get("score", 0.0)) or 0.0)
+            scored_results.append((score, result))
+
+        top_score = max((score for score, _ in scored_results), default=0.0)
+        score_floor = max(
+            float(self.min_rerank_score),
+            top_score * float(self.relative_score_floor_ratio),
+            top_score - float(self.max_score_gap),
+        )
+        filtered_results: List[Dict[str, Any]] = []
+        score_only_results: List[Dict[str, Any]] = []
+        saw_support_metadata = False
+        for score, result in scored_results:
+            if score < score_floor:
+                continue
+            score_only_results.append(result)
+
+            metadata = dict(result.get("metadata") or {})
+            score_breakdown = dict(result.get("score_breakdown") or {})
+            if score_breakdown or metadata.get("exact_phrase_match") or metadata.get("query_hit_count"):
+                saw_support_metadata = True
+            query_relevance_score = float(score_breakdown.get("query_relevance", 0.0) or 0.0)
+            semantic_score = score_breakdown.get("semantic")
+            semantic_score = float(semantic_score or 0.0) if semantic_score is not None else 0.0
+            retrieval_signal_score = float(score_breakdown.get("retrieval_signal", 0.0) or 0.0)
+            exact_phrase_match = bool(metadata.get("exact_phrase_match"))
+            query_hit_count = int(metadata.get("query_hit_count", 0) or 0)
+
+            has_strong_support = (
+                exact_phrase_match
+                or query_hit_count >= 2
+                or query_relevance_score >= float(self.min_query_relevance_score)
+                or semantic_score >= float(self.min_semantic_rerank_score)
+                or retrieval_signal_score >= float(self.min_query_relevance_score)
+            )
+            if has_strong_support:
+                filtered_results.append(result)
+
+        if filtered_results:
+            return filtered_results
+        if score_only_results:
+            if not saw_support_metadata:
+                return score_only_results
+            return score_only_results[:1]
+        return []
+
+    def _build_keyword_queries(self, rewrite_result: Dict[str, Any]) -> List[str]:
+        """基于关键词与同义扩展构造附加 sparse 查询。"""
+        keywords = list(rewrite_result.get("keywords", []) or [])
+        if not keywords:
+            return []
+
+        expanded_keywords = self.query_rewriter.expand_synonyms(keywords)
+        deduplicated_keywords: List[str] = []
+        for keyword in expanded_keywords:
+            normalized = re.sub(r"\s+", " ", str(keyword or "")).strip()
+            if normalized and normalized not in deduplicated_keywords:
+                deduplicated_keywords.append(normalized)
+
+        keyword_queries: List[str] = []
+        if len(deduplicated_keywords) >= 2:
+            keyword_queries.append(" ".join(deduplicated_keywords[: min(4, len(deduplicated_keywords))]))
+        keyword_queries.extend(deduplicated_keywords[: self.keyword_query_max_queries])
+        return keyword_queries[: self.keyword_query_max_queries]
 
     @staticmethod
     def _flatten_collection_values(values: Any) -> List[Any]:
@@ -307,9 +542,33 @@ class RetrievalAgent(BaseAgent):
             distance_value = float(distance)
         except (TypeError, ValueError):
             return 0.0
-        if self.distance_metric == "l2":
-            return max(0.0, 1.0 - distance_value)
-        return max(0.0, 1.0 - distance_value)
+        if distance_value < 0:
+            return 0.0
+
+        # 中文说明：当前项目 embedding 默认做了 L2 归一化。
+        # 对单位向量而言，欧氏距离与余弦相似度的关系是：
+        # cosine_similarity = 1 - (l2_distance ** 2) / 2
+        # 因此不能再简单使用 `1 - distance`，否则会严重压缩高分区间。
+        calibration_mode = getattr(self, "vector_similarity_calibration", "auto")
+        metric = getattr(self, "distance_metric", "l2")
+
+        if metric in {"cosine", "cos"}:
+            similarity = 1.0 - distance_value
+        elif metric in {"ip", "inner_product", "dot"}:
+            similarity = distance_value
+        else:
+            if calibration_mode in {"auto", "normalized_l2"}:
+                similarity = 1.0 - ((distance_value ** 2) / 2.0)
+            else:
+                similarity = 1.0 / (1.0 + distance_value)
+
+        return max(0.0, min(1.0, similarity))
+
+    def _get_vector_collection_name(self) -> str:
+        """返回向量集合名称，供缓存与日志复用。"""
+        vector_store = getattr(self, "vector_store", None)
+        collection_name = getattr(vector_store, "collection_name", None)
+        return str(collection_name or "knowledge_base")
 
     def _build_vector_search_filter(self, agent_input: AgentInput) -> Dict[str, Any]:
         """
@@ -353,6 +612,8 @@ class RetrievalAgent(BaseAgent):
         则兼容底层 `collection.get` 访问方式。
         """
         result: Dict[str, Any]
+        if self.vector_store is None:
+            return {"ids": [], "documents": [], "metadatas": []}
         if hasattr(self.vector_store, "get_documents"):
             result = self.vector_store.get_documents(where=search_filter, include=["documents", "metadatas"])
         else:
@@ -446,6 +707,7 @@ class RetrievalAgent(BaseAgent):
                 continue
             metadata = {**file_metadata, **chunk_metadata}
             metadata.setdefault("file_id", row.get("file_id"))
+            metadata.setdefault("document_id", row.get("file_id"))
             metadata.setdefault("chunk_index", row.get("chunk_index"))
             metadata.setdefault("page_number", row.get("page_number"))
             metadata.setdefault("user_id", row.get("user_id"))
@@ -458,6 +720,87 @@ class RetrievalAgent(BaseAgent):
             documents.append(str(content))
             metadatas.append(metadata)
         return {"ids": ids, "documents": documents, "metadatas": metadatas}
+
+    def _load_sparse_bundle(self, search_filter: Dict[str, Any], *, enable_hybrid_retrieval: bool) -> SparseIndexBundle:
+        """加载或构建指定作用域的稀疏检索 bundle。"""
+
+        def _builder() -> SparseIndexBundle:
+            # 中文说明：稀疏检索语料必须覆盖“向量库已有 chunk + 数据库中仍存在的 chunk”。
+            # 旧逻辑只要向量库非空，就完全忽略数据库语料，导致部分未入向量库的 chunk 永远无法被
+            # exact phrase / keyword 检索命中。这里直接改为强制合并两侧语料，并按 chunk_id 去重。
+            vector_corpus = self._load_filtered_corpus(search_filter)
+            database_corpus = self._load_database_fallback_corpus(search_filter)
+            corpus = self._merge_corpora(vector_corpus, database_corpus)
+
+            has_vector_items = bool((vector_corpus.get("ids") or []) or (vector_corpus.get("documents") or []))
+            has_database_items = bool((database_corpus.get("ids") or []) or (database_corpus.get("documents") or []))
+            if has_vector_items and has_database_items:
+                source = "merged"
+            elif has_vector_items:
+                source = "vector_store"
+            elif has_database_items:
+                source = "database_fallback"
+            else:
+                source = "empty"
+            keyword_index = self._build_keyword_index(
+                corpus,
+                enable_hybrid_retrieval=enable_hybrid_retrieval,
+            )
+            return SparseIndexBundle(
+                scope_key=self.sparse_index_cache.build_scope_key(
+                    search_filter,
+                    collection_name=self._get_vector_collection_name(),
+                ),
+                search_filter=dict(search_filter),
+                corpus=corpus,
+                keyword_index=keyword_index,
+                built_at=time.time(),
+                source=source,
+            )
+
+        return self.sparse_index_cache.get_or_build(
+            search_filter=search_filter,
+            collection_name=self._get_vector_collection_name(),
+            builder=_builder,
+        )
+
+    @staticmethod
+    def _merge_corpora(*corpora: Dict[str, Any]) -> Dict[str, Any]:
+        """按 chunk 粒度合并多份语料，避免向量库与数据库语料割裂。"""
+        merged_ids: List[str] = []
+        merged_documents: List[str] = []
+        merged_metadatas: List[Dict[str, Any]] = []
+        seen_chunk_ids: set[str] = set()
+
+        for corpus in corpora:
+            if not isinstance(corpus, dict):
+                continue
+            ids = list(corpus.get("ids", []) or [])
+            documents = list(corpus.get("documents", []) or [])
+            metadatas = list(corpus.get("metadatas", []) or [])
+
+            for index, raw_id in enumerate(ids):
+                metadata = dict(metadatas[index] if index < len(metadatas) and isinstance(metadatas[index], dict) else {})
+                chunk_id = str(
+                    metadata.get("chunk_id")
+                    or metadata.get("id")
+                    or metadata.get("document_id")
+                    or raw_id
+                    or ""
+                )
+                if not chunk_id or chunk_id in seen_chunk_ids:
+                    continue
+                seen_chunk_ids.add(chunk_id)
+                metadata.setdefault("chunk_id", chunk_id)
+                merged_ids.append(chunk_id)
+                merged_documents.append(str(documents[index] if index < len(documents) else ""))
+                merged_metadatas.append(metadata)
+
+        return {
+            "ids": merged_ids,
+            "documents": merged_documents,
+            "metadatas": merged_metadatas,
+        }
 
     def _build_keyword_index(
         self,
@@ -505,12 +848,12 @@ class RetrievalAgent(BaseAgent):
         """Run exact-phrase matches over the corpus and deduplicate results."""
         if not phrases:
             return []
-        matched_results: Dict[str, Dict[str, Any]] = {}
-        ids = corpus.get("ids", []) or []
-        documents = corpus.get("documents", []) or []
-        metadatas = corpus.get("metadatas", []) or []
-        if not phrases:
-            return []
+
+        # 中文说明：若传入的是关键词索引，则优先使用倒排 + compact_text 预选候选文档，
+        # 避免每次短语匹配都全量扫描整个语料。
+        if corpus.get("documents") and corpus.get("postings"):
+            return self.keyword_retriever.search_exact_phrases(corpus, phrases)
+
         matched_results: Dict[str, Dict[str, Any]] = {}
         ids = corpus.get("ids", []) or []
         documents = corpus.get("documents", []) or []
@@ -533,6 +876,8 @@ class RetrievalAgent(BaseAgent):
                         "node_name",
                         "leaf_value",
                         "column_headers",
+                        "slide_title",
+                        "source_region",
                         "source",
                         "file_name",
                     )
@@ -573,6 +918,7 @@ class RetrievalAgent(BaseAgent):
         *,
         matched_query: Optional[str],
         match_source: str,
+        source_rank: Optional[int] = None,
     ) -> None:
         """
         把多路召回结果合并到统一聚合结构中。
@@ -580,12 +926,21 @@ class RetrievalAgent(BaseAgent):
         同一文档可能来自向量、关键词和短语多种召回来源，
         这里负责合并分数、来源标记和命中查询信息。
         """
-        doc_id = str(candidate.get("id") or "")
-        if not doc_id:
+        # 中文说明：检索结果必须按 chunk 粒度聚合。
+        # 旧逻辑优先使用 document_id(file_id) 聚合，会把同一文档内多个命中 chunk 压扁成一条，
+        # 长文档场景下会直接丢失关键上下文，造成“搜到了文档但答案不准”。
+        candidate_metadata = dict(candidate.get("metadata") or {})
+        chunk_id = str(
+            candidate_metadata.get("chunk_id")
+            or candidate.get("id")
+            or candidate_metadata.get("id")
+            or ""
+        )
+        if not chunk_id:
             return
         candidate_content = candidate.get("content") or ""
         candidate_score = float(candidate.get("score", 0.0) or 0.0)
-        candidate_metadata = dict(candidate.get("metadata") or {})
+        candidate_metadata.setdefault("chunk_id", chunk_id)
 
         matched_queries = list(candidate_metadata.get("matched_queries") or [])
         if matched_query and matched_query not in matched_queries:
@@ -600,6 +955,14 @@ class RetrievalAgent(BaseAgent):
         if match_sources:
             candidate_metadata["match_sources"] = match_sources
 
+        # `retrieval_ranks`：记录每个“来源 + 查询”通道上的最佳排名，供 RRF 融合使用。
+        if source_rank is not None and source_rank > 0:
+            retrieval_ranks = dict(candidate_metadata.get("retrieval_ranks") or {})
+            lane_key = f"{match_source}:{matched_query or '__default__'}"
+            best_rank = retrieval_ranks.get(lane_key)
+            retrieval_ranks[lane_key] = int(source_rank) if best_rank is None else min(int(best_rank), int(source_rank))
+            candidate_metadata["retrieval_ranks"] = retrieval_ranks
+
         score_field = {
             "vector": "vector_score",
             "keyword": "keyword_score",
@@ -611,10 +974,10 @@ class RetrievalAgent(BaseAgent):
         if match_source == "exact_phrase":
             candidate_metadata["exact_phrase_match"] = True
 
-        existing = aggregated_results.get(doc_id)
+        existing = aggregated_results.get(chunk_id)
         if existing is None:
-            aggregated_results[doc_id] = {
-                "id": doc_id,
+            aggregated_results[chunk_id] = {
+                "id": chunk_id,
                 "content": candidate_content,
                 "score": candidate_score,
                 "metadata": candidate_metadata,
@@ -629,6 +992,13 @@ class RetrievalAgent(BaseAgent):
                     values.append(value)
             if values:
                 existing_metadata[field] = values
+
+        existing_ranks = dict(existing_metadata.get("retrieval_ranks") or {})
+        for lane_key, lane_rank in dict(candidate_metadata.get("retrieval_ranks") or {}).items():
+            previous_rank = existing_ranks.get(lane_key)
+            existing_ranks[lane_key] = int(lane_rank) if previous_rank is None else min(int(previous_rank), int(lane_rank))
+        if existing_ranks:
+            existing_metadata["retrieval_ranks"] = existing_ranks
 
         existing_metadata["query_hit_count"] = len(existing_metadata.get("matched_queries") or [])
         for numeric_field in ("vector_score", "keyword_score", "exact_phrase_score"):
@@ -657,11 +1027,9 @@ class RetrievalAgent(BaseAgent):
         用于生成进入重排阶段前的稳定候选集合。
         """
         ranked_results: List[Dict[str, Any]] = []
-        vector_weight = float(getattr(self, "vector_weight", 0.65) or 0.65)
-        keyword_weight = float(getattr(self, "keyword_weight", 0.35) or 0.35)
-        total_weight = vector_weight + keyword_weight
-        vector_weight = vector_weight / total_weight if total_weight > 0 else 0.65
-        keyword_weight = keyword_weight / total_weight if total_weight > 0 else 0.35
+        use_rrf = enable_fusion_rank and getattr(self, "fusion_strategy", "rrf") == "rrf"
+        max_rrf_score = 0.0
+        raw_ranked_results: List[Dict[str, Any]] = []
 
         for result in aggregated_results.values():
             metadata = dict(result.get("metadata") or {})
@@ -670,14 +1038,13 @@ class RetrievalAgent(BaseAgent):
             vector_score = float(metadata.get("vector_score", 0.0) or 0.0)
             keyword_score = float(metadata.get("keyword_score", 0.0) or 0.0)
             exact_phrase_score = float(metadata.get("exact_phrase_score", 0.0) or 0.0)
-            fused_score = (
-                vector_weight * vector_score + keyword_weight * keyword_score
-                if enable_fusion_rank and vector_score > 0 and keyword_score > 0
-                else max(vector_score, keyword_score)
-            )
+            retrieval_ranks = dict(metadata.get("retrieval_ranks") or {})
+            rrf_score = self._calculate_rrf_score(retrieval_ranks) if use_rrf else 0.0
+            max_rrf_score = max(max_rrf_score, rrf_score)
+            fused_score = rrf_score if use_rrf else max(vector_score, keyword_score, exact_phrase_score)
             base_score = max(fused_score, exact_phrase_score, float(result.get("score", 0.0) or 0.0))
             bonus = 0.0
-            if enable_fusion_rank and vector_score > 0 and keyword_score > 0:
+            if use_rrf and len(retrieval_ranks) > 1:
                 bonus += 0.02
             if metadata.get("exact_phrase_match"):
                 bonus += 0.03
@@ -688,11 +1055,26 @@ class RetrievalAgent(BaseAgent):
                 "vector_score": vector_score,
                 "keyword_score": keyword_score,
                 "exact_phrase_score": exact_phrase_score,
+                "retrieval_ranks": retrieval_ranks,
+                "rrf_score": rrf_score,
                 "fused_score": fused_score,
                 "bonus": bonus,
                 "final_score": final_score,
             }
-            ranked_results.append({**result, "score": final_score, "metadata": metadata})
+            raw_ranked_results.append({**result, "score": final_score, "metadata": metadata})
+
+        for result in raw_ranked_results:
+            metadata = dict(result.get("metadata") or {})
+            score_components = dict(metadata.get("score_components") or {})
+            rrf_score = float(score_components.get("rrf_score", 0.0) or 0.0)
+            if use_rrf and max_rrf_score > 0:
+                normalized_rrf = rrf_score / max_rrf_score
+                score_components["normalized_rrf_score"] = normalized_rrf
+                # 中文说明：RRF 负责主排序，原始 score / phrase bonus 只作为辅助信号。
+                result["score"] = min(1.0, normalized_rrf + float(score_components.get("bonus", 0.0) or 0.0))
+                score_components["final_score"] = result["score"]
+            metadata["score_components"] = score_components
+            ranked_results.append({**result, "metadata": metadata})
 
         ranked_results.sort(
             key=lambda item: (
@@ -705,101 +1087,134 @@ class RetrievalAgent(BaseAgent):
         )
         return ranked_results
 
+    def _calculate_rrf_score(self, retrieval_ranks: Dict[str, Any]) -> float:
+        """根据各召回通道的 rank 计算 Reciprocal Rank Fusion 分数。"""
+        if not retrieval_ranks:
+            return 0.0
+        rrf_k = max(1, int(getattr(self, "rrf_k", 60) or 60))
+        score = 0.0
+        for rank in retrieval_ranks.values():
+            try:
+                rank_value = int(rank)
+            except (TypeError, ValueError):
+                continue
+            if rank_value <= 0:
+                continue
+            score += 1.0 / float(rrf_k + rank_value)
+        return score
+
     async def _retrieve_documents(self, queries: List[str], agent_input: AgentInput) -> List[Dict[str, Any]]:
         """
         执行完整召回流程，组合向量、关键词和短语检索。
         """
         if not queries:
             return []
-        effective_top_k = self._resolve_retrieval_option(agent_input, "top_k", int(getattr(self, "top_k", 10)))
-        effective_rerank_top_k = self._resolve_retrieval_option(agent_input, "rerank_top_k", int(getattr(self, "rerank_top_k", effective_top_k)))
-        effective_keyword_top_k = self._resolve_retrieval_option(agent_input, "keyword_top_k", int(getattr(self, "keyword_top_k", max(effective_top_k * 2, 8))))
+        requested_top_k = self._resolve_retrieval_option(agent_input, "top_k", int(getattr(self, "top_k", 10)))
+        requested_rerank_top_k = self._resolve_retrieval_option(
+            agent_input,
+            "rerank_top_k",
+            int(getattr(self, "rerank_top_k", requested_top_k)),
+        )
+        requested_keyword_top_k = self._resolve_retrieval_option(
+            agent_input,
+            "keyword_top_k",
+            int(getattr(self, "keyword_top_k", max(requested_top_k * 2, 8))),
+        )
+        effective_top_k = self._clamp_retrieval_candidate_limit(requested_top_k)
+        effective_rerank_top_k = self._clamp_rerank_result_limit(requested_rerank_top_k)
+        effective_keyword_top_k = self._clamp_retrieval_candidate_limit(requested_keyword_top_k)
         enable_exact_phrase = self._resolve_retrieval_bool_option(agent_input, "enable_exact_phrase", True)
         enable_keyword_search = self._resolve_retrieval_bool_option(agent_input, "enable_sparse_keyword", True)
         enable_dense_vector = self._resolve_retrieval_bool_option(agent_input, "enable_dense_vector", getattr(self, "vector_enabled", False))
         enable_fusion_rank = self._resolve_retrieval_bool_option(agent_input, "enable_fusion_rank", True)
-        enable_hybrid_retrieval = self._resolve_retrieval_bool_option(
+        if self.force_exact_phrase:
+            enable_exact_phrase = True
+        if self.force_sparse_keyword:
+            enable_keyword_search = True
+        if self.force_dense_vector:
+            enable_dense_vector = True
+        enable_hybrid_retrieval = True if self.force_hybrid_retrieval else self._resolve_retrieval_bool_option(
             agent_input,
             "enable_hybrid_retrieval",
             getattr(self, "enable_hybrid_retrieval", True),
         )
         aggregated_results: Dict[str, Dict[str, Any]] = {}
         search_filter = self._build_vector_search_filter(agent_input)
-        corpus = self._load_filtered_corpus(search_filter)
+        corpus = {"ids": [], "documents": [], "metadatas": []}
+        keyword_index: Dict[str, Any] = {}
         using_database_fallback_corpus = False
-        if not (corpus.get("ids") or corpus.get("documents")):
-            corpus = self._load_database_fallback_corpus(search_filter)
-            using_database_fallback_corpus = bool(corpus.get("ids"))
 
-        exact_phrases = self._extract_exact_phrases(getattr(agent_input, "content", "")) if enable_exact_phrase else []
-        for result in self._search_exact_phrases(exact_phrases, corpus):
-            matched_queries = result.get("metadata", {}).get("matched_phrases", [])
-            self._merge_retrieval_result(
-                aggregated_results,
-                result,
-                matched_query=matched_queries[0] if matched_queries else None,
-                match_source="exact_phrase",
+        # 中文说明：只要 exact phrase / sparse 其中之一启用，就优先走作用域级缓存，
+        # 这样能把 BM25 索引构建前移到首次查询或入库后的预热阶段。
+        if enable_keyword_search or enable_exact_phrase:
+            sparse_bundle = self._load_sparse_bundle(
+                search_filter,
+                enable_hybrid_retrieval=enable_hybrid_retrieval,
+            )
+            corpus = dict(sparse_bundle.corpus)
+            keyword_index = dict(sparse_bundle.keyword_index) if sparse_bundle.keyword_index else {}
+            using_database_fallback_corpus = sparse_bundle.source == "database_fallback"
+
+        candidate_limits = [int(effective_top_k), int(effective_rerank_top_k)]
+        if enable_keyword_search or enable_exact_phrase:
+            candidate_limits.append(int(effective_keyword_top_k))
+        retrieval_limit = self._clamp_retrieval_candidate_limit(max(candidate_limits))
+        vector_retriever = None
+        if enable_dense_vector and getattr(self, "vector_enabled", False) and self.vector_store is not None:
+            vector_retriever = self.vector_store.as_langchain_retriever(
+                n_results=retrieval_limit,
+                where=search_filter,
             )
 
-        keyword_index = self._build_keyword_index(
-            corpus,
-            enable_hybrid_retrieval=enable_hybrid_retrieval,
-        ) if enable_keyword_search else {}
-        if keyword_index:
-            keyword_tasks = [
-                asyncio.to_thread(
-                    self._search_keyword_matches,
-                    query,
-                    keyword_index,
-                    top_k=effective_keyword_top_k,
-                    min_score=self.keyword_min_score,
-                )
-                for query in queries
-            ]
-            for query, keyword_results in zip(queries, await asyncio.gather(*keyword_tasks)):
-                for result in keyword_results:
-                    self._merge_retrieval_result(
-                        aggregated_results,
-                        result,
-                        matched_query=query,
-                        match_source="text" if using_database_fallback_corpus else "keyword",
-                    )
+        hybrid_retriever = HybridLangChainRetriever(
+            corpus=corpus,
+            keyword_index=keyword_index,
+            vector_retriever=vector_retriever,
+            using_database_fallback_corpus=using_database_fallback_corpus,
+            keyword_top_k=effective_keyword_top_k,
+            keyword_min_score=self.keyword_min_score,
+            similarity_threshold=self.similarity_threshold,
+            enable_exact_phrase=enable_exact_phrase,
+            enable_keyword_search=enable_keyword_search,
+            enable_dense_vector=enable_dense_vector,
+            exact_phrase_extractor=self._extract_exact_phrases,
+            exact_phrase_search=self._search_exact_phrases,
+            keyword_search=self._search_keyword_matches,
+            distance_to_similarity=self._convert_distance_to_similarity,
+        )
 
-        if enable_dense_vector and getattr(self, "vector_enabled", False) and self.vector_store is not None:
-            retrieval_limit = max(int(effective_top_k), int(effective_rerank_top_k), 10)
-            tasks = [
-                asyncio.to_thread(self.vector_store.search, query=query, n_results=retrieval_limit, where=search_filter)
-                for query in queries
-            ]
-            for query, search_results in zip(queries, await asyncio.gather(*tasks)):
-                if not search_results or "ids" not in search_results:
+        document_batches = await asyncio.gather(*(hybrid_retriever.ainvoke(query) for query in queries))
+        for query, documents in zip(queries, document_batches):
+            for document in documents:
+                metadata = dict(getattr(document, "metadata", {}) or {})
+                chunk_id = str(
+                    metadata.get("chunk_id")
+                    or metadata.get("id")
+                    or metadata.get("document_id")
+                    or ""
+                )
+                if not chunk_id:
                     continue
-                ids = self._flatten_collection_values(search_results.get("ids", []))
-                documents = self._flatten_collection_values(search_results.get("documents", []))
-                distances = self._flatten_collection_values(search_results.get("distances", []))
-                metadatas = self._flatten_collection_values(search_results.get("metadatas", []))
-                for index, doc_id in enumerate(ids):
-                    distance = distances[index] if index < len(distances) else 1.0
-                    similarity_score = self._convert_distance_to_similarity(distance)
-                    if similarity_score < self.similarity_threshold:
-                        continue
-                    metadata = dict(metadatas[index] if index < len(metadatas) else {})
-                    metadata["vector_score"] = max(float(metadata.get("vector_score", 0.0) or 0.0), similarity_score)
-                    self._merge_retrieval_result(
-                        aggregated_results,
-                        {
-                            "id": doc_id,
-                            "content": documents[index] if index < len(documents) else "",
-                            "score": similarity_score,
-                            "metadata": metadata,
-                        },
-                        matched_query=query,
-                        match_source="vector",
-                    )
+                metadata.setdefault("chunk_id", chunk_id)
+                score = float(metadata.get("retrieval_score", metadata.get("score", 0.0)) or 0.0)
+                source_rank = int(metadata.get("source_rank", 0) or 0)
+                if metadata.get("match_source") == "vector":
+                    metadata["vector_score"] = max(float(metadata.get("vector_score", 0.0) or 0.0), score)
+                self._merge_retrieval_result(
+                    aggregated_results,
+                    {
+                        "id": chunk_id,
+                        "content": getattr(document, "page_content", "") or "",
+                        "score": score,
+                        "metadata": metadata,
+                    },
+                    matched_query=query,
+                    match_source=str(metadata.get("match_source") or "keyword"),
+                    source_rank=source_rank,
+                )
 
         ranked = self._rank_aggregated_results(aggregated_results, enable_fusion_rank=enable_fusion_rank)
-        final_limit = max(int(effective_top_k), int(effective_rerank_top_k), 10)
-        return ranked[: final_limit * max(1, len(queries))]
+        return ranked[: self.max_retrieval_candidates]
 
     async def _save_retrieval_results(self, execution_id: str, results: List[Dict[str, Any]]) -> None:
         """
@@ -842,15 +1257,26 @@ class RetrievalAgent(BaseAgent):
         """Prepare retrieval queries and optionally rewrite them first."""
         enable_query_rewrite = self._resolve_retrieval_bool_option(agent_input, "enable_query_rewrite", True)
         if enable_query_rewrite:
+            vector_search_filter = self._build_vector_search_filter(agent_input)
+            if isinstance(agent_input, AgentInput):
+                knowledge_base_id = agent_input.get_knowledge_base_id()
+            else:
+                knowledge_base_id = getattr(agent_input, "knowledge_base_id", None)
             rewrite_result = await self.query_rewriter.rewrite_query(
                 getattr(agent_input, "content", ""),
                 self._get_conversation_history(agent_input),
+                retrieval_context={
+                    "file_type": getattr(agent_input, "file_type", None) or vector_search_filter.get("file_type"),
+                    "knowledge_base_id": knowledge_base_id or vector_search_filter.get("knowledge_base_id"),
+                    "vector_search_filter": vector_search_filter,
+                },
             )
         else:
             rewrite_result = {
                 "original_query": getattr(agent_input, "content", ""),
                 "rewritten_queries": [getattr(agent_input, "content", "")],
-                "keywords": [],
+                "decomposed_queries": [getattr(agent_input, "content", "")],
+                "keywords": self.query_rewriter.extract_keywords(getattr(agent_input, "content", "")),
                 "reasoning": "Query rewrite disabled by retrieval options",
                 "rewrite_applied": False,
             }
@@ -878,15 +1304,23 @@ class RetrievalAgent(BaseAgent):
         if not results:
             return []
         enable_rerank = self._resolve_retrieval_bool_option(agent_input, "enable_rerank", self.enable_rerank)
+        if self.force_rerank:
+            enable_rerank = True
         if not enable_rerank:
             top_k = self._resolve_retrieval_option(agent_input, "top_k", int(getattr(self, "top_k", 10)))
-            return list(results[:top_k])
+            trimmed_results = list(results[: self._clamp_rerank_result_limit(top_k)])
+            return self._filter_low_relevance_results(trimmed_results)
         rerank_top_k = self._resolve_retrieval_option(
             agent_input,
             "rerank_top_k",
             int(getattr(self, "rerank_top_k", self.top_k)),
         )
-        return self.reranker.rerank(results, getattr(agent_input, "content", ""), rerank_top_k)
+        reranked_results = self.reranker.rerank(
+            results,
+            getattr(agent_input, "content", ""),
+            self._clamp_rerank_result_limit(rerank_top_k),
+        )
+        return self._filter_low_relevance_results(reranked_results)
 
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
         """Execute retrieval in non-streaming mode."""

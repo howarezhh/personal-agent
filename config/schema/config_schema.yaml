@@ -5,3 +5,310 @@ required:
   - database.mysql.port
   - database.mysql.database
   - database.mysql.username
+
+model:
+  embedding_model:
+    type: object
+    properties:
+      provider:
+        type: string
+        minLength: 1
+      model_name:
+        type: string
+        minLength: 1
+      local_model_path:
+        type: string
+      local_files_only:
+        type: boolean
+      max_input_tokens:
+        type: integer
+        minimum: 1
+      reserved_tokens:
+        type: integer
+        minimum: 0
+      dimension:
+        type: integer
+        minimum: 1
+      batch_size:
+        type: integer
+        minimum: 1
+      device:
+        type: string
+      normalize_embeddings:
+        type: boolean
+      pooling:
+        type: string
+        enum:
+          - cls
+          - mean
+      enable_retrieval_instruction:
+        type: boolean
+      query_instruction_for_retrieval:
+        type: string
+      document_instruction_for_retrieval:
+        type: string
+  rerank_model:
+    type: object
+    required:
+      - provider
+      - model_name
+    properties:
+      provider:
+        type: string
+        minLength: 1
+      model_name:
+        type: string
+        minLength: 1
+      local_model_path:
+        type: string
+      local_files_only:
+        type: boolean
+      batch_size:
+        type: integer
+        minimum: 1
+      device:
+        type: string
+      enable_secondary_rerank:
+        type: boolean
+      secondary_local_model_path:
+        type: string
+      secondary_local_files_only:
+        type: boolean
+      secondary_batch_size:
+        type: integer
+        minimum: 1
+      secondary_device:
+        type: string
+      secondary_top_n:
+        type: integer
+        minimum: 1
+      secondary_score_weight:
+        type: number
+        minimum: 0
+        maximum: 1
+      secondary_trigger_min_score:
+        type: number
+        minimum: 0
+        maximum: 1
+      secondary_trigger_score_gap:
+        type: number
+        minimum: 0
+        maximum: 1
+
+agent:
+  retrieval_agent:
+    type: object
+    properties:
+      enable_semantic_rerank:
+        type: boolean
+      semantic_rerank_weight:
+        type: number
+        minimum: 0
+        maximum: 1
+      diversity_weight:
+        type: number
+        minimum: 0
+        maximum: 1
+      fusion_strategy:
+        type: string
+        enum:
+          - rrf
+          - score
+      rrf_k:
+        type: integer
+        minimum: 1
+      vector_distance_metric:
+        type: string
+        enum:
+          - l2
+          - cosine
+          - cos
+          - ip
+          - inner_product
+          - dot
+      vector_similarity_calibration:
+        type: string
+        enum:
+          - auto
+          - normalized_l2
+          - inverse_distance
+      sparse_index_cache_enabled:
+        type: boolean
+      sparse_index_cache_ttl_seconds:
+        type: integer
+        minimum: 1
+      sparse_index_cache_max_entries:
+        type: integer
+        minimum: 1
+      query_decomposition_max_queries:
+        type: integer
+        minimum: 1
+      keyword_query_max_queries:
+        type: integer
+        minimum: 1
+      max_retrieval_candidates:
+        type: integer
+        minimum: 1
+      max_rerank_results:
+        type: integer
+        minimum: 1
+      force_hybrid_retrieval:
+        type: boolean
+      force_exact_phrase:
+        type: boolean
+      force_sparse_keyword:
+        type: boolean
+      force_dense_vector:
+        type: boolean
+      force_rerank:
+        type: boolean
+      min_rerank_score:
+        type: number
+        minimum: 0
+        maximum: 1
+      relative_score_floor_ratio:
+        type: number
+        minimum: 0
+        maximum: 1
+      max_score_gap:
+        type: number
+        minimum: 0
+        maximum: 1
+      min_query_relevance_score:
+        type: number
+        minimum: 0
+        maximum: 1
+      min_semantic_rerank_score:
+        type: number
+        minimum: 0
+        maximum: 1
+      semantic_agreement_bonus:
+        type: number
+        minimum: 0
+        maximum: 1
+      semantic_disagreement_penalty:
+        type: number
+        minimum: 0
+        maximum: 1
+  task_runtime:
+    type: object
+    properties:
+      enable_llm_components:
+        type: boolean
+      fallback_to_rule_based:
+        type: boolean
+      model:
+        type: string
+        minLength: 1
+      goal_parser_enabled:
+        type: boolean
+      planner_enabled:
+        type: boolean
+      step_evaluator_enabled:
+        type: boolean
+      goal_judge_enabled:
+        type: boolean
+      replanner_enabled:
+        type: boolean
+      goal_parser_temperature:
+        type: number
+        minimum: 0
+        maximum: 2
+      planner_temperature:
+        type: number
+        minimum: 0
+        maximum: 2
+      critic_temperature:
+        type: number
+        minimum: 0
+        maximum: 2
+      replanner_temperature:
+        type: number
+        minimum: 0
+        maximum: 2
+      max_tokens:
+        type: integer
+        minimum: 1
+      prepared_session_ttl_seconds:
+        type: integer
+        minimum: 1
+
+tools:
+  registry_entry:
+    type: object
+    required:
+      - enabled
+      - transport_protocol
+      - tool_origin
+      - timeout
+      - retry
+      - expose_to_agent
+    properties:
+      enabled:
+        type: boolean
+      transport_protocol:
+        type: string
+        enum:
+          - local_direct
+          - mcp
+      tool_origin:
+        type: string
+        enum:
+          - local
+          - external
+      timeout:
+        type: integer
+        minimum: 1
+      retry:
+        type: integer
+        minimum: 0
+      mcp_server:
+        type:
+          - string
+          - 'null'
+      expose_to_agent:
+        type: boolean
+      implementation:
+        type: object
+        required:
+          - class_path
+        properties:
+          class_path:
+            type: string
+            minLength: 1
+  web_search:
+    type: object
+    properties:
+      proxy_base_url:
+        type: string
+        minLength: 1
+      search_base_url:
+        type: string
+        minLength: 1
+      region:
+        type: string
+        minLength: 1
+      timeout:
+        type: integer
+        minimum: 1
+      max_results:
+        type: integer
+        minimum: 1
+  news_mcp:
+    type: object
+    properties:
+      hn_rss_endpoint:
+        type: string
+        minLength: 1
+  wikipedia_mcp:
+    type: object
+    properties:
+      api_endpoint_zh:
+        type: string
+        minLength: 1
+      api_endpoint_en:
+        type: string
+        minLength: 1
+      proxy_base_url:
+        type: string
+        minLength: 1

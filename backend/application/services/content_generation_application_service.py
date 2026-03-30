@@ -1,17 +1,20 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
 from typing import Any, Optional
 
 from backend.contracts.errors import ErrorCode, internal_server_error
-from backend.infrastructure.persistence.content_generation_record_store import ContentGenerationRecordStore
-from backend.tools.tool_registry import get_tool
+from backend.contracts.tools import ToolCallContext, ToolCapability
+from backend.tools import get_tool
 
 
 class ContentGenerationApplicationService:
-    def __init__(self, store=None):
-        self.store = store or ContentGenerationRecordStore()
+    def __init__(self, *, store, tool_provider=None):
+        # `tool_provider`：允许测试或上层应用显式注入工具解析器。
+        # 未注入时回退到统一注册入口，保持既有兼容行为。
+        self.store = store
+        self.tool_provider = tool_provider or get_tool
 
     async def save_generation(
         self,
@@ -45,9 +48,8 @@ class ContentGenerationApplicationService:
             result=result,
         )
 
-    @staticmethod
-    def _require_tool(tool_name: str):
-        tool = get_tool(tool_name)
+    def _require_tool(self, tool_name: str):
+        tool = self.tool_provider(tool_name)
         if tool is None:
             raise internal_server_error(
                 f"Content generation tool is unavailable: {tool_name}",
@@ -81,21 +83,22 @@ class ContentGenerationApplicationService:
         return await tool.safe_execute(**tool_params)
 
     async def execute_generation_stream(self, *, tool_name: str, **tool_params) -> AsyncGenerator[dict[str, Any], None]:
+        """统一读取能力声明并走适配器流式接口。"""
+
         tool = self._require_tool(tool_name)
-        if hasattr(tool, "execute_stream"):
-            async for event in tool.execute_stream(**tool_params):
-                yield event
+        descriptor = tool.get_descriptor()
+        if not descriptor.supports(ToolCapability.STREAM):
+            yield {
+                "type": "error",
+                "error": f"Tool {tool_name} does not support stream",
+                "error_code": ErrorCode.CONTENT_TOOL_UNAVAILABLE.value,
+            }
             return
 
-        fallback_result = await tool.safe_execute(**tool_params)
-        if fallback_result.get("success"):
-            preview = self._extract_result_preview(fallback_result.get("data"))
-            if preview:
-                yield {"type": "content", "content": preview}
-            yield {"type": "result", "data": fallback_result.get("data")}
-            return
-
-        yield {
-            "type": "error",
-            "error": fallback_result.get("error") or "Content generation failed",
-        }
+        context = ToolCallContext(
+            tool_name=tool_name,
+            transport_protocol=tool.get_transport_protocol(),
+            mcp_server=tool.get_mcp_server(),
+        )
+        async for event in tool.invoke_stream(tool_params, context=context):
+            yield event.to_legacy_event()

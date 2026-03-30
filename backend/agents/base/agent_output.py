@@ -41,7 +41,6 @@ class AgentOutput:
     message_id: Optional[str] = None
     knowledge_base_id: Optional[str] = None
     document_id: Optional[str] = None
-    route_decision: Optional[Dict[str, Any]] = None
     retrieval_results: Optional[List[Dict[str, Any]]] = None
     tool_result: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -94,12 +93,6 @@ class AgentOutput:
             return default
         return self.metadata.get(key, default)
 
-    def get_route_decision(self) -> Optional[Dict[str, Any]]:
-        """返回路由决策的深拷贝。"""
-        if isinstance(self.route_decision, dict):
-            return deepcopy(self.route_decision)
-        return None
-
     def get_retrieval_results(self) -> Optional[List[Dict[str, Any]]]:
         """返回检索结果列表的深拷贝。"""
         if isinstance(self.retrieval_results, list):
@@ -124,16 +117,6 @@ class AgentOutput:
         """返回带内容摘要的调试文本。"""
         preview = self.content[:50] + "..." if len(self.content) > 50 else self.content
         return f"AgentOutput(agent_name='{self.agent_name}', status='{self.status}', content='{preview}')"
-
-
-@dataclass
-class RouterAgentOutput(AgentOutput):
-    """路由 Agent 的输出模型。"""
-
-    confidence: Optional[float] = None
-    reasoning: Optional[str] = None
-    suggested_agents: Optional[List[str]] = None
-    suggested_tools: Optional[List[str]] = None
 
 
 @dataclass
@@ -162,9 +145,7 @@ class ToolAgentOutput(AgentOutput):
     interpreted_result: Optional[Dict[str, Any]] = None
     tool_call_id: Optional[str] = None
     tool_calls: List[Dict[str, Any]] = field(default_factory=list)
-    no_tool_needed: Optional[bool] = None
     reasoning: Optional[str] = None
-    route_action: Optional[str] = None
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0

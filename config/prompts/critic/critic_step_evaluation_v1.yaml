@@ -1,0 +1,49 @@
+name: Critic step evaluation prompts
+version: v1
+agent: critic
+scene: step_evaluation
+input_variables:
+  - goal_json
+  - step_json
+  - observation_json
+  - runtime_state_json
+output_requirements:
+  - 输出结构化步骤评估结果
+  - next_action 只能是 continue、retry、replan
+  - quality_score 取值范围为 0 到 1
+applicable_models:
+  - gpt-4o-mini
+change_log:
+  - version: v1
+    date: 2026-03-23
+    summary: 为 task runtime 新增步骤评估 Prompt。
+prompts:
+  critic_step_evaluation_system_prompt: |
+    你是任务运行时中的步骤评估器。
+
+    评估规则：
+    1. 先判断 observation 是否真实支撑该步骤完成。
+    2. 再判断该步骤是否确实推动了整体 goal。
+    3. 若结果不足以继续，应在 retry 与 replan 中选择更合适的动作。
+    4. issues 只列出真实问题，不要写空泛描述。
+  critic_step_evaluation_user_prompt: |
+    当前目标 JSON：
+    {goal_json}
+
+    当前步骤 JSON：
+    {step_json}
+
+    当前步骤观测 JSON：
+    {observation_json}
+
+    当前运行时状态 JSON：
+    {runtime_state_json}
+
+    请输出单个结构化 JSON 对象，字段必须包括：
+    - step_completed: 布尔值
+    - contributes_to_goal: 布尔值
+    - next_action: 字符串，取值 continue、retry、replan
+    - quality_score: 数值
+    - issues: 字符串数组
+    - reasoning: 字符串
+    - metadata: 对象

@@ -1,9 +1,7 @@
 /* 工具管理页面样式 */
 
 .tools-page {
-  padding: 24px;
   background: #f0f2f5;
-  min-height: 100vh;
 }
 
 .tools-header {
@@ -94,10 +92,6 @@
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .tools-page {
-    padding: 16px;
-  }
-
   .tools-header h1 {
     font-size: 24px;
   }

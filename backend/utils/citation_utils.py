@@ -19,16 +19,17 @@ def resolve_source_name(payload: dict[str, Any] | None, default: str = 'Unknown'
     if not isinstance(payload, dict):
         return default
 
+    # 历史数据里 `source` 可能被错误写成知识库名，因此这里优先返回具体文档名字段。
     for key in (
-        'source_name',
-        'source',
-        'sourceName',
         'file_name',
         'fileName',
         'original_filename',
         'originalFilename',
         'document_name',
         'documentName',
+        'source_name',
+        'sourceName',
+        'source',
     ):
         value = payload.get(key)
         if isinstance(value, str) and value.strip():

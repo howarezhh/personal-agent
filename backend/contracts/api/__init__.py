@@ -6,21 +6,6 @@ from backend.contracts.api.auth import (
     TokenResponse,
     UserProfileResponse,
 )
-from backend.contracts.api.chat import (
-    AskRequest,
-    AskResponse,
-    ChatDonePayload,
-    ChatResultPayload,
-    PauseRequest,
-    PauseStreamResponse,
-)
-from backend.contracts.api.conversations import (
-    ConversationMessageItem,
-    ConversationResponse,
-    ConversationSummaryResponse,
-    CreateConversationRequest,
-    UpdateConversationRequest,
-)
 from backend.contracts.api.content_generation import (
     ContentGenerationResponse,
     ContentOptimizeRequest,
@@ -34,6 +19,13 @@ from backend.contracts.api.content_generation import (
     ScriptOutlineRequest,
     ScriptSceneRequest,
     ScriptStoryboardRequest,
+)
+from backend.contracts.api.conversations import (
+    ConversationMessageItem,
+    ConversationResponse,
+    ConversationSummaryResponse,
+    CreateConversationRequest,
+    UpdateConversationRequest,
 )
 from backend.contracts.api.knowledge import (
     BatchUploadItemResponse,
@@ -52,6 +44,13 @@ from backend.contracts.api.knowledge import (
     VectorRebuildRequest,
     VectorRebuildResponse,
 )
+from backend.contracts.api.task_runtime import (
+    TaskRuntimeGoalResponse,
+    TaskRuntimePlanResponse,
+    TaskRuntimePlanStepResponse,
+    TaskRuntimePrepareResponse,
+    TaskRuntimeSubmitRequest,
+)
 from backend.contracts.api.tools import (
     ToolCategoryInfo,
     ToolCategoryListResponse,
@@ -64,10 +63,6 @@ from backend.contracts.api.tools import (
 )
 
 __all__ = [
-    "AskRequest",
-    "AskResponse",
-    "ChatDonePayload",
-    "ChatResultPayload",
     "BatchUploadItemResponse",
     "BatchUploadResponse",
     "ContentGenerationResponse",
@@ -92,8 +87,6 @@ __all__ = [
     "NovelContinueRequest",
     "NovelOutlineRequest",
     "NovelWorldviewRequest",
-    "PauseRequest",
-    "PauseStreamResponse",
     "RefreshTokenRequest",
     "RegisterRequest",
     "SearchRequest",
@@ -102,6 +95,11 @@ __all__ = [
     "ScriptOutlineRequest",
     "ScriptSceneRequest",
     "ScriptStoryboardRequest",
+    "TaskRuntimeGoalResponse",
+    "TaskRuntimePlanResponse",
+    "TaskRuntimePlanStepResponse",
+    "TaskRuntimePrepareResponse",
+    "TaskRuntimeSubmitRequest",
     "TokenResponse",
     "ToolCategoryInfo",
     "ToolCategoryListResponse",

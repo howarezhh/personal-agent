@@ -2,39 +2,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.core.config_manager import get_config_manager
-from backend.database.database_manager import get_database_manager
 from backend.utils.logger import get_logger
 
 
 class RuntimeApplicationService:
     """Centralize backend startup, shutdown, and runtime config access."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, config_manager, database_gateway, tool_initializer, tool_client_closer) -> None:
         self.logger = get_logger(self.__class__.__name__)
-
-    @staticmethod
-    def _get_config_manager():
-        return get_config_manager()
-
-    @staticmethod
-    def _get_database_manager():
-        return get_database_manager()
-
-    @staticmethod
-    def _initialize_tools(strict: bool = True) -> dict[str, Any]:
-        from backend.tools.tool_initializer import initialize_tools
-
-        return initialize_tools(strict=strict)
-
-    @staticmethod
-    async def _close_tool_clients() -> None:
-        from backend.tools.tool_initializer import close_initialized_tool_clients
-
-        await close_initialized_tool_clients()
+        self.config_manager = config_manager
+        self.database_gateway = database_gateway
+        self.tool_initializer = tool_initializer
+        self.tool_client_closer = tool_client_closer
 
     def get_api_config(self) -> dict[str, Any]:
-        return dict(self._get_config_manager().get_business_config("api") or {})
+        return dict(self.config_manager.get_business_config("api") or {})
 
     def get_server_options(self) -> dict[str, Any]:
         api_config = self.get_api_config()
@@ -65,14 +47,13 @@ class RuntimeApplicationService:
         self.logger.info("Starting Personal Agent backend...")
         self.logger.info("=" * 80)
 
-        config_manager = self._get_config_manager()
+        config_manager = self.config_manager
         self.logger.info("Configuration loaded")
         if not config_manager.validate_config():
             self.logger.error("Configuration validation failed")
             raise RuntimeError("Invalid configuration")
 
-        db_manager = self._get_database_manager()
-        if not db_manager.test_connection():
+        if not self.database_gateway.test_connection():
             self.logger.error("Database connection failed")
             raise RuntimeError("Database connection failed")
         self.logger.info("Database connection established")
@@ -82,7 +63,7 @@ class RuntimeApplicationService:
         self.logger.info("API port: %s", api_config.get("port", 8000))
         self.logger.info("Debug mode: %s", api_config.get("debug", False))
 
-        tool_report = self._initialize_tools(strict=True)
+        tool_report = self.tool_initializer(strict=True)
         self.logger.info(
             "Tools initialized: registered=%s, mcp=%s, local=%s, external=%s, failures=%s",
             tool_report.get("registered_count", 0),
@@ -103,13 +84,13 @@ class RuntimeApplicationService:
         self.logger.info("=" * 80)
 
         try:
-            await self._close_tool_clients()
+            await self.tool_client_closer()
             self.logger.info("Tool clients closed")
         except Exception as error:
             self.logger.error("Tool client shutdown failed: %s", error, exc_info=True)
 
         try:
-            self._get_database_manager().close()
+            self.database_gateway.close()
             self.logger.info("Database connection closed")
         except Exception as error:
             self.logger.error("Database shutdown failed: %s", error, exc_info=True)
@@ -132,17 +113,18 @@ class RuntimeApplicationService:
             "endpoints": {
                 "health": "/health",
                 "auth": "/api/v1/auth",
-                "chat": "/api/v1/chat",
                 "conversations": "/api/v1/conversations",
                 "knowledge": "/api/v1/knowledge",
                 "tools": "/api/v1/tools",
                 "content": "/api/v1/content",
+                "task_runtime_prepare": "/api/v1/task-runtime/tasks",
+                "task_runtime_stream": "/api/v1/task-runtime/tasks/stream",
             },
         }
 
     def get_health_status(self) -> dict[str, Any]:
         try:
-            if self._get_database_manager().test_connection():
+            if self.database_gateway.test_connection():
                 return {"healthy": True, "message": "Service is healthy", "code": 200}
             return {"healthy": False, "message": "Database connection failed", "code": 503}
         except Exception as error:

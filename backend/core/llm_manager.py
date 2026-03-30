@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """基于 LangChain Prompt/Runnable 的统一模型交互层。
 
 本模块只保留新的模型交互规范：
@@ -13,15 +13,19 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TypeVar
 
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from langchain_core.prompt_values import ChatPromptValue, PromptValue
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.runnables import RunnableLambda
-from pydantic import BaseModel, Field, ValidationError
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from pydantic import BaseModel
+from pydantic import PrivateAttr
 from zhipuai import ZhipuAI
 
 from backend.core.config_manager import ConfigManager, get_config_manager
@@ -35,15 +39,104 @@ logger = get_logger(__name__)
 StructuredOutputT = TypeVar("StructuredOutputT", bound=BaseModel)
 
 
-class ToolBindingInstruction(BaseModel):
-    """工具绑定阶段使用的统一工具描述。"""
+class RuntimeBackedLangChainChatModel(BaseChatModel):
+    """基于项目运行时封装的 LangChain 原生聊天模型。
 
-    # name：工具名称，是模型选择工具时使用的唯一标识。
-    name: str
-    # description：工具用途说明，帮助模型理解什么时候应该使用该工具。
-    description: str = ""
-    # input_schema：工具输入参数的 Schema 定义，用于约束模型生成的调用参数结构。
-    input_schema: Dict[str, Any] = Field(default_factory=dict)
+    说明：
+    - 该模型负责把 LangChain `BaseMessage` 转换为供应商兼容的消息结构；
+    - 当上层通过 `bind_tools()` 绑定工具时，会把标准 OpenAI tool schema 透传给底层 provider；
+    - 返回结果统一映射为 `AIMessage`，其中工具调用写入 `tool_calls` 字段。
+    """
+
+    _runtime: "LangChainModelRuntime" = PrivateAttr()
+    _default_options: ModelCallOptions = PrivateAttr()
+
+    def __init__(
+        self,
+        runtime: "LangChainModelRuntime",
+        default_options: Optional[ModelCallOptions] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self._runtime = runtime
+        self._default_options = default_options or ModelCallOptions()
+
+    @property
+    def _llm_type(self) -> str:
+        """返回 LangChain 所需的模型类型标识。"""
+        return f"project_{self._runtime.provider}_chat_model"
+
+    @property
+    def _identifying_params(self) -> Dict[str, Any]:
+        """返回模型识别参数，便于 LangChain 做缓存与调试。"""
+        return {
+            "provider": self._runtime.provider,
+            "model_name": self._runtime.model_name,
+            "model_type": self._runtime.model_type,
+        }
+
+    def bind_tools(self, tools: Sequence[Any], *, tool_choice: str | None = None, **kwargs: Any):
+        """返回绑定了原生工具 schema 的 Runnable。"""
+        formatted_tools = [convert_to_openai_tool(tool) for tool in tools]
+        bind_kwargs = dict(kwargs)
+        bind_kwargs["tools"] = formatted_tools
+        if tool_choice is not None:
+            bind_kwargs["tool_choice"] = tool_choice
+        return self.bind(**bind_kwargs)
+
+    def _generate(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        """执行一次非流式聊天调用，并返回 LangChain `ChatResult`。"""
+        request_messages = self._runtime.serialize_langchain_messages(messages)
+        request_options = ModelCallOptions(
+            temperature=kwargs.pop("temperature", self._default_options.temperature),
+            max_tokens=kwargs.pop("max_tokens", self._default_options.max_tokens),
+            top_p=kwargs.pop("top_p", self._default_options.top_p),
+            model=kwargs.pop("model", self._default_options.model),
+            extra_kwargs=kwargs,
+        )
+        ai_message = self._runtime.invoke_langchain_chat(
+            request_messages,
+            request_options,
+            stop=stop,
+        )
+        return ChatResult(generations=[ChatGeneration(message=ai_message)])
+
+    async def _astream(
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> AsyncGenerator[ChatGenerationChunk, None]:
+        """执行一次流式聊天调用，并输出 LangChain `ChatGenerationChunk`。"""
+        request_messages = self._runtime.serialize_langchain_messages(messages)
+        request_options = ModelCallOptions(
+            temperature=kwargs.pop("temperature", self._default_options.temperature),
+            max_tokens=kwargs.pop("max_tokens", self._default_options.max_tokens),
+            top_p=kwargs.pop("top_p", self._default_options.top_p),
+            model=kwargs.pop("model", self._default_options.model),
+            extra_kwargs=kwargs,
+        )
+        if stop:
+            request_options = ModelCallOptions(
+                temperature=request_options.temperature,
+                max_tokens=request_options.max_tokens,
+                top_p=request_options.top_p,
+                model=request_options.model,
+                extra_kwargs={**(request_options.extra_kwargs or {}), "stop": stop},
+            )
+
+        async for chunk in self._runtime.stream(request_messages, request_options):
+            text = str(chunk or "")
+            if not text:
+                continue
+            yield ChatGenerationChunk(message=AIMessageChunk(content=text), text=text)
 
 
 @dataclass(frozen=True)
@@ -143,6 +236,164 @@ class LangChainModelRuntime:
         if self.provider == "openai":  # pragma: no cover - 当前默认配置未覆盖
             return await self._invoke_openai(messages, options)
         raise ValueError(f"暂不支持的模型 provider: {self.provider}")
+
+    def get_langchain_chat_model(
+        self,
+        *,
+        options: Optional[ModelCallOptions] = None,
+    ) -> RuntimeBackedLangChainChatModel:
+        """返回基于当前运行时的 LangChain 原生聊天模型。"""
+        return RuntimeBackedLangChainChatModel(runtime=self, default_options=options)
+
+    def serialize_langchain_messages(self, messages: Sequence[BaseMessage]) -> List[Dict[str, Any]]:
+        """将 LangChain `BaseMessage` 数组转换为 provider 兼容消息结构。"""
+        serialized_messages: List[Dict[str, Any]] = []
+        for message in messages:
+            if isinstance(message, SystemMessage):
+                serialized_messages.append({"role": "system", "content": str(message.content or "")})
+                continue
+            if isinstance(message, HumanMessage):
+                serialized_messages.append({"role": "user", "content": str(message.content or "")})
+                continue
+            if isinstance(message, ToolMessage):
+                serialized_messages.append(
+                    {
+                        "role": "tool",
+                        "content": str(message.content or ""),
+                        "tool_call_id": getattr(message, "tool_call_id", None),
+                    }
+                )
+                continue
+            if isinstance(message, AIMessage):
+                serialized_message: Dict[str, Any] = {
+                    "role": "assistant",
+                    "content": str(message.content or ""),
+                }
+                if message.tool_calls:
+                    serialized_message["tool_calls"] = [
+                        {
+                            "id": tool_call.get("id"),
+                            "type": "function",
+                            "function": {
+                                "name": tool_call.get("name"),
+                                "arguments": json.dumps(tool_call.get("args", {}), ensure_ascii=False),
+                            },
+                        }
+                        for tool_call in message.tool_calls
+                    ]
+                serialized_messages.append(serialized_message)
+                continue
+
+            serialized_messages.append({"role": "user", "content": str(getattr(message, "content", ""))})
+        return serialized_messages
+
+    def invoke_langchain_chat(
+        self,
+        messages: List[Dict[str, Any]],
+        options: ModelCallOptions,
+        *,
+        stop: Optional[List[str]] = None,
+    ) -> AIMessage:
+        """执行支持原生工具绑定的聊天调用，并映射为 `AIMessage`。"""
+        if self.provider == "zhipu":
+            return self._invoke_langchain_chat_zhipu(messages, options, stop=stop)
+        if self.provider == "openai":  # pragma: no cover - 当前默认配置未覆盖
+            return self._invoke_langchain_chat_openai(messages, options, stop=stop)
+        raise ValueError(f"暂不支持的模型 provider: {self.provider}")
+
+    def _build_chat_request_kwargs(
+        self,
+        messages: List[Dict[str, Any]],
+        options: ModelCallOptions,
+        *,
+        stop: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """构造原生聊天调用参数。"""
+        request_kwargs: Dict[str, Any] = {
+            "model": options.model or self.model_name,
+            "messages": messages,
+            "temperature": options.temperature if options.temperature is not None else self.model_config.get("temperature", 0.7),
+            "max_tokens": options.max_tokens if options.max_tokens is not None else self.model_config.get("max_tokens", 2000),
+            "top_p": options.top_p if options.top_p is not None else self.model_config.get("top_p", 0.9),
+        }
+        if stop:
+            request_kwargs["stop"] = stop
+        request_kwargs.update(options.extra_kwargs or {})
+        return request_kwargs
+
+    def _build_ai_message_from_response(self, response: Any) -> AIMessage:
+        """将供应商响应映射为 LangChain `AIMessage`。"""
+        if not getattr(response, "choices", None):
+            return AIMessage(content="")
+
+        raw_message = response.choices[0].message
+        raw_tool_calls = getattr(raw_message, "tool_calls", None) or []
+        normalized_tool_calls: List[Dict[str, Any]] = []
+        additional_kwargs: Dict[str, Any] = {}
+        for raw_tool_call in raw_tool_calls:
+            function_payload = getattr(raw_tool_call, "function", None)
+            raw_arguments = getattr(function_payload, "arguments", "{}") if function_payload else "{}"
+            try:
+                parsed_arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments or {})
+            except Exception:
+                parsed_arguments = {}
+            normalized_tool_calls.append(
+                {
+                    "id": getattr(raw_tool_call, "id", None),
+                    "type": "tool_call",
+                    "name": getattr(function_payload, "name", None) if function_payload else None,
+                    "args": parsed_arguments,
+                }
+            )
+        if raw_tool_calls:
+            additional_kwargs["tool_calls"] = [
+                {
+                    "id": getattr(raw_tool_call, "id", None),
+                    "type": "function",
+                    "function": {
+                        "name": getattr(getattr(raw_tool_call, "function", None), "name", None),
+                        "arguments": getattr(getattr(raw_tool_call, "function", None), "arguments", "{}"),
+                    },
+                }
+                for raw_tool_call in raw_tool_calls
+            ]
+
+        response_metadata = {
+            "model": getattr(response, "model", None),
+            "finish_reason": getattr(response.choices[0], "finish_reason", None),
+        }
+        return AIMessage(
+            content=str(getattr(raw_message, "content", "") or ""),
+            tool_calls=normalized_tool_calls,
+            additional_kwargs=additional_kwargs,
+            response_metadata=response_metadata,
+        )
+
+    def _invoke_langchain_chat_zhipu(
+        self,
+        messages: List[Dict[str, Any]],
+        options: ModelCallOptions,
+        *,
+        stop: Optional[List[str]] = None,
+    ) -> AIMessage:
+        """调用智谱原生工具绑定聊天接口。"""
+        response = self.client.chat.completions.create(
+            **self._build_chat_request_kwargs(messages, options, stop=stop)
+        )
+        return self._build_ai_message_from_response(response)
+
+    def _invoke_langchain_chat_openai(
+        self,
+        messages: List[Dict[str, Any]],
+        options: ModelCallOptions,
+        *,
+        stop: Optional[List[str]] = None,
+    ) -> AIMessage:
+        """调用 OpenAI 原生工具绑定聊天接口。"""
+        response = self.client.chat.completions.create(
+            **self._build_chat_request_kwargs(messages, options, stop=stop)
+        )
+        return self._build_ai_message_from_response(response)
 
     async def stream(self, messages: List[Dict[str, str]], options: ModelCallOptions) -> AsyncGenerator[str, None]:
         """执行流式模型调用，仅返回纯文本分片。"""
@@ -250,14 +501,35 @@ class LangChainModelRuntime:
         }
         request_kwargs.update(options.extra_kwargs or {})
 
-        response = await asyncio.to_thread(self.client.chat.completions.create, **request_kwargs)
-        for chunk in response:  # pragma: no cover - 当前默认配置未覆盖
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            content = getattr(delta, "content", None)
-            if content:
-                yield str(content)
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[Any] = asyncio.Queue()
+        sentinel = object()
+
+        def _worker() -> None:
+            try:
+                response = self.client.chat.completions.create(**request_kwargs)
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+                    content = getattr(delta, "content", None)
+                    if not content:
+                        continue
+                    asyncio.run_coroutine_threadsafe(queue.put(str(content)), loop).result()
+            except Exception as error:  # pragma: no cover - 真实 SDK 异常路径
+                asyncio.run_coroutine_threadsafe(queue.put(error), loop).result()
+            finally:
+                asyncio.run_coroutine_threadsafe(queue.put(sentinel), loop).result()
+
+        asyncio.create_task(asyncio.to_thread(_worker))
+
+        while True:
+            item = await queue.get()
+            if item is sentinel:
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield str(item)
 
 
 class LangChainModelManager:
@@ -268,7 +540,7 @@ class LangChainModelManager:
         runtime: Optional[LangChainModelRuntime] = None,
         *,
         structured_output_schema: type[BaseModel] | None = None,
-        bound_tools: Optional[List[ToolBindingInstruction]] = None,
+        bound_tools: Optional[List[Any]] = None,
     ) -> None:
         # runtime：底层模型运行时，负责屏蔽不同 provider 的调用细节。
         self.runtime = runtime or LangChainModelRuntime()
@@ -286,14 +558,12 @@ class LangChainModelManager:
             bound_tools=self.bound_tools,
         )
 
-    def bind_tools(self, tools: Sequence[Dict[str, Any] | ToolBindingInstruction]) -> "LangChainModelManager":
-        """返回绑定了工具描述的新实例。"""
-        # 先做工具定义归一化，兼容多种历史字段命名。
-        normalized_tools = [self._normalize_tool_definition(tool) for tool in tools]
+    def bind_tools(self, tools: Sequence[Any]) -> "LangChainModelManager":
+        """返回绑定了 LangChain 原生工具的新实例。"""
         return LangChainModelManager(
             runtime=self.runtime,
             structured_output_schema=self.structured_output_schema,
-            bound_tools=normalized_tools,
+            bound_tools=list(tools),
         )
 
     async def invoke_prompt_template(
@@ -382,15 +652,15 @@ class LangChainModelManager:
         **kwargs: Any,
     ) -> str | BaseModel:
         """执行项目内部消息数组调用。"""
-        # 项目内部原生消息结构先包装成 ChatPromptTemplate，再复用统一调用逻辑。
-        prompt_template, prompt_variables = self._build_chat_prompt_template(messages)
-        return await self.invoke_chat_prompt_template(
-            prompt_template,
-            prompt_variables,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            model=model,
+        # 这里必须直接保留内部消息结构，不能先回退成 ChatPromptTemplate。
+        # 否则 assistant.tool_calls / tool.tool_call_id 等协议字段会在模板重建阶段丢失，
+        # 从而破坏标准 LangChain tool loop 的第二轮及后续轮次。
+        return await self._invoke_with_messages(
+            messages,
+            temperature,
+            max_tokens,
+            top_p,
+            model,
             **kwargs,
         )
 
@@ -405,15 +675,12 @@ class LangChainModelManager:
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
         """流式执行项目内部消息数组调用。"""
-        # 非流式与流式共用同一套消息模板转换逻辑，减少重复代码。
-        prompt_template, prompt_variables = self._build_chat_prompt_template(messages)
-        async for chunk in self.stream_chat_prompt_template(
-            prompt_template,
-            prompt_variables,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            top_p=top_p,
-            model=model,
+        async for chunk in self._stream_with_messages(
+            messages,
+            temperature,
+            max_tokens,
+            top_p,
+            model,
             **kwargs,
         ):
             yield chunk
@@ -428,9 +695,6 @@ class LangChainModelManager:
         **kwargs: Any,
     ) -> str | BaseModel:
         """执行统一消息调用，并在需要时解析结构化结果。"""
-        # decorated_messages：附加系统约束后的最终消息数组。
-        decorated_messages = self._decorate_messages(messages)
-        # options：统一调用参数对象。
         options = self._build_options(
             temperature=temperature,
             max_tokens=max_tokens,
@@ -438,12 +702,129 @@ class LangChainModelManager:
             model=model,
             extra_kwargs=kwargs,
         )
-        # 先拿到底层模型返回的原始文本结果。
-        raw_text = await self.runtime.invoke(decorated_messages, options)
+        chat_model = self.runtime.get_langchain_chat_model(options=options)
+        langchain_messages = self._api_messages_to_langchain_messages(messages)
+
+        if self.bound_tools and self.structured_output_schema is not None:
+            raise ValueError("请分别使用标准 LangChain 的 bind_tools() 或 with_structured_output() 链路")
+
+        if self.structured_output_schema is not None:
+            try:
+                structured_runnable = chat_model.with_structured_output(self.structured_output_schema)
+                return await structured_runnable.ainvoke(langchain_messages)
+            except Exception as error:
+                logger.warning(
+                    "Native structured output failed; fallback to JSON parsing. provider=%s model=%s error=%s",
+                    getattr(self.runtime, "provider", "unknown"),
+                    getattr(self.runtime, "model_name", "unknown"),
+                    error,
+                )
+                return await self._invoke_structured_output_fallback(
+                    chat_model=chat_model,
+                    langchain_messages=langchain_messages,
+                )
+
+        if self.bound_tools:
+            bound_runnable = chat_model.bind_tools(self.bound_tools)
+            return await bound_runnable.ainvoke(langchain_messages)
+
+        ai_message = await chat_model.ainvoke(langchain_messages)
+        return str(getattr(ai_message, "content", "") or "")
+
+    async def _invoke_structured_output_fallback(
+        self,
+        *,
+        chat_model: BaseChatModel,
+        langchain_messages: Sequence[BaseMessage],
+    ) -> BaseModel:
+        """在原生 structured output 不兼容时，回退到文本 JSON + 本地解析。"""
         if self.structured_output_schema is None:
-            return raw_text
-        # 若声明了结构化输出，则由本层负责做 JSON 提取和 Schema 校验。
-        return self._parse_structured_output(raw_text)
+            raise ValueError("structured_output_schema 未配置，无法执行结构化回退")
+
+        schema_json = json.dumps(self.structured_output_schema.model_json_schema(), ensure_ascii=False)
+        fallback_instruction = (
+            "请严格返回单个 JSON 对象，不要输出任何解释、Markdown 或代码块。"
+            "返回结果必须满足以下 JSON Schema："
+            f"{schema_json}"
+        )
+        fallback_messages = [
+            SystemMessage(content=fallback_instruction),
+            *list(langchain_messages),
+        ]
+        ai_message = await chat_model.ainvoke(fallback_messages)
+        response_text = self._stringify_ai_content(getattr(ai_message, "content", ""))
+        return self._parse_structured_output_text(response_text)
+
+    def _parse_structured_output_text(self, response_text: str) -> BaseModel:
+        """把模型文本结果解析为结构化输出模型。"""
+        if self.structured_output_schema is None:
+            raise ValueError("structured_output_schema 未配置，无法解析结构化结果")
+
+        normalized_text = response_text.strip()
+        candidate_payloads = [normalized_text]
+
+        fenced_payload = self._extract_fenced_json(normalized_text)
+        if fenced_payload:
+            candidate_payloads.append(fenced_payload)
+
+        json_object_payload = self._extract_json_object(normalized_text)
+        if json_object_payload:
+            candidate_payloads.append(json_object_payload)
+
+        parse_errors: list[str] = []
+        for payload in candidate_payloads:
+            if not payload:
+                continue
+            try:
+                return self.structured_output_schema.model_validate_json(payload)
+            except Exception as error:
+                parse_errors.append(str(error))
+
+        raise ValueError(
+            "结构化输出解析失败: "
+            f"response={response_text!r}, errors={parse_errors}"
+        )
+
+    @staticmethod
+    def _stringify_ai_content(content: Any) -> str:
+        """把不同形态的 AIMessage content 统一折叠为字符串。"""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            fragments: List[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    fragments.append(item)
+                    continue
+                if isinstance(item, dict):
+                    text_value = item.get("text")
+                    if isinstance(text_value, str):
+                        fragments.append(text_value)
+            return "".join(fragments)
+        return str(content or "")
+
+    @staticmethod
+    def _extract_fenced_json(response_text: str) -> str | None:
+        """提取 ```json ... ``` 或 ``` ... ``` 包裹的 JSON。"""
+        stripped = response_text.strip()
+        if not stripped.startswith("```"):
+            return None
+
+        lines = stripped.splitlines()
+        if len(lines) < 3:
+            return None
+        if not lines[-1].strip().startswith("```"):
+            return None
+        return "\n".join(lines[1:-1]).strip()
+
+    @staticmethod
+    def _extract_json_object(response_text: str) -> str | None:
+        """从文本中提取最外层 JSON 对象。"""
+        start = response_text.find("{")
+        end = response_text.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+        return response_text[start : end + 1].strip()
 
     async def _stream_with_messages(
         self,
@@ -455,8 +836,9 @@ class LangChainModelManager:
         **kwargs: Any,
     ) -> AsyncGenerator[str, None]:
         """执行统一流式消息调用。"""
-        # 流式路径同样先注入系统约束，再交给运行时逐片返回文本。
-        decorated_messages = self._decorate_messages(messages)
+        # 中文说明：流式链路必须与非流式链路保持一致的能力边界，
+        # 禁止在已绑定 tool / structured output 时悄悄退化成普通文本流。
+        self._ensure_streaming_supported()
         options = self._build_options(
             temperature=temperature,
             max_tokens=max_tokens,
@@ -464,8 +846,12 @@ class LangChainModelManager:
             model=model,
             extra_kwargs=kwargs,
         )
-        async for chunk in self.runtime.stream(decorated_messages, options):
-            yield chunk
+        chat_model = self.runtime.get_langchain_chat_model(options=options)
+        langchain_messages = self._api_messages_to_langchain_messages(messages)
+        async for chunk in chat_model.astream(langchain_messages):
+            content = getattr(chunk, "content", None)
+            if isinstance(content, str) and content:
+                yield content
 
     def _ensure_streaming_supported(self) -> None:
         """结构化输出与工具绑定阶段不直接暴露流式接口。"""
@@ -474,6 +860,50 @@ class LangChainModelManager:
         # 2. 工具绑定当前是一次性决策模式，未设计流式增量协议。
         if self.structured_output_schema is not None or self.bound_tools:
             raise ValueError("当前结构化输出/工具绑定链路仅支持非流式调用")
+
+    def _api_messages_to_langchain_messages(self, messages: Sequence[Dict[str, Any]]) -> List[BaseMessage]:
+        """把项目内部消息结构映射为 LangChain `BaseMessage`。"""
+        langchain_messages: List[BaseMessage] = []
+        for message in messages:
+            role = self._normalize_role(message.get("role"))
+            content = str(message.get("content", ""))
+            if role == "system":
+                langchain_messages.append(SystemMessage(content=content))
+            elif role == "assistant":
+                raw_tool_calls = message.get("tool_calls")
+                if isinstance(raw_tool_calls, list) and raw_tool_calls:
+                    normalized_tool_calls = []
+                    for tool_call in raw_tool_calls:
+                        if not isinstance(tool_call, dict):
+                            continue
+                        normalized_tool_calls.append(
+                            {
+                                "id": tool_call.get("id"),
+                                "type": "tool_call",
+                                "name": tool_call.get("name"),
+                                "args": tool_call.get("args") if isinstance(tool_call.get("args"), dict) else {},
+                            }
+                        )
+                    langchain_messages.append(AIMessage(content=content, tool_calls=normalized_tool_calls))
+                else:
+                    langchain_messages.append(AIMessage(content=content))
+            elif role == "tool":
+                tool_call_id = str(message.get("tool_call_id") or "")
+                if not tool_call_id:
+                    raise ValueError("tool 角色消息缺少 tool_call_id")
+                tool_name = message.get("name")
+                status = "error" if str(message.get("status") or "success") == "error" else "success"
+                langchain_messages.append(
+                    ToolMessage(
+                        content=content,
+                        tool_call_id=tool_call_id,
+                        name=str(tool_name) if tool_name else None,
+                        status=status,
+                    )
+                )
+            else:
+                langchain_messages.append(HumanMessage(content=content))
+        return langchain_messages
 
     def _build_options(
         self,
@@ -535,98 +965,6 @@ class LangChainModelManager:
             api_messages.append({"role": role, "content": str(getattr(message, "content", ""))})
         return api_messages
 
-    def _decorate_messages(self, messages: Sequence[Dict[str, str]]) -> List[Dict[str, str]]:
-        """在消息数组前附加结构化输出与工具绑定指令。"""
-        # 先复制输入，避免对调用方传入的数据产生副作用。
-        decorated_messages = [dict(message) for message in messages]
-        # instruction_parts：所有附加系统约束说明。
-        instruction_parts: List[str] = []
-        if self.bound_tools:
-            instruction_parts.append(self._build_tool_binding_instruction())
-        if self.structured_output_schema is not None:
-            instruction_parts.append(self._build_structured_output_instruction(self.structured_output_schema))
-        if instruction_parts:
-            # 关键逻辑：统一在最前面插入一条 system 消息，保证约束优先级最高。
-            decorated_messages.insert(0, {"role": "system", "content": "\n\n".join(instruction_parts)})
-        return decorated_messages
-
-    def _build_structured_output_instruction(self, output_schema: type[BaseModel]) -> str:
-        """构造结构化输出约束说明。"""
-        # ensure_ascii=False：保留中文字符，保证注入给模型的 Schema 文本可直接阅读。
-        schema_json = json.dumps(output_schema.model_json_schema(), ensure_ascii=False, indent=2)
-        return (
-            "请严格返回 JSON 对象，不要输出额外解释、Markdown 代码块或前后缀文本。\n"
-            f"输出 JSON 必须满足以下 Schema：\n{schema_json}"
-        )
-
-    def _build_tool_binding_instruction(self) -> str:
-        """构造工具绑定说明。"""
-        # 将工具列表序列化为 JSON 文本，便于模型按统一结构理解每个工具的名称与参数。
-        tools_json = json.dumps([tool.model_dump() for tool in self.bound_tools], ensure_ascii=False, indent=2)
-        return (
-            "你当前处于工具绑定决策模式。\n"
-            "你只能在给定工具集合中选择最合适的工具，或者明确返回不调用工具。\n"
-            f"可用工具定义如下：\n{tools_json}"
-        )
-
-    def _parse_structured_output(self, raw_text: str) -> BaseModel:
-        """把模型原始文本解析为结构化对象。"""
-        if self.structured_output_schema is None:
-            raise ValueError("未配置结构化输出 Schema")
-
-        # 第一步：尽量从模型结果文本中提取出 JSON 主体。
-        json_payload = self._extract_json_payload(raw_text)
-        try:
-            # 第二步：把 JSON 文本解析成 Python 对象。
-            parsed_payload = json.loads(json_payload)
-        except json.JSONDecodeError as error:
-            logger.error("结构化输出 JSON 解析失败: %s; raw=%s", error, raw_text)
-            raise ValueError(f"结构化输出 JSON 解析失败: {error}") from error
-
-        try:
-            # 第三步：使用目标 Pydantic Schema 做严格校验，保证输出契约稳定。
-            return self.structured_output_schema.model_validate(parsed_payload)
-        except ValidationError as error:
-            logger.error("结构化输出 Schema 校验失败: %s; payload=%s", error, parsed_payload)
-            raise ValueError(f"结构化输出 Schema 校验失败: {error}") from error
-
-    def _extract_json_payload(self, raw_text: str) -> str:
-        """尽量从模型结果中提取 JSON 片段。"""
-        if not isinstance(raw_text, str):
-            raise ValueError("结构化输出原文不是字符串")
-
-        # 优先提取 ```json ... ``` 代码块，这是最常见的模型输出格式。
-        fenced_match = re.search(r"```json\s*(.*?)\s*```", raw_text, flags=re.DOTALL | re.IGNORECASE)
-        if fenced_match:
-            return fenced_match.group(1).strip()
-
-        # 其次兼容没有显式 json 标识的普通代码块。
-        generic_fenced_match = re.search(r"```\s*(.*?)\s*```", raw_text, flags=re.DOTALL)
-        if generic_fenced_match:
-            return generic_fenced_match.group(1).strip()
-
-        # 最后尝试直接提取大括号包裹的 JSON 对象文本作为兜底。
-        json_match = re.search(r"\{.*\}", raw_text, flags=re.DOTALL)
-        if json_match:
-            return json_match.group(0).strip()
-
-        raise ValueError("未从模型输出中提取到 JSON 对象")
-
-    def _normalize_tool_definition(self, tool: Dict[str, Any] | ToolBindingInstruction) -> ToolBindingInstruction:
-        """把不同形态的工具描述统一为绑定指令对象。"""
-        if isinstance(tool, ToolBindingInstruction):
-            return tool
-        if not isinstance(tool, dict):
-            raise TypeError("工具绑定定义必须是 dict 或 ToolBindingInstruction")
-
-        # 兼容不同来源工具定义的字段差异。
-        input_schema = tool.get("input_schema") or tool.get("parameters") or tool.get("args_schema") or {}
-        return ToolBindingInstruction(
-            name=str(tool.get("name") or tool.get("tool_name") or ""),
-            description=str(tool.get("description") or ""),
-            input_schema=deepcopy(input_schema if isinstance(input_schema, dict) else {}),
-        )
-
     def _normalize_role(self, role: Any) -> str:
         """统一不同消息角色到项目内部角色集合。"""
         # normalized_role：统一转小写并处理别名，收敛成项目内部固定角色集。
@@ -637,6 +975,8 @@ class LangChainModelManager:
             return "assistant"
         if normalized_role == "system":
             return "system"
+        if normalized_role == "tool":
+            return "tool"
         return "user"
 
 
@@ -656,6 +996,6 @@ __all__ = [
     "LangChainModelManager",
     "LangChainModelRuntime",
     "ModelCallOptions",
-    "ToolBindingInstruction",
     "get_langchain_model_manager",
 ]
+

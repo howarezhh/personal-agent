@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -58,10 +58,18 @@ class SSEEvent(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "type": "content",
-                "message": "chunk generated",
-                "content": "hello",
-                "metadata": {},
+                "type": "result",
+                "message": "plan generated",
+                "content": {"plan_id": "plan_xxx"},
+                "metadata": {
+                    "stage": "planning",
+                    "request_id": "req_xxx",
+                    "conversation_id": "conv_xxx",
+                    "message_id": "msg_xxx",
+                    "execution_id": "exec_xxx",
+                    "plan_id": "plan_xxx",
+                    "step_id": None,
+                },
                 "timestamp": "2024-01-01T00:00:00Z",
                 "request_id": "req_xxx",
                 "conversation_id": "conv_xxx",
@@ -80,6 +88,8 @@ class SSEEvent(BaseModel):
     conversation_id: str | None = None
     message_id: str | None = None
     execution_id: str | None = None
+    error_code: str | None = None
+    citations: list[dict[str, Any]] | None = None
 
 
 class StreamChunkSchema(BaseModel):
@@ -115,6 +125,8 @@ def build_sse_event(
     conversation_id: Optional[str] = None,
     message_id: Optional[str] = None,
     execution_id: Optional[str] = None,
+    error_code: Optional[str] = None,
+    citations: Optional[list[dict[str, Any]]] = None,
 ) -> dict[str, Any]:
     return SSEEvent(
         type=event_type,
@@ -125,6 +137,8 @@ def build_sse_event(
         conversation_id=conversation_id,
         message_id=message_id,
         execution_id=execution_id,
+        error_code=error_code,
+        citations=citations,
     ).model_dump()
 
 

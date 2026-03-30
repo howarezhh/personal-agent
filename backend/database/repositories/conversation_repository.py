@@ -26,6 +26,16 @@ class ConversationRepository(BaseRepository):
 
     TABLE_NAME = "conversations"
 
+    def _get_actual_message_count(self, conversation_id: str) -> int:
+        return self.db.count("messages", {"conversation_id": conversation_id})
+
+    def _hydrate_message_count(self, conversation: Optional[Conversation]) -> Optional[Conversation]:
+        if conversation is None:
+            return None
+
+        conversation.message_count = self._get_actual_message_count(conversation.conversation_id)
+        return conversation
+
     def create_conversation(self, conversation_create: ConversationCreate) -> Conversation:
         """
         创建会话
@@ -79,7 +89,7 @@ class ConversationRepository(BaseRepository):
             table=self.TABLE_NAME,
             where={"conversation_id": conversation_id}
         )
-        return self._dict_to_model(result, Conversation)
+        return self._hydrate_message_count(self._dict_to_model(result, Conversation))
 
     def get_user_conversations(
         self,
@@ -145,10 +155,15 @@ class ConversationRepository(BaseRepository):
             SELECT
                 c.conversation_id,
                 c.title,
-                c.message_count,
+                COALESCE(mc.actual_message_count, c.message_count, 0) as message_count,
                 c.updated_at,
                 m.content as last_message_preview
             FROM {self.TABLE_NAME} c
+            LEFT JOIN (
+                SELECT conversation_id, COUNT(*) as actual_message_count
+                FROM messages
+                GROUP BY conversation_id
+            ) mc ON c.conversation_id = mc.conversation_id
             LEFT JOIN (
                 SELECT conversation_id, content,
                        ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY sequence_number DESC) as rn
@@ -391,7 +406,7 @@ class ConversationRepository(BaseRepository):
             table=self.TABLE_NAME,
             where=where
         )
-        return self._dict_to_model(result, Conversation)
+        return self._hydrate_message_count(self._dict_to_model(result, Conversation))
 
     def delete_user_conversations(self, user_id: str, soft_delete: bool = True) -> int:
         """

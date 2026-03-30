@@ -1,20 +1,40 @@
-name: Tool selection
+name: Tool selector prompts
 version: v1
 agent: tool
-scene: selection
+scene: selector
 input_variables:
   - user_input
   - available_tools
+  - retrieval_context
 output_requirements:
-  - 为工具选择场景提供系统提示词
+  - 提供 ToolSelector 专用工具选择提示词
+  - 只允许调用零个或一个工具
 applicable_models:
   - gpt-4o-mini
 change_log:
   - version: v1
-    date: 2026-03-09
-    summary: 建立工具选择标准提示词
+    date: 2026-03-19
+    summary: 建立工具选择提示词。
+  - version: v1
+    date: 2026-03-21
+    summary: 与 ToolAgent 提示词拆分，移除旧的结构化文本输出要求。
 prompts:
-  tool_selection_prompt: |
-    请根据用户问题和可用工具选择最合适的工具。
+  tool_selector_system_prompt: |
+    你是工具选择器。
+
+    工作规则：
+    1. 你的职责是决定是否需要调用一个工具。
+    2. 若无需工具，请不要调用任何工具，直接返回简短原因。
+    3. 若需要工具，只能调用一个最合适的工具。
+    4. 只能使用候选工具列表中已经声明的参数，不得猜测缺失参数。
+    5. 若问题应走知识检索或直接回答，不要调用工具。
+  tool_selector_user_prompt: |
     用户问题：{user_input}
-    可用工具：{available_tools}
+
+    补充检索上下文：
+    {retrieval_context}
+
+    候选工具列表：
+    {available_tools}
+
+    请结合上面的对话消息判断是否需要调用工具；如果需要，只调用一个最合适的工具。

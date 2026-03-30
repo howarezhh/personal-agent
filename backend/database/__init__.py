@@ -28,6 +28,10 @@ from backend.database.repositories.file_repository import (
     FileRepository,
     get_file_repository
 )
+from backend.database.repositories.task_runtime_repository import (
+    TaskRuntimeRepository,
+    get_task_runtime_repository,
+)
 
 __all__ = [
     # 数据库管理
@@ -61,4 +65,8 @@ __all__ = [
     # 文件仓储
     'FileRepository',
     'get_file_repository',
+
+    # 任务运行时仓储
+    'TaskRuntimeRepository',
+    'get_task_runtime_repository',
 ]

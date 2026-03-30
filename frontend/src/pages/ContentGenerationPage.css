@@ -1,8 +1,4 @@
-.content-generation-page {
-  height: 100%;
-  padding: 24px;
-  min-height: 100%;
-  overflow-y: auto;
+﻿.content-generation-page {
   overflow-x: hidden;
   background:
     radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 28%),
@@ -92,3 +88,4 @@
     font-size: 28px !important;
   }
 }
+

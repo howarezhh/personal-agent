@@ -1,4 +1,4 @@
-import type { Document } from '@/types';
+﻿import type { Document } from '@/types';
 
 export const documentStatusLabelMap: Record<string, string> = {
   pending: '等待中',
@@ -8,7 +8,7 @@ export const documentStatusLabelMap: Record<string, string> = {
 };
 
 export const documentStageLabelMap: Record<string, string> = {
-  pending: '排队中',
+  pending: '等待处理',
   queued: '排队中',
   parsing: '解析文档',
   chunking: '切分文本',

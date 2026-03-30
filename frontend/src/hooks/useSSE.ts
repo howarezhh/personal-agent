@@ -14,8 +14,6 @@ export const useSSE = () => {
   const emitSSEEvents = (
     rawChunk: string,
     onEvent: (event: SSEEvent) => void,
-    onComplete?: () => void,
-    onTerminate?: (event: SSEEvent) => void
   ) => {
     const eventBlocks = rawChunk.replace(/\r\n/g, '\n').split('\n\n');
 
@@ -37,8 +35,8 @@ export const useSSE = () => {
       onEvent(event);
 
       if (event.type === 'done' || event.type === 'error') {
-        onTerminate?.(event);
-        onComplete?.();
+        // 重要：终止事件到达后不要立即 cancel reader，
+        // 否则服务端可能还来不及完成持久化与清理逻辑。
         return true;
       }
     }
@@ -174,13 +172,10 @@ export const useSSE = () => {
 
           const completedChunk = normalizedBuffer.slice(0, completedLength);
           buffer = normalizedBuffer.slice(completedLength + 2);
-          const shouldTerminate = emitSSEEvents(completedChunk, onEvent, onComplete, () => {
+          const shouldTerminate = emitSSEEvents(completedChunk, onEvent);
+          if (shouldTerminate) {
             receivedTerminalEvent = true;
-            clearTimers();
-            void reader.cancel();
-          });
-
-          if (shouldTerminate) return;
+          }
         }
       } catch (error: unknown) {
         clearTimers();

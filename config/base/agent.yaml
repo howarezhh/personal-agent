@@ -1,32 +1,13 @@
-﻿# 鏅鸿兘浣撻厤缃枃浠?
+﻿# 智能体配置文件
 
-# 閫氱敤閰嶇疆
+# 通用配置
 common:
-  max_iterations: 10  # 鏈€澶ц凯浠ｆ鏁?
-  timeout: 300  # 瓒呮椂鏃堕棿锛堢锛?
-  enable_streaming: true  # 鏄惁鍚敤娴佸紡杈撳嚭
-  save_execution_records: true  # 鏄惁淇濆瓨鎵ц璁板綍
+  max_iterations: 10  # 最大迭代次数
+  timeout: 300  # 超时时间（秒）
+  enable_streaming: true  # 是否启用流式输出
+  save_execution_records: true  # 是否保存执行记录
 
-# 璺敱鏅鸿兘浣撻厤缃?
-router_agent:
-  agent_name: "RouterAgent"
-  agent_type: "router"
-  model: "primary"  # 浣跨敤涓绘ā鍨?
-  temperature: 0.3  # 杈冧綆娓╁害锛屼繚璇佸喅绛栫ǔ瀹氭€?
-  max_tokens: 500
-  prompt_template: "router_system_prompt"  # 鎻愮ず璇嶆ā鏉垮悕绉?
-
-  # 鍐崇瓥绫诲瀷
-  decision_types:
-    - "direct_answer"  # 鐩存帴鍥炵瓟
-    - "retrieval"  # 妫€绱㈢煡璇嗗簱
-    - "tool_call"  # 璋冪敤宸ュ叿
-    - "multi_agent"  # 澶氭櫤鑳戒綋鍗忎綔
-
-  # 缃俊搴﹂槇鍊?
-  confidence_threshold: 0.7
-
-# 妫€绱㈡櫤鑳戒綋閰嶇疆
+# 检索智能体配置
 retrieval_agent:
   agent_name: "RetrievalAgent"
   agent_type: "retrieval"
@@ -35,18 +16,44 @@ retrieval_agent:
   max_tokens: 1000
   prompt_template: "retrieval_system_prompt"
 
-  # 妫€绱㈠弬鏁?
-  top_k: 10  # 杩斿洖鍓岾涓粨鏋?
-  similarity_threshold: 0.3  # 鐩镐技搴﹂槇鍊硷紙L2璺濈杞崲鍚庣殑鐩镐技搴﹁寖鍥寸害0-0.5锛?.3鏄悎鐞嗙殑闃堝€硷級
-  enable_rerank: true  # 鏄惁鍚敤閲嶆帓搴?
-  rerank_top_k: 10  # 閲嶆帓搴忓悗杩斿洖鐨勭粨鏋滄暟
-  enable_summary: false  # 鏄惁鐢熸垚妫€绱㈢粨鏋滄憳瑕侊紙浣跨敤LLM锛屼細澧炲姞寤惰繜锛?
+  # 检索参数
+  top_k: 10  # 返回前 k 个结果
+  similarity_threshold: 0.3  # 相似度阈值（L2 距离转换后的相似度范围约 0-0.5，0.3 为较合理阈值）
+  enable_rerank: true  # 是否启用重排序
+  rerank_top_k: 10  # 重排序后返回的结果数
+  enable_semantic_rerank: true
+  semantic_rerank_weight: 0.75
+  diversity_weight: 0.05
+  enable_summary: false  # 是否生成检索结果摘要（使用 LLM，会增加延迟）
+  fusion_strategy: "rrf"
+  rrf_k: 60
+  vector_distance_metric: "l2"
+  vector_similarity_calibration: "auto"
+  sparse_index_cache_enabled: true
+  sparse_index_cache_ttl_seconds: 1800
+  sparse_index_cache_max_entries: 64
+  query_decomposition_max_queries: 2
+  keyword_query_max_queries: 2
+  max_retrieval_candidates: 30
+  max_rerank_results: 10
+  force_hybrid_retrieval: true
+  force_exact_phrase: true
+  force_sparse_keyword: true
+  force_dense_vector: true
+  force_rerank: true
+  min_rerank_score: 0.45
+  relative_score_floor_ratio: 0.75
+  max_score_gap: 0.18
+  min_query_relevance_score: 0.28
+  min_semantic_rerank_score: 0.55
+  semantic_agreement_bonus: 0.08
+  semantic_disagreement_penalty: 0.12
 
-  # 鏌ヨ閲嶅啓
+  # 查询重写
   enable_query_rewrite: true
   query_rewrite_prompt: "query_rewrite_prompt"
 
-# 鐢熸垚鏅鸿兘浣撻厤缃?
+# 生成智能体配置
 generation_agent:
   agent_name: "GenerationAgent"
   agent_type: "generation"
@@ -55,15 +62,15 @@ generation_agent:
   max_tokens: 2000
   prompt_template: "generation_system_prompt"
 
-  # 鐢熸垚鍙傛暟
-  enable_citation: true  # 鏄惁寮曠敤鏉ユ簮
-  enable_hallucination_check: true  # 鏄惁妫€鏌ュ够瑙?
-  max_context_length: 4000  # 鏈€澶т笂涓嬫枃闀垮害
+  # 生成参数
+  enable_citation: true  # 是否引用来源
+  enable_hallucination_check: true  # 是否检查幻觉
+  max_context_length: 4000  # 最大上下文长度
 
-  # 娴佸紡杈撳嚭
+  # 流式输出
   streaming_chunk_size: 10
 
-# 宸ュ叿璋冪敤鏅鸿兘浣撻厤缃?
+# 工具调用智能体配置
 tool_agent:
   agent_name: "ToolAgent"
   agent_type: "tool"
@@ -72,7 +79,7 @@ tool_agent:
   max_tokens: 1000
   prompt_template: "tool_selection_prompt"
 
-  # 宸ュ叿閰嶇疆
+  # 工具配置
   available_tools:
     - "web_search"
     - "calculator"
@@ -88,17 +95,17 @@ tool_agent:
     - "exchange_rate_mcp"
     - "ip_lookup_mcp"
 
-  # 瓒呮椂鍜岄噸璇曢厤缃?
-  tool_timeout: 30  # 宸ュ叿璋冪敤瓒呮椂鏃堕棿锛堢锛?
-  max_retries: 2  # 鏈€澶ч噸璇曟鏁帮紙澶辫触鍚庨噸璇曪級
-  retry_delay: 1.0  # 閲嶈瘯寤惰繜锛堢锛?
-  max_tool_calls: 5  # 鏈€澶у伐鍏疯皟鐢ㄦ鏁?
+  # 超时和重试配置
+  tool_timeout: 30  # 工具调用超时时间（秒）
+  max_retries: 2  # 最大重试次数（失败后重试）
+  retry_delay: 1.0  # 重试延迟（秒）
+  max_tool_calls: 5  # 最大工具调用次数
 
-  # 鎬ц兘鐩戞帶
-  enable_performance_monitoring: true  # 鏄惁鍚敤鎬ц兘鐩戞帶
-  log_performance_stats: true  # 鏄惁璁板綍鎬ц兘缁熻鍒版棩蹇?
+  # 性能监控
+  enable_performance_monitoring: true  # 是否启用性能监控
+  log_performance_stats: true  # 是否记录性能统计到日志
 
-# 鏂囦欢澶勭悊鏅鸿兘浣撻厤缃?
+# 文档处理 Agent 配置
 file_processor_agent:
   agent_name: "FileProcessorAgent"
   agent_type: "file_processor"
@@ -106,26 +113,101 @@ file_processor_agent:
   temperature: 0.5
   max_tokens: 1500
 
-  # 鏀寔鐨勬枃浠剁被鍨?
+  # 支持的文件类型
   supported_formats:
     - "pdf"
     - "docx"
+    - "pptx"
     - "xlsx"
-    - "txt"
-    - "md"
+    - "xls"
     - "csv"
+    - "tsv"
+    - "html"
+    - "htm"
+    - "svg"
+    - "txt"
+    - "rst"
+    - "log"
+    - "md"
+    - "markdown"
+    - "json"
+    - "xml"
+    - "png"
+    - "jpg"
+    - "jpeg"
+    - "gif"
+    - "bmp"
+    - "webp"
+    - "py"
+    - "js"
+    - "ts"
+    - "tsx"
+    - "jsx"
+    - "java"
+    - "c"
+    - "cpp"
+    - "cc"
+    - "cxx"
+    - "h"
+    - "hpp"
+    - "go"
+    - "rs"
+    - "rb"
+    - "php"
+    - "cs"
+    - "swift"
+    - "kt"
+    - "kts"
+    - "scala"
+    - "sh"
+    - "bash"
+    - "zsh"
+    - "bat"
+    - "ps1"
+    - "sql"
+    - "yaml"
+    - "yml"
+    - "toml"
+    - "ini"
+    - "cfg"
+    - "conf"
+    - "env"
+    - "properties"
+    - "css"
+    - "scss"
+    - "less"
+    - "vue"
+    - "gitignore"
 
-  # 鏂囦欢澶у皬闄愬埗锛圡B锛?
+  # 文件大小限制（MB）
   max_file_size: 50
 
-  # 鏂囨湰鍒嗗潡鍙傛暟
+  # 文本分块参数
   chunk_size: 1000
   chunk_overlap: 100
 
-# ??????
+# Agent 运行期通用配置
 agent:
   conversation_history:
-    max_history_length: 10  # ??????????
-    include_agent_executions: true  # ???????????
+    max_history_length: 10  # 最大历史长度
+    include_agent_executions: true  # 是否包含 Agent 执行记录
     format: "messages"  # messages/text
+
+  # task runtime 的 LLM 组件配置。
+  # 默认开启 LLM 主链路；若模型运行时初始化失败，则按 fallback_to_rule_based 自动回退。
+  task_runtime:
+    enable_llm_components: true
+    fallback_to_rule_based: true
+    model: "primary"
+    goal_parser_enabled: true
+    planner_enabled: true
+    step_evaluator_enabled: true
+    goal_judge_enabled: true
+    replanner_enabled: true
+    goal_parser_temperature: 0.2
+    planner_temperature: 0.2
+    critic_temperature: 0.1
+    replanner_temperature: 0.2
+    max_tokens: 1400
+    prepared_session_ttl_seconds: 300  # prepare 缓存 TTL，避免只调 `/tasks` 时长期占用内存
 

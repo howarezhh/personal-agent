@@ -10,7 +10,7 @@ export const NewConversationButton = ({ onCreate }: NewConversationButtonProps) 
     try {
       await onCreate();
     } catch (error) {
-      console.error('[NewConversationButton] 新建会话失败:', error);
+      console.error('[NewConversationButton] create conversation failed:', error);
     }
   };
 
@@ -21,7 +21,7 @@ export const NewConversationButton = ({ onCreate }: NewConversationButtonProps) 
       onClick={handleNewConversation}
       block
     >
-      新建对话
+      {'\u65b0\u5efa\u5bf9\u8bdd'}
     </Button>
   );
 };

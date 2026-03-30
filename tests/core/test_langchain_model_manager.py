@@ -1,148 +1,262 @@
-# -*- coding: utf-8 -*-
-"""LangChain 模型交互层回归测试。"""
-
+﻿# -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import Any, Dict, List
+import threading
+from types import SimpleNamespace
 
 import pytest
-from langchain_core.prompts import PromptTemplate
-from pydantic import BaseModel, Field
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, SystemMessage, ToolMessage
+from pydantic import BaseModel
 
 from backend.core.llm_manager import LangChainModelManager, LangChainModelRuntime
 
 
-class FakeModelRuntime(LangChainModelRuntime):
-    """用于测试的假模型运行时。"""
+class AnswerSchema(BaseModel):
+    answer: str
 
-    def __init__(self, *, response: str = "", stream_chunks: List[str] | None = None):
-        self.response = response
-        self.stream_chunks = stream_chunks or []
-        self.calls: List[Dict[str, Any]] = []
 
-    async def invoke(self, messages: List[Dict[str, str]], options) -> str:  # type: ignore[override]
-        self.calls.append({"method": "invoke", "messages": messages, "options": options})
-        return self.response
+class FakeRunnable:
+    def __init__(self, chat_model: "FakeChatModel", mode: str):
+        self.chat_model = chat_model
+        self.mode = mode
 
-    async def stream(self, messages: List[Dict[str, str]], options):  # type: ignore[override]
-        self.calls.append({"method": "stream", "messages": messages, "options": options})
-        for chunk in self.stream_chunks:
+    async def ainvoke(self, messages):
+        self.chat_model.runnable_messages = messages
+        if self.mode == "structured":
+            if self.chat_model.structured_error is not None:
+                raise self.chat_model.structured_error
+            return self.chat_model.structured_result
+        return self.chat_model.bound_result
+
+
+class FakeChatModel:
+    def __init__(self):
+        self.last_messages = None
+        self.runnable_messages = None
+        self.stream_messages = None
+        self.bound_tools = None
+        self.structured_schema = None
+        self.structured_error = None
+        self.plain_result = AIMessage(content="plain response")
+        self.bound_result = AIMessage(
+            content="",
+            tool_calls=[{"name": "weather", "args": {"city": "Shanghai"}, "id": "call_1", "type": "tool_call"}],
+        )
+        self.structured_result = AnswerSchema(answer="structured response")
+        self.stream_result = [AIMessageChunk(content="hello"), AIMessageChunk(content=" world")]
+
+    async def ainvoke(self, messages):
+        self.last_messages = messages
+        return self.plain_result
+
+    async def astream(self, messages):
+        self.stream_messages = messages
+        for chunk in self.stream_result:
             yield chunk
 
+    def bind_tools(self, tools):
+        self.bound_tools = tools
+        return FakeRunnable(self, "bound")
 
-class DemoStructuredResult(BaseModel):
-    """测试用结构化结果。"""
-
-    answer: str
-    confidence: float = 0.0
+    def with_structured_output(self, schema):
+        self.structured_schema = schema
+        return FakeRunnable(self, "structured")
 
 
-class ToolSelectionResult(BaseModel):
-    """测试用工具选择结果。"""
+class FakeRuntime:
+    def __init__(self, chat_model: FakeChatModel):
+        self.chat_model = chat_model
+        self.options = []
 
-    tool_name: str | None = None
-    tool_params: Dict[str, Any] = Field(default_factory=dict)
+    def get_langchain_chat_model(self, *, options=None):
+        self.options.append(options)
+        return self.chat_model
 
 
 @pytest.mark.asyncio
-async def test_invoke_messages_keeps_existing_message_contract() -> None:
-    """消息调用应保持项目内部消息结构不变。"""
-    runtime = FakeModelRuntime(response="ok")
-    manager = LangChainModelManager(runtime=runtime)
+async def test_invoke_messages_returns_plain_text_from_native_chat_model() -> None:
+    chat_model = FakeChatModel()
+    manager = LangChainModelManager(runtime=FakeRuntime(chat_model))
 
-    result = await manager.invoke_messages(
-        messages=[
-            {"role": "system", "content": "系统提示"},
-            {"role": "user", "content": "用户问题"},
-        ],
-        temperature=0.2,
-        max_tokens=128,
+    result = await manager.invoke_messages([{"role": "user", "content": "hello"}])
+
+    assert result == "plain response"
+    assert isinstance(chat_model.last_messages[0], HumanMessage)
+    assert chat_model.last_messages[0].content == "hello"
+
+
+@pytest.mark.asyncio
+async def test_with_structured_output_uses_native_langchain_schema() -> None:
+    chat_model = FakeChatModel()
+    manager = LangChainModelManager(runtime=FakeRuntime(chat_model))
+
+    result = await manager.with_structured_output(AnswerSchema).invoke_messages(
+        [{"role": "user", "content": "Return structured data"}]
     )
 
-    assert result == "ok"
-    assert runtime.calls[0]["messages"] == [
-        {"role": "system", "content": "系统提示"},
-        {"role": "user", "content": "用户问题"},
-    ]
-    assert runtime.calls[0]["options"].temperature == 0.2
-    assert runtime.calls[0]["options"].max_tokens == 128
+    assert isinstance(result, AnswerSchema)
+    assert result.answer == "structured response"
+    assert chat_model.structured_schema is AnswerSchema
 
 
 @pytest.mark.asyncio
-async def test_with_structured_output_parses_json_payload() -> None:
-    """结构化输出应由模型交互层负责解析与校验。"""
-    runtime = FakeModelRuntime(response='```json\n{"answer": "done", "confidence": 0.91}\n```')
-    manager = LangChainModelManager(runtime=runtime).with_structured_output(DemoStructuredResult)
+async def test_with_structured_output_falls_back_to_json_parsing_when_native_call_fails() -> None:
+    chat_model = FakeChatModel()
+    chat_model.structured_error = ValueError("Error code: 400, with error text {\"error\":{\"code\":\"1210\"}}")
+    chat_model.plain_result = AIMessage(content='{"answer": "fallback response"}')
+    manager = LangChainModelManager(runtime=FakeRuntime(chat_model))
 
-    result = await manager.invoke_prompt_template(
-        PromptTemplate.from_template("请返回结构化结果：{question}"),
-        {"question": "测试"},
+    result = await manager.with_structured_output(AnswerSchema).invoke_messages(
+        [{"role": "user", "content": "Return structured data"}]
     )
 
-    assert isinstance(result, DemoStructuredResult)
-    assert result.answer == "done"
-    assert result.confidence == pytest.approx(0.91)
+    assert isinstance(result, AnswerSchema)
+    assert result.answer == "fallback response"
+    assert isinstance(chat_model.last_messages[0], SystemMessage)
 
 
 @pytest.mark.asyncio
-async def test_bind_tools_injects_tool_instruction_before_model_call() -> None:
-    """工具绑定不能把工具私有结构散落到业务层。"""
-    runtime = FakeModelRuntime(response='{"tool_name": "translation", "tool_params": {"target_lang": "en"}}')
-    manager = (
-        LangChainModelManager(runtime=runtime)
-        .bind_tools(
-            [
-                {
-                    "name": "translation",
-                    "description": "翻译工具",
-                    "input_schema": {"type": "object", "properties": {"target_lang": {"type": "string"}}},
-                }
-            ]
+async def test_bind_tools_uses_native_langchain_bind_tools() -> None:
+    chat_model = FakeChatModel()
+    manager = LangChainModelManager(runtime=FakeRuntime(chat_model))
+    tools = [SimpleNamespace(name="weather")]
+
+    result = await manager.bind_tools(tools).invoke_messages([{"role": "user", "content": "check weather"}])
+
+    assert isinstance(result, AIMessage)
+    assert chat_model.bound_tools == tools
+    assert result.tool_calls[0]["name"] == "weather"
+
+
+@pytest.mark.asyncio
+async def test_bind_tools_and_structured_output_conflict_raises_immediately() -> None:
+    chat_model = FakeChatModel()
+    manager = LangChainModelManager(runtime=FakeRuntime(chat_model))
+
+    with pytest.raises(ValueError, match=r"bind_tools\(\).*with_structured_output\(\)"):
+        await manager.bind_tools([SimpleNamespace(name="weather")]).with_structured_output(AnswerSchema).invoke_messages(
+            [{"role": "user", "content": "bad combination"}]
         )
-        .with_structured_output(ToolSelectionResult)
-    )
-
-    result = await manager.invoke_messages(messages=[{"role": "user", "content": "把这句话翻成英文"}])
-
-    assert isinstance(result, ToolSelectionResult)
-    assert result.tool_name == "translation"
-    assert runtime.calls[0]["messages"][0]["role"] == "system"
-    assert "translation" in runtime.calls[0]["messages"][0]["content"]
 
 
 @pytest.mark.asyncio
-async def test_invoke_prompt_template_formats_variables_before_model_call() -> None:
-    """模板调用应先完成变量渲染，再传入统一消息契约。"""
-    runtime = FakeModelRuntime(response="ok")
-    manager = LangChainModelManager(runtime=runtime)
+async def test_invoke_messages_preserves_tool_protocol_fields() -> None:
+    chat_model = FakeChatModel()
+    manager = LangChainModelManager(runtime=FakeRuntime(chat_model))
 
-    result = await manager.invoke_prompt_template(
-        PromptTemplate.from_template("你好，{name}"),
-        {"name": "小明"},
-        system_prompt="你是助手",
+    await manager.invoke_messages(
+        [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"name": "weather", "args": {"city": "Shanghai"}, "id": "call_1", "type": "tool_call"}
+                ],
+            },
+            {
+                "role": "tool",
+                "content": '{"success": true}',
+                "tool_call_id": "call_1",
+                "name": "weather",
+                "status": "success",
+            },
+        ]
     )
 
-    assert result == "ok"
-    assert runtime.calls[0]["messages"] == [
-        {"role": "system", "content": "你是助手"},
-        {"role": "user", "content": "你好，小明"},
-    ]
+    received_messages = chat_model.last_messages
+    assert isinstance(received_messages[0], AIMessage)
+    assert received_messages[0].tool_calls[0]["id"] == "call_1"
+    assert received_messages[0].tool_calls[0]["name"] == "weather"
+    assert isinstance(received_messages[1], ToolMessage)
+    assert received_messages[1].tool_call_id == "call_1"
+    assert received_messages[1].name == "weather"
 
 
 @pytest.mark.asyncio
-async def test_stream_prompt_template_only_returns_plain_text_chunks() -> None:
-    """模板流式调用也只能暴露纯文本分片。"""
-    runtime = FakeModelRuntime(stream_chunks=["你好", "，", "世界"])
-    manager = LangChainModelManager(runtime=runtime)
+async def test_stream_messages_uses_native_langchain_astream() -> None:
+    chat_model = FakeChatModel()
+    manager = LangChainModelManager(runtime=FakeRuntime(chat_model))
 
-    collected: List[str] = []
-    async for chunk in manager.stream_prompt_template(
-        PromptTemplate.from_template("请向 {target} 问好"),
-        {"target": "世界"},
-    ):
-        collected.append(chunk)
+    chunks = []
+    async for chunk in manager.stream_messages([{"role": "user", "content": "stream please"}]):
+        chunks.append(chunk)
 
-    assert collected == ["你好", "，", "世界"]
-    assert runtime.calls[0]["method"] == "stream"
-    assert runtime.calls[0]["messages"] == [{"role": "user", "content": "请向 世界 问好"}]
-    assert all(isinstance(chunk, str) for chunk in collected)
+    assert "".join(chunks) == "hello world"
+    assert isinstance(chat_model.stream_messages[0], HumanMessage)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("manager_factory", "expected_message"),
+    [
+        (
+            lambda manager: manager.bind_tools([SimpleNamespace(name="weather")]),
+            "当前结构化输出/工具绑定链路仅支持非流式调用",
+        ),
+        (
+            lambda manager: manager.with_structured_output(AnswerSchema),
+            "当前结构化输出/工具绑定链路仅支持非流式调用",
+        ),
+    ],
+)
+async def test_stream_messages_rejects_bound_tools_and_structured_output(manager_factory, expected_message) -> None:
+    chat_model = FakeChatModel()
+    manager = manager_factory(LangChainModelManager(runtime=FakeRuntime(chat_model)))
+
+    with pytest.raises(ValueError, match=expected_message):
+        async for _chunk in manager.stream_messages([{"role": "user", "content": "stream please"}]):
+            pass
+
+
+def test_serialize_langchain_messages_uses_provider_tool_format() -> None:
+    runtime = LangChainModelRuntime.__new__(LangChainModelRuntime)
+    serialized = runtime.serialize_langchain_messages(
+        [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"name": "weather", "args": {"city": "Shanghai"}, "id": "call_1", "type": "tool_call"}
+                ],
+            ),
+            ToolMessage(content='{"success": true}', tool_call_id="call_1", name="weather", status="success"),
+        ]
+    )
+
+    assert serialized[0]["role"] == "assistant"
+    assert serialized[0]["tool_calls"][0]["type"] == "function"
+    assert serialized[0]["tool_calls"][0]["function"]["name"] == "weather"
+    assert serialized[1]["role"] == "tool"
+    assert serialized[1]["tool_call_id"] == "call_1"
+
+
+@pytest.mark.asyncio
+async def test_openai_stream_uses_background_thread_bridge() -> None:
+    runtime = LangChainModelRuntime.__new__(LangChainModelRuntime)
+    runtime.model_name = "gpt-test"
+    runtime.model_config = {"temperature": 0.7, "max_tokens": 128, "top_p": 0.9}
+
+    worker_thread_ids: list[int] = []
+
+    def _stream_factory(**kwargs):
+        class _Chunk:
+            def __init__(self, content: str):
+                self.choices = [SimpleNamespace(delta=SimpleNamespace(content=content))]
+
+        def _iterator():
+            worker_thread_ids.append(threading.get_ident())
+            yield _Chunk("hello")
+            worker_thread_ids.append(threading.get_ident())
+            yield _Chunk(" world")
+
+        return _iterator()
+
+    runtime.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=_stream_factory)))
+
+    options = SimpleNamespace(model=None, temperature=None, max_tokens=None, top_p=None, extra_kwargs={})
+    chunks = []
+    async for chunk in runtime._stream_openai([{"role": "user", "content": "hi"}], options):
+        chunks.append(chunk)
+
+    assert "".join(chunks) == "hello world"
+    assert worker_thread_ids
+    assert all(thread_id != threading.get_ident() for thread_id in worker_thread_ids)

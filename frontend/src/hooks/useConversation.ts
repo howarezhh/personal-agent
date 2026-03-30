@@ -1,7 +1,24 @@
 import { useCallback, useState } from 'react';
 
 import { conversationService } from '@/services/conversationService';
-import type { ConversationSummary, CreateConversationRequest } from '@/types';
+import type { Conversation, ConversationSummary, CreateConversationRequest } from '@/types';
+
+const CONVERSATION_PAGE_SIZE = 100;
+
+const sortConversations = (items: ConversationSummary[]): ConversationSummary[] => (
+  [...items].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+);
+
+const toConversationSummary = (
+  conversation: Conversation,
+  previous?: ConversationSummary
+): ConversationSummary => ({
+  conversationId: conversation.conversationId,
+  title: conversation.title,
+  messageCount: conversation.messageCount,
+  lastMessagePreview: previous?.lastMessagePreview,
+  updatedAt: conversation.updatedAt,
+});
 
 export const useConversation = () => {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -14,8 +31,8 @@ export const useConversation = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await conversationService.getConversations(page, 20, true);
-      setConversations(response.data);
+      const response = await conversationService.getConversations(page, CONVERSATION_PAGE_SIZE, true);
+      setConversations(sortConversations(response.data));
       setCurrentPage(response.pagination.page);
       setTotalPages(response.pagination.totalPages);
     } catch (err: any) {
@@ -41,6 +58,17 @@ export const useConversation = () => {
     await loadConversations(currentPage);
   }, [currentPage, loadConversations]);
 
+  const ensureConversationVisible = useCallback(async (conversationId: string) => {
+    const conversation = await conversationService.getConversation(conversationId);
+    setConversations((currentConversations) => {
+      const previous = currentConversations.find((item) => item.conversationId === conversation.conversationId);
+      const nextSummary = toConversationSummary(conversation, previous);
+      const nextConversations = currentConversations.filter((item) => item.conversationId !== conversation.conversationId);
+      return sortConversations([nextSummary, ...nextConversations]);
+    });
+    return conversation;
+  }, []);
+
   return {
     conversations,
     isLoading,
@@ -51,6 +79,7 @@ export const useConversation = () => {
     createConversation,
     deleteConversation,
     updateConversationTitle,
+    ensureConversationVisible,
   };
 };
 

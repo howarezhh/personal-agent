@@ -2,6 +2,7 @@
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import pytz
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
 import logging
 
@@ -141,8 +142,8 @@ class DateTimeTool(BaseTool):
                     "success": False,
                     "data": None,
                     "error": f"不支持的操作类型: {action}",
-                    "error_code": "TOOL_INVALID_PARAMETER",
-                    "error_type": "parameter_error",
+                    "error_code": ToolErrorCode.TOOL_INVALID_PARAMETER.value,
+                    "error_type": ToolErrorType.PARAMETER_ERROR.value,
                 }
 
         except Exception as e:

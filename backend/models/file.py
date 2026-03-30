@@ -14,6 +14,7 @@ class FileType(str, Enum):
     DOCX = "docx"
     PPTX = "pptx"
     XLSX = "xlsx"
+    TABULAR = "tabular"
     HTML = "html"
     IMAGE = "image"
     CODE = "code"

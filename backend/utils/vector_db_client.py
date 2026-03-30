@@ -17,6 +17,8 @@ except ModuleNotFoundError as error:
     _CHROMADB_IMPORT_ERROR = error
 
 from backend.core.config_manager import get_config_manager
+from backend.agents.retrieval.keyword_retriever import KeywordRetriever
+from backend.agents.retrieval.sparse_index_cache import get_sparse_index_cache
 from backend.utils.logger import get_logger
 
 
@@ -55,6 +57,71 @@ class VectorDBClient:
             self.provider,
             self.collection_name,
         )
+
+    def _get_sparse_index_cache(self):
+        """按统一检索配置返回稀疏索引缓存实例。"""
+        retrieval_config = self.config_manager.get_agent_config("retrieval")
+        return get_sparse_index_cache(
+            enabled=bool(retrieval_config.get("sparse_index_cache_enabled", True)),
+            ttl_seconds=int(retrieval_config.get("sparse_index_cache_ttl_seconds", 1800) or 1800),
+            max_entries=int(retrieval_config.get("sparse_index_cache_max_entries", 64) or 64),
+        )
+
+    def _load_corpus_for_scope(self, search_filter: Dict[str, Any]) -> tuple[Dict[str, Any], str]:
+        """加载指定作用域下的完整语料，用于入库后的缓存预热。"""
+        result = self.get_documents(where=search_filter, include=["documents", "metadatas"])
+        ids = result.get("ids", []) if isinstance(result, dict) else []
+        documents = result.get("documents", []) if isinstance(result, dict) else []
+        metadatas = result.get("metadatas", []) if isinstance(result, dict) else []
+        return {
+            "ids": list(ids or []),
+            "documents": [str(item or "") for item in list(documents or [])],
+            "metadatas": [dict(item or {}) for item in list(metadatas or [])],
+        }, "vector_store"
+
+    @staticmethod
+    def _build_keyword_index(corpus: Dict[str, Any]) -> Dict[str, Any]:
+        """用统一关键词检索器构建 BM25 风格索引。"""
+        ids = corpus.get("ids", []) or []
+        documents = corpus.get("documents", []) or []
+        metadatas = corpus.get("metadatas", []) or []
+        if not ids or not documents:
+            return {}
+        return KeywordRetriever().build_index(ids, documents, metadatas)
+
+    def _warm_sparse_indexes_for_metadatas(self, metadatas: Optional[List[Dict[str, Any]]]) -> None:
+        """根据文档元数据主动预热相关作用域缓存。"""
+        if not metadatas:
+            return
+        cache = self._get_sparse_index_cache()
+        if not getattr(cache, "enabled", False):
+            return
+
+        seen_scope_keys: set[str] = set()
+        for metadata in metadatas:
+            if not isinstance(metadata, dict):
+                continue
+            user_id = metadata.get("user_id")
+            knowledge_base_id = metadata.get("knowledge_base_id")
+            candidate_filters = []
+            if user_id and knowledge_base_id:
+                candidate_filters.append({"user_id": user_id, "knowledge_base_id": knowledge_base_id})
+            if user_id:
+                candidate_filters.append({"user_id": user_id})
+            if knowledge_base_id:
+                candidate_filters.append({"knowledge_base_id": knowledge_base_id})
+
+            for search_filter in candidate_filters:
+                scope_key = cache.build_scope_key(search_filter, collection_name=self.collection_name)
+                if scope_key in seen_scope_keys:
+                    continue
+                seen_scope_keys.add(scope_key)
+                cache.warm_scope(
+                    search_filter=search_filter,
+                    collection_name=self.collection_name,
+                    corpus_loader=self._load_corpus_for_scope,
+                    keyword_index_builder=self._build_keyword_index,
+                )
 
     def _load_config(self):
         vector_db_config = self.config_manager.get_database_config("vector_db")
@@ -142,6 +209,7 @@ class VectorDBClient:
                 metadatas=sanitized_metadatas,
                 ids=ids,
             )
+            self._warm_sparse_indexes_for_metadatas(sanitized_metadatas)
             self.logger.info("Added %s documents to vector collection: collection=%s", len(documents), self.collection_name)
             return True
         except Exception as error:
@@ -209,8 +277,12 @@ class VectorDBClient:
     def delete_documents(self, ids: Optional[List[str]] = None, where: Optional[Dict[str, Any]] = None) -> bool:
         try:
             self.last_error = None
+            cache = self._get_sparse_index_cache()
+            impacted = self.get_documents(ids=ids, where=where, include=["metadatas"]) if ids or where else {"metadatas": []}
+            impacted_metadatas = impacted.get("metadatas", []) if isinstance(impacted, dict) else []
             normalized_where = self.normalize_where_filter(where)
             self.collection.delete(ids=ids, where=normalized_where)
+            cache.invalidate_from_metadatas(metadatas=impacted_metadatas, collection_name=self.collection_name)
             self.logger.info(
                 "Deleted vector documents: collection=%s, ids=%s, where=%s",
                 self.collection_name,
@@ -264,7 +336,11 @@ class VectorDBClient:
     ) -> bool:
         try:
             self.last_error = None
+            cache = self._get_sparse_index_cache()
+            if metadatas:
+                cache.invalidate_from_metadatas(metadatas=metadatas, collection_name=self.collection_name)
             self.collection.update(ids=ids, documents=documents, embeddings=embeddings, metadatas=metadatas)
+            self._warm_sparse_indexes_for_metadatas(metadatas)
             self.logger.info("Updated %s vector documents: collection=%s", len(ids), self.collection_name)
             return True
         except Exception as error:
@@ -273,6 +349,7 @@ class VectorDBClient:
             return False
 
     def reset_collection(self) -> bool:
+        cache = self._get_sparse_index_cache()
         try:
             self.last_error = None
             self.client.delete_collection(name=self.collection_name)
@@ -288,6 +365,7 @@ class VectorDBClient:
                 name=self.collection_name,
                 metadata=self.collection_metadata,
             )
+            cache.clear()
             self.logger.warning("Vector collection reset: collection=%s", self.collection_name)
             return True
         except Exception as error:
@@ -334,7 +412,8 @@ class VectorDBClient:
                 self.collection_name,
             )
             embedding_client = get_embedding_client()
-            query_embedding = embedding_client.embed_text(query)
+            # 中文说明：query 与 document 分开编码，避免把文档向量策略误用于检索 query。
+            query_embedding = embedding_client.embed_query(query)
             if query_embedding is None:
                 self.last_error = "failed to build query embedding"
                 self.logger.error("Failed to build query embedding")
@@ -353,6 +432,25 @@ class VectorDBClient:
             self.last_error = str(error)
             self.logger.error("Semantic search failed: error=%s", error)
             return dict(EMPTY_QUERY_RESULT)
+
+    def as_langchain_retriever(
+        self,
+        *,
+        n_results: int = 5,
+        where: Optional[Dict[str, Any]] = None,
+        where_document: Optional[Dict[str, Any]] = None,
+    ):
+        """Return a LangChain retriever backed by this vector client."""
+        from backend.utils.vector_db_retriever import VectorDBRetriever
+
+        return VectorDBRetriever(
+            vector_client=self,
+            search_kwargs={
+                "n_results": n_results,
+                "where": where,
+                "where_document": where_document,
+            },
+        )
 
     def __repr__(self) -> str:
         return f"VectorDBClient(provider='{self.provider}', collection='{self.collection_name}')"

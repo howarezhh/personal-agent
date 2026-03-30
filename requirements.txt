@@ -13,15 +13,16 @@ python-multipart==0.0.6         # 文件上传支持
 # ============================================
 # LangChain生态
 # ============================================
-langchain==0.1.0                # LangChain核心
-langchain-community==0.0.10     # LangChain社区集成
-langgraph==0.0.20               # 多Agent编排
-langsmith==0.0.77               # LangSmith监控
+langchain==1.2.12               # LangChain核心
+langchain-core==1.2.19          # LangChain Core 显式版本声明
+langgraph==1.1.2                # 多Agent编排
+langgraph-prebuilt==1.0.8       # ToolNode 等预构建节点
+langsmith==0.7.20               # LangSmith监控
 
 # ============================================
 # LLM提供商SDK
 # ============================================
-openai==1.6.1                   # OpenAI SDK
+openai==2.29.0                  # OpenAI SDK
 zhipuai==2.0.1                  # 智谱AI SDK
 
 # ============================================
@@ -48,10 +49,18 @@ weaviate-client==3.26.0         # Weaviate客户端
 # 文档处理
 # ============================================
 pypdf==3.17.1                   # PDF解析
+PyPDF2==3.0.1                   # 兼容旧版 PDF 解析导入路径
+pdfplumber==0.11.9              # 版面友好的 PDF 文本提取
 python-docx==1.1.0              # Word文档解析
 openpyxl==3.1.2                 # Excel解析
+xlrd==2.0.2                     # 旧版 xls 解析
 pandas==2.1.4                   # 数据处理
 pillow==10.1.0                  # 图片处理
+PyMuPDF==1.27.2.2               # PDF 页面渲染与 OCR 回退
+pytesseract==0.3.13             # Tesseract OCR 适配层
+rapidocr_onnxruntime==1.4.4     # 无需系统 Tesseract 的 OCR 回退
+opencv-python==4.10.0.84        # RapidOCR 运行依赖，保持与 numpy 1.x 兼容
+charset-normalizer==3.4.4       # 文本编码探测
 
 # ============================================
 # 文本处理和嵌入

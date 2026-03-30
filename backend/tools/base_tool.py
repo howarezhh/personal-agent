@@ -20,12 +20,15 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, Dict, List, Optional
 
+from backend.contracts.tools import ToolCapability, ToolDescriptor, ToolOrigin, ToolTransportProtocol
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
+
 
 class ToolError(Exception):
     """所有工具异常的基类。"""
 
-    default_error_code = "TOOL_ERROR"
-    default_error_type = "tool_error"
+    default_error_code = ToolErrorCode.TOOL_ERROR.value
+    default_error_type = ToolErrorType.EXECUTION_ERROR.value
 
     def __init__(
         self,
@@ -42,36 +45,71 @@ class ToolError(Exception):
 class ToolTimeoutError(ToolError):
     """表示工具执行超时。"""
 
-    default_error_code = "TOOL_TIMEOUT"
-    default_error_type = "timeout"
+    default_error_code = ToolErrorCode.TOOL_TIMEOUT.value
+    default_error_type = ToolErrorType.TIMEOUT.value
 
 
 class ToolParameterError(ToolError):
     """表示工具参数不合法。"""
 
-    default_error_code = "TOOL_INVALID_PARAMETER"
-    default_error_type = "parameter_error"
+    default_error_code = ToolErrorCode.TOOL_INVALID_PARAMETER.value
+    default_error_type = ToolErrorType.PARAMETER_ERROR.value
 
 
 class ToolExecutionError(ToolError):
     """表示工具内部执行逻辑失败。"""
 
-    default_error_code = "TOOL_EXECUTION_ERROR"
-    default_error_type = "execution_error"
+    default_error_code = ToolErrorCode.TOOL_EXECUTION_ERROR.value
+    default_error_type = ToolErrorType.EXECUTION_ERROR.value
 
 
 class ToolConfigurationError(ToolError):
     """表示工具运行依赖的配置缺失或不合法。"""
 
-    default_error_code = "TOOL_CONFIGURATION_ERROR"
-    default_error_type = "configuration_error"
+    default_error_code = ToolErrorCode.TOOL_CONFIGURATION_ERROR.value
+    default_error_type = ToolErrorType.CONFIGURATION_ERROR.value
 
 
 class ToolNetworkError(ToolError):
     """表示工具访问外部网络资源时发生异常。"""
 
-    default_error_code = "TOOL_NETWORK_ERROR"
-    default_error_type = "network_error"
+    default_error_code = ToolErrorCode.TOOL_NETWORK_ERROR.value
+    default_error_type = ToolErrorType.NETWORK_ERROR.value
+
+
+class ToolPermissionError(ToolError):
+    """表示 Tool 权限校验失败。"""
+
+    default_error_code = ToolErrorCode.TOOL_PERMISSION_DENIED.value
+    default_error_type = ToolErrorType.PERMISSION_ERROR.value
+
+
+class ToolUpstreamError(ToolError):
+    """表示上游依赖失败。"""
+
+    default_error_code = ToolErrorCode.TOOL_UPSTREAM_ERROR.value
+    default_error_type = ToolErrorType.UPSTREAM_ERROR.value
+
+
+class ToolProtocolBoundaryError(ToolError):
+    """表示协议边界错误。"""
+
+    default_error_code = ToolErrorCode.TOOL_PROTOCOL_ERROR.value
+    default_error_type = ToolErrorType.PROTOCOL_ERROR.value
+
+
+class ToolInitializationError(ToolError):
+    """表示 Tool 初始化失败。"""
+
+    default_error_code = ToolErrorCode.TOOL_INITIALIZATION_ERROR.value
+    default_error_type = ToolErrorType.INITIALIZATION_ERROR.value
+
+
+class ToolCloseError(ToolError):
+    """表示 Tool 关闭失败。"""
+
+    default_error_code = ToolErrorCode.TOOL_CLOSE_ERROR.value
+    default_error_type = ToolErrorType.CLOSE_ERROR.value
 
 
 @dataclass
@@ -186,6 +224,14 @@ class ToolDefinition:
 
 
 class BaseTool(ABC):
+    # 中文说明：这里使用类属性显式声明能力，禁止上层再通过 hasattr 猜测能力。
+    declared_capabilities: tuple[str, ...] = (
+        ToolCapability.INVOKE.value,
+        ToolCapability.LOCAL_DIRECT.value,
+    )
+    declared_transport_protocol: str = ToolTransportProtocol.LOCAL_DIRECT.value
+    declared_tool_origin: str = ToolOrigin.LOCAL.value
+    declared_mcp_server: Optional[str] = None
     """所有具体工具都必须继承的抽象基类。"""
 
     def __init__(self):
@@ -369,13 +415,35 @@ class BaseTool(ABC):
         return self._definition.category
 
     def get_transport_protocol(self) -> str:
-        return "direct"
+        return self.declared_transport_protocol
 
     def get_tool_origin(self) -> str:
-        return "local"
+        return self.declared_tool_origin
 
     def get_mcp_server(self) -> Optional[str]:
-        return None
+        return self.declared_mcp_server
+
+    def get_capabilities(self) -> list[str]:
+        """返回 Tool 显式声明的能力列表。"""
+
+        return [str(capability) for capability in self.declared_capabilities]
+
+    def get_descriptor(self) -> ToolDescriptor:
+        """构建统一 ToolDescriptor。"""
+
+        return ToolDescriptor(
+            name=self.get_name(),
+            description=self.get_description(),
+            category=self.get_category(),
+            version=self._definition.version,
+            input_schema=self.input_schema,
+            output_schema=self.output_schema,
+            timeout=self.timeout,
+            capabilities=self.get_capabilities(),
+            transport_protocol=self.get_transport_protocol(),
+            tool_origin=self.get_tool_origin(),
+            mcp_server=self.get_mcp_server(),
+        )
 
     @property
     def name(self) -> str:

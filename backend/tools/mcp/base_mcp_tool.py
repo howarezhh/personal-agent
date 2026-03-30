@@ -1,31 +1,31 @@
-"""Builtin MCP tool helpers.
-
-这里的工具类运行在 builtin MCP server 内部。
-它们对外暴露的宿主协议统一是标准 MCP；
-若需要访问第三方 API，HTTP 只是 server 进程内部的实现细节，
-不再代表 host 与 tool 之间的调用协议。
-"""
+"""Builtin MCP Tool 统一基类。"""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from abc import abstractmethod
 from typing import Any, Dict, Optional
 
 import aiohttp
 
-from backend.tools.base_tool import (
-    BaseTool,
-    ToolConfigurationError,
-    ToolExecutionError,
-    ToolNetworkError,
-)
+from backend.contracts.tools import ToolCapability, ToolOrigin, ToolTransportProtocol
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
+from backend.tools.base_tool import BaseTool, ToolConfigurationError, ToolExecutionError, ToolNetworkError
 from backend.tools.tool_config import get_tool_config
 
 
 class BuiltinMCPTool(BaseTool):
-    """builtin MCP server 内可复用的外部调用基类。"""
+    """运行在 builtin MCP server 内的外部 Tool 基类。"""
+
+    declared_capabilities = (
+        ToolCapability.INVOKE.value,
+        ToolCapability.MCP_PROXY.value,
+    )
+    declared_transport_protocol = ToolTransportProtocol.MCP.value
+    declared_tool_origin = ToolOrigin.EXTERNAL.value
+    declared_mcp_server = "builtin"
 
     def __init__(self):
         super().__init__()
@@ -34,25 +34,62 @@ class BuiltinMCPTool(BaseTool):
         self.tool_config = get_tool_config()
         self.max_retries = self.tool_config.get("mcp", "max_retries", 3)
         self.retry_delay = self.tool_config.get("mcp", "retry_delay", 1.0)
-        self.request_timeout = self.tool_config.get("mcp", "timeout", self._definition.timeout)
+        registry_timeout = self.tool_config.get_registry_entry(self.get_name()).get("timeout")
+        configured_timeout = registry_timeout or self.tool_config.get("mcp", "timeout", self._definition.timeout)
+        try:
+            self.request_timeout = max(int(self._definition.timeout), int(configured_timeout))
+        except (TypeError, ValueError):
+            self.request_timeout = int(self._definition.timeout)
         self._definition.timeout = self.request_timeout
 
     @abstractmethod
     def get_api_endpoint(self) -> str:
-        """返回工具内部访问的默认 API endpoint。"""
+        raise NotImplementedError
 
     @abstractmethod
     def get_api_key(self) -> Optional[str]:
-        """返回工具内部访问所需的 API Key。"""
+        raise NotImplementedError
 
     def get_configured_endpoint(self, default: str, *, key: str = "api_endpoint") -> str:
         return self.tool_config.get(self.get_name(), key, default)
 
+    async def initialize(self) -> None:
+        await self._get_session()
+
     async def _get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
             timeout = aiohttp.ClientTimeout(total=self.request_timeout)
-            self.session = aiohttp.ClientSession(timeout=timeout)
+            self.session = aiohttp.ClientSession(
+                timeout=timeout,
+                headers={
+                    "Accept": "application/json, text/plain;q=0.9, */*;q=0.8",
+                    "Accept-Encoding": "gzip, deflate",
+                    "User-Agent": "personal-agent/1.0",
+                },
+            )
         return self.session
+
+    @staticmethod
+    def _merge_headers(headers: Optional[Dict[str, str]]) -> Dict[str, str]:
+        merged = {
+            "Accept": "application/json, text/plain;q=0.9, */*;q=0.8",
+            "Accept-Encoding": "gzip, deflate",
+            "User-Agent": "personal-agent/1.0",
+        }
+        if headers:
+            merged.update(headers)
+        return merged
+
+    @staticmethod
+    async def _parse_json_response(response: aiohttp.ClientResponse) -> Any:
+        try:
+            return await response.json(content_type=None)
+        except (aiohttp.ContentTypeError, json.JSONDecodeError):
+            text = await response.text()
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError as error:
+                raise ToolExecutionError(f"响应 JSON 解析失败: {error}") from error
 
     @staticmethod
     def _is_access_denied_error(error: BaseException) -> bool:
@@ -82,21 +119,12 @@ class BuiltinMCPTool(BaseTool):
                 raise ToolConfigurationError(f"{self.get_name()} 缺少 API Key 配置")
 
             session = await self._get_session()
-            async with session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                params=params,
-                json=json_data,
-            ) as response:
+            request_headers = self._merge_headers(headers)
+            async with session.request(method=method, url=url, headers=request_headers, params=params, json=json_data) as response:
                 if response.status == 200:
-                    data = await response.json()
+                    data = await self._parse_json_response(response)
                     self.logger.info("Builtin MCP tool request succeeded: %s", url)
-                    return {
-                        "success": True,
-                        "data": data,
-                        "metadata": {"status_code": response.status},
-                    }
+                    return {"success": True, "data": data, "metadata": {"status_code": response.status}}
 
                 if response.status == 429 and retry_count < self.max_retries:
                     wait_time = self.retry_delay * (2 ** retry_count)
@@ -115,11 +143,10 @@ class BuiltinMCPTool(BaseTool):
                 return {
                     "success": False,
                     "error": f"网络请求失败: {response.status}",
-                    "error_code": "TOOL_NETWORK_ERROR",
-                    "error_type": "network_error",
+                    "error_code": ToolErrorCode.TOOL_NETWORK_ERROR.value,
+                    "error_type": ToolErrorType.NETWORK_ERROR.value,
                     "metadata": {"status_code": response.status},
                 }
-
         except aiohttp.ClientError as error:
             self.logger.error("Builtin MCP tool network error: %s", error)
             if self._is_access_denied_error(error):
@@ -144,6 +171,11 @@ class BuiltinMCPTool(BaseTool):
             raise ToolExecutionError(f"请求执行失败: {error}") from error
 
     async def close(self):
+        """关闭动作保持幂等。"""
+
         if self.session and not self.session.closed:
             await self.session.close()
             self.logger.info("Builtin MCP tool session closed")
+
+
+__all__ = ["BuiltinMCPTool"]

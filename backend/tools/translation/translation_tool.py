@@ -1,5 +1,6 @@
 
 from typing import Dict, Any, Optional
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter, ToolExecutionError
 from backend.core.config_manager import get_config_manager
 from backend.core.prompt_manager import get_prompt_manager
@@ -77,8 +78,8 @@ class TranslationTool(BaseTool):
                     "success": False,
                     "data": None,
                     "error": f"不支持的目标语言: {target_lang}",
-                    "error_code": "TOOL_INVALID_PARAMETER",
-                    "error_type": "parameter_error",
+                    "error_code": ToolErrorCode.TOOL_INVALID_PARAMETER.value,
+                    "error_type": ToolErrorType.PARAMETER_ERROR.value,
                 }
 
             if source_lang not in self.SUPPORTED_LANGUAGES:
@@ -86,8 +87,8 @@ class TranslationTool(BaseTool):
                     "success": False,
                     "data": None,
                     "error": f"不支持的源语言: {source_lang}",
-                    "error_code": "TOOL_INVALID_PARAMETER",
-                    "error_type": "parameter_error",
+                    "error_code": ToolErrorCode.TOOL_INVALID_PARAMETER.value,
+                    "error_type": ToolErrorType.PARAMETER_ERROR.value,
                 }
 
             # 如果源语言和目标语言相同，直接返回

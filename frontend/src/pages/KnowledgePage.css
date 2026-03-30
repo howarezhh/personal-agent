@@ -1,0 +1,66 @@
+﻿/* 鐭ヨ瘑搴撻〉闈㈡牱寮忥細缁熶竴澶勭悊婊氬姩銆佸伐鍏锋爮鎹㈣鍜岀獎灞忛€傞厤 */
+
+.knowledge-page {
+  background: #f5f7fa;
+}
+
+.knowledge-page__card {
+  margin-bottom: 24px;
+}
+
+.knowledge-page__stack {
+  width: 100%;
+}
+
+.knowledge-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.knowledge-page__toolbar-label {
+  flex: 0 0 auto;
+}
+
+.knowledge-page__selector {
+  flex: 1 1 280px;
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.knowledge-page__create {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.knowledge-page__create-input {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.knowledge-page__create-button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 768px) {
+  .knowledge-page__selector,
+  .knowledge-page__create-input,
+  .knowledge-page__create-button {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+.knowledge-page__document-card {
+  min-width: 0;
+}
+
+.knowledge-page__document-card .ant-card-body {
+  min-width: 0;
+}
+

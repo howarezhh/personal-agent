@@ -12,6 +12,7 @@ import logging
 from typing import Any, Callable, Dict
 
 from backend.core.prompt_manager import get_prompt_manager
+from backend.contracts.tools.tool_errors import ToolErrorCode, ToolErrorType
 from backend.core.llm_manager import get_langchain_model_manager
 
 
@@ -82,8 +83,8 @@ class ResultInterpreter:
                 "success": False,
                 "formatted_text": f"结果解释失败：{str(error)}",
                 "key_info": {},
-                "error_code": "TOOL_RESULT_INTERPRETATION_ERROR",
-                "error_type": "execution_error",
+                "error_code": ToolErrorCode.TOOL_RESULT_INTERPRETATION_ERROR.value,
+                "error_type": ToolErrorType.EXECUTION_ERROR.value,
                 "raw_data": tool_result,
             }
 
@@ -364,10 +365,9 @@ class ResultInterpreter:
 
     def get_error_message(self, error_type: str) -> str:
         """根据错误类型读取统一错误提示。"""
-        error_prompt_key = f"tool.tool_error_handling.{error_type}"
+        error_prompt_prefix = "tool.tool_error_handling"
+        error_prompt_key = f"{error_prompt_prefix}.{error_type}"
         error_message = self.prompt_manager.get_prompt(error_prompt_key)
-
         if error_message:
             return error_message
-
-        return "工具执行出现错误，请稍后重试。"
+        return self.prompt_manager.get_prompt(f"{error_prompt_prefix}.unknown_error")

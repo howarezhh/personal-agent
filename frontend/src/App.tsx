@@ -1,16 +1,18 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
-import LoginPage from './pages/LoginPage';
-import ChatPage from './pages/ChatPage';
-import KnowledgePage from './pages/KnowledgePage';
-import ToolsPage from './pages/ToolsPage';
-import MCPPage from './pages/MCPPage';
-import ContentGenerationPage from './pages/ContentGenerationPage';
 import { useAuth } from './hooks/useAuth';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Loading } from './components/common/Loading';
 import './styles/global.css';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const KnowledgePage = lazy(() => import('./pages/KnowledgePage'));
+const ToolsPage = lazy(() => import('./pages/ToolsPage'));
+const MCPPage = lazy(() => import('./pages/MCPPage'));
+const ContentGenerationPage = lazy(() => import('./pages/ContentGenerationPage'));
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,50 +34,52 @@ function App() {
             v7_relativeSplatPath: true,
           }}
         >
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route
-              path="/"
-              element={
-                <PrivateRoute>
-                  <ChatPage />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/knowledge"
-              element={
-                <PrivateRoute>
-                  <KnowledgePage />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/tools"
-              element={
-                <PrivateRoute>
-                  <ToolsPage />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/mcp"
-              element={
-                <PrivateRoute>
-                  <MCPPage />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/content-generation"
-              element={
-                <PrivateRoute>
-                  <ContentGenerationPage />
-                </PrivateRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
+          <Suspense fallback={<Loading />}>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route
+                path="/"
+                element={
+                  <PrivateRoute>
+                    <ChatPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/knowledge"
+                element={
+                  <PrivateRoute>
+                    <KnowledgePage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/tools"
+                element={
+                  <PrivateRoute>
+                    <ToolsPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/mcp"
+                element={
+                  <PrivateRoute>
+                    <MCPPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/content-generation"
+                element={
+                  <PrivateRoute>
+                    <ContentGenerationPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </ErrorBoundary>
     </ConfigProvider>

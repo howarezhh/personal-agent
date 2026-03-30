@@ -23,6 +23,7 @@ from backend.contracts.api.tools import (
     ToolListResponse,
 )
 from backend.contracts.errors import ErrorCode, forbidden, internal_server_error, not_found
+from backend.contracts.tools.tool_errors import ToolErrorType
 from backend.models.user import User
 from backend.utils.logger import get_logger
 
@@ -146,6 +147,6 @@ async def execute_tool(tool_name: str, request: ToolExecuteRequest, current_user
             data=None,
             error=f"Tool execution failed: {error}",
             error_code=ErrorCode.SYSTEM_INTERNAL_ERROR.value,
-            error_type="execution_error",
+            error_type=ToolErrorType.EXECUTION_ERROR.value,
             metadata={"tool_name": tool_name},
         )

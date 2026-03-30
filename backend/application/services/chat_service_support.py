@@ -73,11 +73,24 @@ class ChatServiceSupport:
             for msg in history
         ]
 
-    def save_user_message(self, *, conversation_id: str, question: str, metadata: dict[str, Any] | None = None):
-        """持久化用户消息，并同步更新会话消息计数。"""
+    def save_user_message(
+        self,
+        *,
+        conversation_id: str,
+        question: str,
+        metadata: dict[str, Any] | None = None,
+        message_id: str | None = None,
+    ):
+        """持久化用户消息，并在传入 `message_id` 时提供幂等复用能力。"""
+        if message_id:
+            existing_message = self.message_repo.get_message_by_id(message_id)
+            if existing_message is not None:
+                return existing_message
+
         sequence_number = self.message_repo.get_next_sequence_number(conversation_id)
         message = self.message_repo.create_message(
             MessageCreate(
+                message_id=message_id,
                 conversation_id=conversation_id,
                 message_type="user",
                 content=question,
@@ -145,4 +158,3 @@ class ChatServiceSupport:
         self.conversation_repo.update_message_count(conversation_id, increment=1)
         self.conversation_repo.update_conversation_timestamp(conversation_id)
         return message
-

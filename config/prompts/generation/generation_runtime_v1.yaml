@@ -1,149 +1,108 @@
-name: Runtime prompts for generation agent
+name: Generation runtime prompts
 version: v1
 agent: generation
 scene: runtime_defaults
-input_variables: []
-output_requirements: []
-applicable_models: []
+input_variables:
+  - question
+  - context
+  - tool_context
+  - answer
+  - source_name
+  - index
+  - relevance_score
+  - content
+output_requirements:
+  - 支持直答、RAG 回答、工具结果整合、幻觉检查与答案质量评估
+  - 变量声明与模板占位符保持一致
+applicable_models:
+  - gpt-4o-mini
 change_log:
-- version: v1
-  date: '2026-03-18'
-summary: Migrated generation_prompts.yaml into versioned prompt schema.
+  - version: v1
+    date: 2026-03-19
+    summary: 收敛幻觉检查 Prompt，并补充系统提示词唯一来源。
+  - version: v1
+    date: 2026-03-21
+    summary: 删除旧历史模板与死 Prompt，拆分直答、RAG 与工具结果回答场景。
 prompts:
-  generation_system_prompt: '你是一个专业的AI助手，负责基于提供的上下文信息回答用户问题。
-
-
-    核心原则：
-
-    1. 准确性：只基于提供的上下文信息回答，不编造内容
-
-    2. 完整性：充分利用上下文信息，提供全面的回答
-
-    3. 可追溯性：明确引用信息来源
-
-    4. 友好性：使用清晰、友好的语言
-
+  generation_plain_response_system_prompt: |
+    你是通用问答助手。
 
     回答要求：
+    1. 仅在不依赖知识库、工具或外部实时信息时直接回答。
+    2. 保持回答准确、清晰、简洁。
+    3. 不要伪造实时事实、内部资料或未提供的专业结论。
+    4. 若问题超出当前可直接回答范围，应明确说明信息不足。
+  generation_plain_response_prompt: |
+    用户问题：{question}
 
-    - 直接回答用户问题，不要重复问题
+    请结合上面的对话消息直接回答用户问题。
+  generation_system_prompt: |
+    你是基于检索上下文作答的知识助手。
 
-    - 使用Markdown格式组织内容
+    回答要求：
+    1. 只能基于给定上下文回答，不得编造内容。
+    2. 优先提炼上下文中的关键事实与结论。
+    3. 对关键结论使用“【来源N】”形式标注来源。
+    4. 若上下文不足，必须明确说明，不得超范围推断。
+    5. 使用清晰、自然的中文输出，可使用 Markdown 组织内容。
+  generation_with_context_prompt: |
+    用户问题：{question}
 
-    - 对于重要信息，使用【来源X】标注
-
-    - 如果上下文信息不足，明确说明
-
-    - 保持客观中立，不添加主观臆断
-
-
-    禁止行为：
-
-    - 不要编造不存在的信息
-
-    - 不要超出上下文范围回答
-
-    - 不要忽略用户的具体问题
-
-    - 不要使用模糊或含糊的表述
-
-    '
-  generation_with_context_prompt: '用户问题：{question}
-
-
-    相关上下文信息：
-
+    检索上下文：
     {context}
 
+    请结合上面的对话消息与检索上下文回答用户问题，并在关键结论后标注来源。
+  generation_system_prompt_with_tool_result: |
+    你是工具结果整合助手。
 
-    对话历史：
+    回答要求：
+    1. 优先依据工具返回结果作答。
+    2. 不要编造工具未返回的数据。
+    3. 若工具结果存在局限或缺失，应直接说明。
+    4. 当工具结果足以回答问题时，直接输出最终答案。
+  generation_user_prompt_with_tool_result: |
+    用户问题：{question}
 
-    {conversation_history}
+    工具结果：
+    {tool_context}
 
+    请结合上面的对话消息与工具结果回答用户问题。
+  context_format: |
+    【来源{index}】{source_name}（相关度：{relevance_score}）
+    {content}
+    ---
+  hallucination_check_system_prompt: |
+    你是事实一致性审查器。
 
-    请基于上述信息回答用户问题。记得引用来源。
-
-    '
-  generation_without_context_prompt: '用户问题：{question}
-
-
-    对话历史：
-
-    {conversation_history}
-
-
-    请回答用户问题。
-
-    '
-  generation_user_prompt: '对话历史：
-
-    {conversation_history}
-
+    你只能依据给定上下文判断回答是否存在幻觉、过度推断或事实错配。
+    不允许使用上下文之外的外部知识。
+  hallucination_check_prompt: |
+    请检查下面的回答是否严格基于给定上下文，并输出结构化判断结果。
 
     用户问题：{question}
 
+    给定上下文：
+    {context}
 
-    请基于对话历史回答用户的问题。如果这是第一条消息，直接回答即可。
+    待检查回答：
+    {answer}
 
-    '
-  conversation_history_format: '{role}: {content}'
-  no_history_placeholder: （这是新对话的第一条消息）
-  context_format: '【来源{index}】（相关度：{relevance_score}）
+    判断要求：
+    1. 逐项核对关键事实是否能在上下文中找到依据。
+    2. 识别编造信息、过度推断、事实错配、引用不一致。
+    3. consistency_score 取值范围为 0 到 1。
+    4. hallucination_points 仅列出明确存在问题的点。
+    5. reasoning 简要说明判断依据。
+  answer_quality_prompt: |
+    请评估以下回答的质量，并输出结构化结果。
 
-    {content}
+    用户问题：{question}
+    生成回答：{answer}
 
-    ---
-
-    '
-  citation_format: 【来源{index}】
-  hallucination_check_prompt: "请检查以下回答是否包含未在上下文中出现的信息（幻觉）。\n\n用户问题：{question}\n\n\
-    提供的上下文：\n{context}\n\n生成的回答：\n{answer}\n\n返回JSON格式：\n{\n  \"has_hallucination\"\
-    : false,\n  \"hallucination_details\": [],\n  \"confidence\": 0.95,\n  \"reasoning\"\
-    : \"检查理由\"\n}\n"
-  source_extraction_prompt: "从以下回答中提取所有引用的来源。\n\n回答内容：{answer}\n\n返回JSON格式：\n{\n \
-    \ \"cited_sources\": [\n    {\n      \"source_index\": 1,\n      \"source_id\"\
-    : \"来源ID\",\n      \"citation_count\": 2\n    }\n  ]\n}\n"
-  answer_quality_prompt: "评估以下回答的质量。\n\n用户问题：{question}\n生成的回答：{answer}\n\n评估维度：\n\
-    1. 相关性：回答是否切题\n2. 完整性：是否充分回答了问题\n3. 准确性：信息是否准确\n4. 清晰度：表述是否清晰易懂\n\n返回JSON格式：\n\
-    {\n  \"relevance_score\": 0.9,\n  \"completeness_score\": 0.85,\n  \"accuracy_score\"\
-    : 0.95,\n  \"clarity_score\": 0.9,\n  \"overall_score\": 0.9,\n  \"feedback\"\
-    : \"评估反馈\"\n}\n"
-  special_scenarios:
-    insufficient_context: '根据当前提供的信息，我无法完全回答您的问题。
-
-
-      我了解到的信息：
-
-      {available_info}
-
-
-      缺少的信息：
-
-      {missing_info}
-
-
-      建议：
-
-      - 您可以提供更多背景信息
-
-      - 或者我可以尝试从其他角度帮助您
-
-      '
-    multiple_answers: '根据提供的信息，有以下几种可能的答案：
-
-
-      {answers}
-
-
-      建议您根据具体情况选择最合适的方案。
-
-      '
-    need_clarification: '为了更好地回答您的问题，我需要一些澄清：
-
-
-      {clarification_questions}
-
-
-      请提供更多信息，以便我给出更准确的回答。
-
-      '
+    评估维度：
+    1. relevance_score：是否切题。
+    2. completeness_score：是否充分回答问题。
+    3. clarity_score：表达是否清晰。
+    4. grounded_score：是否有充分依据、是否避免臆断。
+    5. overall_score：综合评分。
+    6. reasoning：简要说明评分依据。

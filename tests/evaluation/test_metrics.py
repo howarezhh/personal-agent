@@ -1,31 +1,27 @@
-from evaluation.metrics import hit_rate_at_k, mrr_at_k, precision_at_k, recall_at_k, summarize_metrics
+from __future__ import annotations
+
+from evaluation.metrics import aggregate_metrics, evaluate_ranked_documents, ndcg_at_k
 
 
-def test_metric_functions_cover_single_and_multiple_relevant_ids():
-    ranked_ids = ["doc-1", "doc-2", "doc-3"]
-    relevant_ids = ["doc-2", "doc-4"]
-
-    assert recall_at_k(relevant_ids, ranked_ids, 2) == 0.5
-    assert hit_rate_at_k(ranked_ids, relevant_ids, 2) == 1.0
-    assert precision_at_k(relevant_ids, ranked_ids, 2) == 0.5
-    assert mrr_at_k(ranked_ids, relevant_ids, 3) == 0.5
+def test_ndcg_at_k_returns_expected_value():
+    ranked = ["d1", "d2", "d3", "d4"]
+    relevant = ["d2", "d4"]
+    value = ndcg_at_k(ranked, relevant, 4)
+    assert 0.0 < value <= 1.0
 
 
-def test_summarize_metrics_aggregates_query_rankings():
-    rankings = [
-        {
-            "ranked_document_ids": ["doc-1", "doc-2"],
-            "relevant_document_ids": ["doc-1"],
-        },
-        {
-            "ranked_document_ids": ["doc-3", "doc-2"],
-            "relevant_document_ids": ["doc-2", "doc-4"],
-        },
-    ]
+def test_evaluate_ranked_documents_contains_ndcg():
+    metrics = evaluate_ranked_documents(["d1", "d2", "d3"], ["d2"])
+    assert "ndcg@10" in metrics
+    assert metrics["mrr@10"] == 0.5
 
-    metrics = summarize_metrics(rankings).to_dict()
 
-    assert metrics["query_count"] == 2
-    assert metrics["Recall@5"] == 0.75
-    assert metrics["MRR@10"] == 0.75
-    assert metrics["HitRate@1"] == 0.5
+def test_aggregate_metrics_includes_ndcg():
+    aggregated = aggregate_metrics(
+        [
+            {"hit@1": 1.0, "hit@3": 1.0, "precision@3": 0.33, "recall@5": 1.0, "recall@10": 1.0, "mrr@10": 1.0, "ndcg@10": 1.0},
+            {"hit@1": 0.0, "hit@3": 1.0, "precision@3": 0.33, "recall@5": 1.0, "recall@10": 1.0, "mrr@10": 0.5, "ndcg@10": 0.63},
+        ]
+    )
+    assert "ndcg@10" in aggregated
+    assert aggregated["query_count"] == 2.0

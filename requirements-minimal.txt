@@ -14,14 +14,15 @@ python-multipart==0.0.6         # 文件上传支持
 # ============================================
 # LangChain生态（核心）
 # ============================================
-langchain==0.1.0                # LangChain核心
-langchain-community==0.0.10     # LangChain社区集成
-langgraph==0.0.20               # 多Agent编排
+langchain==1.2.12               # LangChain核心
+langchain-core==1.2.19          # LangChain Core 显式版本声明
+langgraph==1.1.2                # 多Agent编排
+langgraph-prebuilt==1.0.8       # ToolNode 等预构建节点
 
 # ============================================
 # LLM提供商SDK
 # ============================================
-openai==1.6.1                   # OpenAI SDK
+openai==2.29.0                  # OpenAI SDK
 zhipuai==2.0.1                  # 智谱AI SDK
 
 # ============================================

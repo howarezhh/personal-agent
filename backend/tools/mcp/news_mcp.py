@@ -17,15 +17,15 @@ class NewsMCP(BuiltinMCPTool):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
         config = get_tool_config()
-        self.api_key = config.get("news_mcp", "api_key", "")
+        self.hn_rss_endpoint = str(config.get("news_mcp", "hn_rss_endpoint", "https://hnrss.org") or "https://hnrss.org").rstrip("/")
 
     def _create_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name="news_mcp",
             description="查询新闻头条，支持关键词、分类、国家和条数限制。",
             category="news",
-            version="1.0.0",
-            timeout=10,
+            version="1.2.0",
+            timeout=30,
             strict_validation=True,
             parameters=[
                 ToolParameter(name="query", type="string", description="关键词，可选。", required=False),
@@ -50,10 +50,64 @@ class NewsMCP(BuiltinMCPTool):
         )
 
     def get_api_endpoint(self) -> str:
-        return self.get_configured_endpoint("https://newsapi.org/v2/top-headlines")
+        return self.hn_rss_endpoint
 
     def get_api_key(self) -> Optional[str]:
-        return self.api_key
+        return None
+
+    @staticmethod
+    def _build_search_query(query: Optional[str], category: Optional[str]) -> str:
+        terms: list[str] = []
+        normalized_query = (query or "").strip()
+        normalized_category = (category or "").strip()
+        if normalized_query:
+            terms.append(normalized_query)
+        if normalized_category and normalized_category != "general" and normalized_category not in terms:
+            terms.append(normalized_category)
+        return " ".join(terms).strip()
+
+    @staticmethod
+    def _extract_item_author(item: ET.Element) -> str:
+        """兼容命名空间 RSS 作者字段，避免 `dc:creator` 被标准库直接忽略。"""
+
+        author_text = item.findtext("author", default="")
+        if author_text:
+            return author_text
+
+        for child in list(item):
+            tag_name = child.tag.rsplit("}", 1)[-1] if isinstance(child.tag, str) else ""
+            if tag_name == "creator" and child.text:
+                return child.text
+        return ""
+
+    @staticmethod
+    def _parse_rss_articles(rss_text: str, page_size: int, *, provider: str) -> Dict[str, Any]:
+        try:
+            root = ET.fromstring(rss_text)
+        except ET.ParseError as error:
+            raise ToolExecutionError(f"{provider} RSS 解析失败: {error}") from error
+
+        articles = []
+        for item in root.findall(".//item")[:page_size]:
+            source_node = item.find("source")
+            source_name = source_node.text if source_node is not None else provider
+            articles.append(
+                {
+                    "title": item.findtext("title", default=""),
+                    "description": item.findtext("description", default=""),
+                    "url": item.findtext("link", default=""),
+                    "source": source_name or provider,
+                    "author": NewsMCP._extract_item_author(item),
+                    "published_at": item.findtext("pubDate", default=""),
+                    "image_url": "",
+                }
+            )
+
+        return {
+            "total_results": len(articles),
+            "provider": provider,
+            "articles": articles,
+        }
 
     async def _fetch_google_news_rss(
         self,
@@ -64,14 +118,9 @@ class NewsMCP(BuiltinMCPTool):
         page_size: int,
     ) -> Dict[str, Any]:
         country_code = (country or "us").upper()
-        search_query = (query or "").strip()
-        if not search_query and category and category != "general":
-            search_query = category
+        search_query = self._build_search_query(query, category)
         if search_query:
-            rss_url = (
-                f"https://news.google.com/rss/search?q={quote_plus(search_query)}"
-                f"&hl=en-US&gl={country_code}&ceid={country_code}:en"
-            )
+            rss_url = f"https://news.google.com/rss/search?q={quote_plus(search_query)}&hl=en-US&gl={country_code}&ceid={country_code}:en"
         else:
             rss_url = f"https://news.google.com/rss?hl=en-US&gl={country_code}&ceid={country_code}:en"
 
@@ -86,30 +135,33 @@ class NewsMCP(BuiltinMCPTool):
                 raise ToolNetworkError(f"网络访问被拒绝: {error}") from error
             raise ToolNetworkError(f"新闻查询失败: {error}") from error
 
+        return self._parse_rss_articles(rss_text, page_size, provider="google_news_rss")
+
+    async def _fetch_hn_rss(
+        self,
+        *,
+        query: Optional[str],
+        category: Optional[str],
+        page_size: int,
+    ) -> Dict[str, Any]:
+        search_query = self._build_search_query(query, category)
+        if search_query:
+            rss_url = f"{self.hn_rss_endpoint}/newest?q={quote_plus(search_query)}"
+        else:
+            rss_url = f"{self.hn_rss_endpoint}/frontpage"
+
         try:
-            root = ET.fromstring(rss_text)
-        except ET.ParseError as error:
-            raise ToolExecutionError(f"Google News RSS 解析失败: {error}") from error
+            session = await self._get_session()
+            async with session.get(rss_url) as response:
+                if response.status != 200:
+                    raise ToolNetworkError(f"HN RSS 请求失败: {response.status}")
+                rss_text = await response.text()
+        except aiohttp.ClientError as error:
+            if self._is_access_denied_error(error):
+                raise ToolNetworkError(f"网络访问被拒绝: {error}") from error
+            raise ToolNetworkError(f"新闻查询失败: {error}") from error
 
-        articles = []
-        for item in root.findall(".//item")[:page_size]:
-            articles.append(
-                {
-                    "title": item.findtext("title", default=""),
-                    "description": item.findtext("description", default=""),
-                    "url": item.findtext("link", default=""),
-                    "source": item.findtext("source", default=""),
-                    "author": "",
-                    "published_at": item.findtext("pubDate", default=""),
-                    "image_url": "",
-                }
-            )
-
-        return {
-            "total_results": len(articles),
-            "provider": "google_news_rss",
-            "articles": articles,
-        }
+        return self._parse_rss_articles(rss_text, page_size, provider="hnrss")
 
     async def execute(
         self,
@@ -121,43 +173,12 @@ class NewsMCP(BuiltinMCPTool):
     ) -> Dict[str, Any]:
         try:
             page_size = max(1, min(100, page_size))
-            if not self.api_key:
-                return {
-                    "success": True,
-                    "data": await self._fetch_google_news_rss(
-                        query=query,
-                        category=category,
-                        country=country,
-                        page_size=page_size,
-                    ),
-                }
 
-            params = {"apiKey": self.api_key, "country": country, "pageSize": page_size}
-            if query:
-                params["q"] = query
-            if category:
-                params["category"] = category
-            response = await self._make_request("GET", self.get_api_endpoint(), params=params)
-            if not response.get("success"):
-                return response
-            return {"success": True, "data": self._parse_news_data(response["data"])}
-        except (ToolConfigurationError, ToolNetworkError):
+            return {
+                "success": True,
+                "data": await self._fetch_hn_rss(query=query, category=category, page_size=page_size),
+            }
+        except ToolNetworkError:
             raise
         except Exception as error:
             raise ToolExecutionError(f"新闻查询失败: {error}") from error
-
-    def _parse_news_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        result = {"total_results": data.get("totalResults", 0), "provider": "newsapi", "articles": []}
-        for article in data.get("articles", []):
-            result["articles"].append(
-                {
-                    "title": article.get("title", ""),
-                    "description": article.get("description", ""),
-                    "url": article.get("url", ""),
-                    "source": article.get("source", {}).get("name", ""),
-                    "author": article.get("author", ""),
-                    "published_at": article.get("publishedAt", ""),
-                    "image_url": article.get("urlToImage", ""),
-                }
-            )
-        return result

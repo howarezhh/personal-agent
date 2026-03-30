@@ -1,65 +1,73 @@
-registry:
+﻿registry:
   calculator:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 5
+    retry: 0
     expose_to_agent: true
     implementation:
       class_path: backend.tools.calculator.calculator_tool.CalculatorTool
   web_search:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 20
+    retry: 1
     expose_to_agent: true
     implementation:
       class_path: backend.tools.web_search.web_search_tool.WebSearchTool
   database_query:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 30
+    retry: 0
     expose_to_agent: true
     implementation:
       class_path: backend.tools.database_query.database_query_tool.DatabaseQueryTool
   translation:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 15
+    retry: 0
     expose_to_agent: true
     implementation:
       class_path: backend.tools.translation.translation_tool.TranslationTool
   datetime:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 5
+    retry: 0
     expose_to_agent: true
     implementation:
       class_path: backend.tools.datetime.datetime_tool.DateTimeTool
   novel_generator:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 60
+    retry: 0
     expose_to_agent: true
     implementation:
       class_path: backend.tools.novel_generator.novel_generator_tool.NovelGeneratorTool
   script_generator:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 60
+    retry: 0
     expose_to_agent: true
     implementation:
       class_path: backend.tools.script_generator.script_generator_tool.ScriptGeneratorTool
   content_optimizer:
     enabled: true
-    transport_protocol: mcp
+    transport_protocol: local_direct
     tool_origin: local
-    mcp_server: builtin
+    timeout: 60
+    retry: 0
     expose_to_agent: true
     implementation:
       class_path: backend.tools.content_optimizer.content_optimizer_tool.ContentOptimizerTool
@@ -67,6 +75,8 @@ registry:
     enabled: true
     transport_protocol: mcp
     tool_origin: external
+    timeout: 10
+    retry: 3
     mcp_server: builtin
     expose_to_agent: true
     implementation:
@@ -75,6 +85,8 @@ registry:
     enabled: true
     transport_protocol: mcp
     tool_origin: external
+    timeout: 30
+    retry: 3
     mcp_server: builtin
     expose_to_agent: true
     implementation:
@@ -83,6 +95,8 @@ registry:
     enabled: true
     transport_protocol: mcp
     tool_origin: external
+    timeout: 30
+    retry: 3
     mcp_server: builtin
     expose_to_agent: true
     implementation:
@@ -91,6 +105,8 @@ registry:
     enabled: true
     transport_protocol: mcp
     tool_origin: external
+    timeout: 10
+    retry: 3
     mcp_server: builtin
     expose_to_agent: true
     implementation:
@@ -99,6 +115,8 @@ registry:
     enabled: true
     transport_protocol: mcp
     tool_origin: external
+    timeout: 10
+    retry: 3
     mcp_server: builtin
     expose_to_agent: true
     implementation:
@@ -115,15 +133,16 @@ calculator:
   timeout: 5
 
 web_search:
-  api_url: https://serpapi.com/search
-  timeout: 15
+  proxy_base_url: https://r.jina.ai/http://
+  search_base_url: https://www.bing.com/search
+  region: zh-CN
+  timeout: 20
   max_results: 10
 
 database:
   timeout: 30
 
 mcp:
-  protocol_version: "2025-11-25"
   timeout: 10
   max_retries: 3
   retry_delay: 1.0
@@ -131,18 +150,19 @@ mcp:
     builtin:
       enabled: true
       transport: stdio
-      module: backend.tools.mcp.builtin_server
+      module: backend.infrastructure.mcp.builtin_server
 
 news_mcp:
-  api_endpoint: https://newsapi.org/v2/top-headlines
-  api_key: ""
+  hn_rss_endpoint: https://hnrss.org
 
 weather_mcp:
   api_endpoint: https://api.open-meteo.com/v1/forecast
+  geocoding_endpoint: https://geocoding-api.open-meteo.com/v1/search
 
 wikipedia_mcp:
   api_endpoint_zh: https://zh.wikipedia.org/w/api.php
   api_endpoint_en: https://en.wikipedia.org/w/api.php
+  proxy_base_url: https://r.jina.ai/http://
 
 exchange_rate_mcp:
   api_endpoint: https://open.er-api.com/v6/latest

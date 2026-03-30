@@ -74,7 +74,6 @@ class AgentInput:
     document_id: Optional[str] = None
     enable_knowledge_base: Optional[bool] = None
     conversation_history: Optional[List[Dict[str, Any]]] = None
-    route_decision: Optional[Dict[str, Any]] = None
     retrieval_results: Optional[List[Dict[str, Any]]] = None
     tool_results: Optional[List[Dict[str, Any]]] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -155,12 +154,6 @@ class AgentInput:
             return deepcopy(self.conversation_history)
         return []
 
-    def get_route_decision(self) -> Optional[Dict[str, Any]]:
-        """返回路由决策的深拷贝。"""
-        if isinstance(self.route_decision, dict):
-            return deepcopy(self.route_decision)
-        return None
-
     def get_retrieval_results(self) -> Optional[List[Dict[str, Any]]]:
         """返回检索结果列表的深拷贝。"""
         if isinstance(self.retrieval_results, list):
@@ -211,8 +204,6 @@ class AgentInput:
             return False, "metadata must be a dict"
         if self.conversation_history is not None and not isinstance(self.conversation_history, list):
             return False, "conversation_history must be a list"
-        if self.route_decision is not None and not isinstance(self.route_decision, dict):
-            return False, "route_decision must be a dict"
         if self.retrieval_results is not None and not isinstance(self.retrieval_results, list):
             return False, "retrieval_results must be a list"
         if self.tool_results is not None and not isinstance(self.tool_results, list):
@@ -230,22 +221,6 @@ class AgentInput:
 
 
 @dataclass
-class RouterAgentInput(AgentInput):
-    """路由 Agent 的输入模型。"""
-
-    available_agents: Optional[List[str]] = None
-
-    def validate(self) -> tuple[bool, Optional[str]]:
-        """在基础校验之上补充路由场景校验。"""
-        is_valid, error_message = super().validate()
-        if not is_valid:
-            return is_valid, error_message
-        if self.available_agents is not None and not isinstance(self.available_agents, list):
-            return False, "available_agents must be a list"
-        return True, None
-
-
-@dataclass
 class RetrievalAgentInput(AgentInput):
     """检索 Agent 的输入模型。"""
 
@@ -258,6 +233,7 @@ class RetrievalAgentInput(AgentInput):
     enable_sparse_keyword: Optional[bool] = None
     enable_dense_vector: Optional[bool] = None
     enable_fusion_rank: Optional[bool] = None
+    enable_hybrid_retrieval: Optional[bool] = None
 
     def validate(self) -> tuple[bool, Optional[str]]:
         """校验检索场景特有字段。"""

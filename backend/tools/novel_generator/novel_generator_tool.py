@@ -1,4 +1,4 @@
-
+﻿
 from typing import AsyncGenerator, Dict, Any, Optional, List
 from backend.tools.base_tool import BaseTool, ToolDefinition, ToolParameter
 from backend.core.config_manager import get_config_manager
@@ -6,33 +6,60 @@ from backend.core.prompt_manager import get_prompt_manager
 import logging
 import json
 
+from pydantic import BaseModel, ConfigDict
+
+
+class _NovelStructuredPayloadBase(BaseModel):
+    """用于承接小说结构化输出的基础模型。"""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class NovelOutlineStructuredPayload(_NovelStructuredPayloadBase):
+    raw_outline: Optional[str] = None
+
+
+class NovelCharacterStructuredPayload(_NovelStructuredPayloadBase):
+    raw_character: Optional[str] = None
+
+
+class NovelWorldviewStructuredPayload(_NovelStructuredPayloadBase):
+    raw_worldview: Optional[str] = None
+
 
 class NovelGeneratorTool(BaseTool):
-    # 小说类型
-    NOVEL_GENRES = {
-        "fantasy": "玄幻",
-        "urban": "都市",
-        "romance": "言情",
-        "scifi": "科幻",
-        "wuxia": "武侠",
-        "xianxia": "仙侠",
-        "history": "历史",
-        "military": "军事",
-        "mystery": "悬疑",
-        "horror": "恐怖",
-        "game": "游戏",
-        "sports": "体育",
-        "fanfic": "同人"
+    declared_capabilities = ("invoke", "stream", "local_direct")
+    STRUCTURED_OUTPUT_SCHEMAS = {
+        "raw_outline": NovelOutlineStructuredPayload,
+        "raw_character": NovelCharacterStructuredPayload,
+        "raw_worldview": NovelWorldviewStructuredPayload,
     }
 
-    # 写作风格
+    # 灏忚绫诲瀷
+    NOVEL_GENRES = {
+        "fantasy": "鐜勫够",
+        "urban": "閮藉競",
+        "romance": "言情",
+        "scifi": "科幻",
+        "wuxia": "姝︿緺",
+        "xianxia": "浠欎緺",
+        "history": "鍘嗗彶",
+        "military": "鍐涗簨",
+        "mystery": "鎮枒",
+        "horror": "恐怖",
+        "game": "娓告垙",
+        "sports": "浣撹偛",
+        "fanfic": "鍚屼汉"
+    }
+
+    # 鍐欎綔椋庢牸
     WRITING_STYLES = {
         "descriptive": "描写细腻",
         "concise": "简洁明快",
         "humorous": "幽默风趣",
-        "serious": "严肃正经",
+        "serious": "严谨正式",
         "poetic": "诗意优美",
-        "suspenseful": "悬念迭起"
+        "suspenseful": "鎮康杩捣"
     }
 
     def __init__(self):
@@ -45,35 +72,35 @@ class NovelGeneratorTool(BaseTool):
     def _create_definition(self) -> ToolDefinition:
         return ToolDefinition(
             name="novel_generator",
-            description="AI小说生成工具，支持生成小说大纲、章节内容、角色设定、世界观设定等",
+            description="AI 小说生成工具，支持生成小说大纲、章节内容、角色设定和世界观设定",
             category="creative",
             strict_validation=True,
             parameters=[
                 ToolParameter(
                     name="action",
                     type="string",
-                    description="操作类型：outline(生成大纲), chapter(生成章节), character(生成角色), worldview(生成世界观), continue(续写)",
+                    description="操作类型：outline(生成大纲)、chapter(生成章节)、character(生成角色)、worldview(生成世界观)、continue(续写)",
                     required=True,
                     enum=["outline", "chapter", "character", "worldview", "continue"]
                 ),
                 ToolParameter(
                     name="genre",
                     type="string",
-                    description="小说类型",
+                    description="灏忚绫诲瀷",
                     required=False,
                     enum=list(self.NOVEL_GENRES.keys())
                 ),
                 ToolParameter(
                     name="style",
                     type="string",
-                    description="写作风格",
+                    description="鍐欎綔椋庢牸",
                     required=False,
                     enum=list(self.WRITING_STYLES.keys())
                 ),
                 ToolParameter(
                     name="title",
                     type="string",
-                    description="小说标题",
+                    description="灏忚鏍囬",
                     required=False
                 ),
                 ToolParameter(
@@ -85,25 +112,25 @@ class NovelGeneratorTool(BaseTool):
                 ToolParameter(
                     name="chapter_number",
                     type="integer",
-                    description="章节编号",
+                    description="绔犺妭缂栧彿",
                     required=False
                 ),
                 ToolParameter(
                     name="chapter_title",
                     type="string",
-                    description="章节标题",
+                    description="绔犺妭鏍囬",
                     required=False
                 ),
                 ToolParameter(
                     name="previous_content",
                     type="string",
-                    description="前文内容（用于续写）",
+                    description="鍓嶆枃鍐呭锛堢敤浜庣画鍐欙級",
                     required=False
                 ),
                 ToolParameter(
                     name="character_name",
                     type="string",
-                    description="角色名称",
+                    description="瑙掕壊鍚嶇О",
                     required=False
                 ),
                 ToolParameter(
@@ -116,7 +143,7 @@ class NovelGeneratorTool(BaseTool):
                 ToolParameter(
                     name="outline",
                     type="string",
-                    description="小说大纲（用于生成章节）",
+                    description="灏忚澶х翰锛堢敤浜庣敓鎴愮珷鑺傦級",
                     required=False
                 )
             ],
@@ -178,25 +205,28 @@ class NovelGeneratorTool(BaseTool):
             }
 
     def _get_genre_name(self, genre: Optional[str]) -> str:
-        return self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
+        return self.NOVEL_GENRES.get(genre, "鏈煡") if genre else "鏈煡"
 
     def _get_style_name(self, style: Optional[str]) -> str:
         return self.WRITING_STYLES.get(style, "默认") if style else "默认"
 
     def _parse_json_response(self, response: str, raw_key: str) -> Dict[str, Any]:
-        try:
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
-            if json_start >= 0 and json_end > json_start:
-                return json.loads(response[json_start:json_end])
-        except Exception:
-            self.logger.debug("Failed to parse structured response, fallback to raw text", exc_info=True)
+        # Parse structured JSON output when available.
+        schema_cls = self.STRUCTURED_OUTPUT_SCHEMAS.get(raw_key)
+        if schema_cls is None:
+            return {raw_key: response}
 
-        return {raw_key: response}
+        try:
+            from backend.core.llm_manager import get_langchain_model_manager
+
+            return {raw_key: response}
+        except Exception:
+            self.logger.debug("Failed to preserve structured streaming response", exc_info=True)
+            return {raw_key: response}
 
     async def execute_stream(self, action: str, **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
         try:
-            self.logger.info(f"执行小说生成流式操作: {action}")
+            self.logger.info(f"执行小说流式生成操作: {action}")
 
             if action == "outline":
                 async for event in self._stream_outline(
@@ -317,7 +347,7 @@ class NovelGeneratorTool(BaseTool):
                 "genre_name": genre_name,
                 "style_name": style_name,
                 "word_count": word_count,
-                "outline_text": outline or "请根据上下文自然展开情节",
+                "outline_text": outline or "请根据上文自然展开情节",
             },
             temperature=0.8, max_tokens=word_count * 2
         ):
@@ -465,7 +495,9 @@ class NovelGeneratorTool(BaseTool):
                 "tool.novel_generator_outline_prompt"
             )
 
-            response = await llm_manager.invoke_prompt_template(
+            structured_result = await llm_manager.with_structured_output(
+                NovelOutlineStructuredPayload
+            ).invoke_prompt_template(
                 prompt_template,
                 {
                     "title": title or "未命名小说",
@@ -475,41 +507,26 @@ class NovelGeneratorTool(BaseTool):
                 },
                 temperature=0.8,
             )
-
-            # 尝试解析JSON
-            try:
-                # 提取JSON部分
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start >= 0 and json_end > json_start:
-                    json_str = response[json_start:json_end]
-                    outline_data = json.loads(json_str)
-                else:
-                    # 如果没有JSON格式，返回原始文本
-                    outline_data = {"raw_outline": response}
-            except:
-                outline_data = {"raw_outline": response}
+            outline_data = structured_result.model_dump(exclude_none=True)
 
             self.logger.info("小说大纲生成完成")
-
             return {
                 "success": True,
                 "data": {
                     "title": title,
                     "genre": genre_name,
                     "style": style_name,
-                    "outline": outline_data
+                    "outline": outline_data,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成大纲失败: {str(e)}"
+                "error": f"生成大纲失败: {str(e)}",
             }
-
     async def _generate_chapter(self, chapter_number: int, chapter_title: Optional[str],
                                 outline: Optional[str], genre: Optional[str],
                                 style: Optional[str], word_count: int) -> Dict[str, Any]:
@@ -533,33 +550,33 @@ class NovelGeneratorTool(BaseTool):
                     "genre_name": genre_name,
                     "style_name": style_name,
                     "word_count": word_count,
-                    "outline_text": outline or "?",
+                    "outline_text": outline or "请根据大纲自然展开剧情",
                 },
-                temperature=0.8, max_tokens=word_count * 2,
+                temperature=0.8,
+                max_tokens=word_count * 2,
             )
+            response_text = str(response or "")
 
-            self.logger.info(f"第{chapter_number}章生成完成，字数: {len(response)}")
-
+            self.logger.info("章节生成完成: chapter=%s length=%s", chapter_number, len(response_text))
             return {
                 "success": True,
                 "data": {
                     "chapter_number": chapter_number,
                     "chapter_title": chapter_title or f"第{chapter_number}章",
-                    "content": response,
-                    "word_count": len(response),
+                    "content": response_text,
+                    "word_count": len(response_text),
                     "genre": genre_name,
-                    "style": style_name
+                    "style": style_name,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成章节失败: {str(e)}"
+                "error": f"生成章节失败: {str(e)}",
             }
-
     async def _generate_character(self, character_name: Optional[str],
                                   genre: Optional[str], theme: Optional[str]) -> Dict[str, Any]:
         try:
@@ -573,7 +590,9 @@ class NovelGeneratorTool(BaseTool):
                 "tool.novel_generator_character_prompt"
             )
 
-            response = await llm_manager.invoke_prompt_template(
+            structured_result = await llm_manager.with_structured_output(
+                NovelCharacterStructuredPayload
+            ).invoke_prompt_template(
                 prompt_template,
                 {
                     "character_name": character_name or "主角",
@@ -582,37 +601,24 @@ class NovelGeneratorTool(BaseTool):
                 },
                 temperature=0.8,
             )
+            character_data = structured_result.model_dump(exclude_none=True)
 
-            # 尝试解析JSON
-            try:
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start >= 0 and json_end > json_start:
-                    json_str = response[json_start:json_end]
-                    character_data = json.loads(json_str)
-                else:
-                    character_data = {"raw_character": response}
-            except:
-                character_data = {"raw_character": response}
-
-            self.logger.info(f"角色设定生成完成: {character_name}")
-
+            self.logger.info("角色设定生成完成: %s", character_name or "主角")
             return {
                 "success": True,
                 "data": {
                     "character": character_data,
-                    "genre": genre_name
+                    "genre": genre_name,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成角色设定失败: {str(e)}"
+                "error": f"生成角色设定失败: {str(e)}",
             }
-
     async def _generate_worldview(self, title: Optional[str], theme: Optional[str],
                                   genre: Optional[str]) -> Dict[str, Any]:
         try:
@@ -626,7 +632,9 @@ class NovelGeneratorTool(BaseTool):
                 "tool.novel_generator_worldview_prompt"
             )
 
-            response = await llm_manager.invoke_prompt_template(
+            structured_result = await llm_manager.with_structured_output(
+                NovelWorldviewStructuredPayload
+            ).invoke_prompt_template(
                 prompt_template,
                 {
                     "title": title or "未命名小说",
@@ -635,37 +643,24 @@ class NovelGeneratorTool(BaseTool):
                 },
                 temperature=0.8,
             )
-
-            # 尝试解析JSON
-            try:
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start >= 0 and json_end > json_start:
-                    json_str = response[json_start:json_end]
-                    worldview_data = json.loads(json_str)
-                else:
-                    worldview_data = {"raw_worldview": response}
-            except:
-                worldview_data = {"raw_worldview": response}
+            worldview_data = structured_result.model_dump(exclude_none=True)
 
             self.logger.info("世界观设定生成完成")
-
             return {
                 "success": True,
                 "data": {
                     "worldview": worldview_data,
-                    "genre": genre_name
+                    "genre": genre_name,
                 },
-                "error": None
+                "error": None,
             }
 
         except Exception as e:
             return {
                 "success": False,
                 "data": None,
-                "error": f"生成世界观设定失败: {str(e)}"
+                "error": f"生成世界观设定失败: {str(e)}",
             }
-
     async def _continue_writing(self, previous_content: Optional[str],
                                genre: Optional[str], style: Optional[str],
                                word_count: int) -> Dict[str, Any]:
@@ -681,7 +676,7 @@ class NovelGeneratorTool(BaseTool):
 
             llm_manager = get_langchain_model_manager()
 
-            genre_name = self.NOVEL_GENRES.get(genre, "未知") if genre else "未知"
+            genre_name = self.NOVEL_GENRES.get(genre, "鏈煡") if genre else "鏈煡"
             style_name = self.WRITING_STYLES.get(style, "默认") if style else "默认"
             context = previous_content[-1000:] if len(previous_content) > 1000 else previous_content
 
@@ -725,3 +720,4 @@ class NovelGeneratorTool(BaseTool):
 
     def get_supported_styles(self) -> Dict[str, str]:
         return self.WRITING_STYLES.copy()
+

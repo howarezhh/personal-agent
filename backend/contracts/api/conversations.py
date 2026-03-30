@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -32,6 +32,7 @@ class ConversationMessageItem(BaseModel):
     sequence_number: int = Field(..., description="序号")
     parent_message_id: Optional[str] = Field(default=None, description="父消息 ID")
     created_at: str = Field(..., description="创建时间")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="消息扩展元数据")
 
 
 class CreateConversationRequest(BaseModel):

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from backend.contracts.errors import ErrorCode
-from backend.database.repositories.agent_execution_repository import get_agent_execution_repository
 from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionUpdate
 from backend.utils.error_utils import build_error_metadata, sanitize_error_message
 
@@ -11,8 +10,8 @@ from backend.utils.error_utils import build_error_metadata, sanitize_error_messa
 class AgentExecutionApplicationService:
     """Application service for agent execution records."""
 
-    def __init__(self, repository=None):
-        self.repository = repository or get_agent_execution_repository()
+    def __init__(self, *, repository):
+        self.repository = repository
 
     def create_execution(self, execution_create: AgentExecutionCreate):
         return self.repository.create_execution(execution_create)

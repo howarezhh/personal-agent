@@ -3,7 +3,16 @@
  */
 
 import { create } from 'zustand';
-import { Message, Citation, ThinkingStep, WorkflowTrace, StreamStatus } from '@/types';
+import {
+  Message,
+  Citation,
+  ThinkingStep,
+  WorkflowTrace,
+  StreamStatus,
+  TaskRuntimeGoal,
+  TaskRuntimePlan,
+  TaskRuntimeStatus,
+} from '@/types';
 
 const CURRENT_CONVERSATION_STORAGE_KEY = 'current_conversation_id';
 const SELECTED_KNOWLEDGE_BASE_STORAGE_KEY = 'selected_knowledge_base_id';
@@ -32,6 +41,12 @@ interface ChatState {
   streamingContent: string;
   thinkingSteps: ThinkingStep[];
   workflowTrace: WorkflowTrace;
+  /** task-runtime 当前目标。 */
+  runtimeGoal: TaskRuntimeGoal | null;
+  /** task-runtime 当前计划。 */
+  runtimePlan: TaskRuntimePlan | null;
+  /** task-runtime 当前任务快照。 */
+  runtimeTaskStatus: TaskRuntimeStatus | null;
   citations: Citation[];
   error: string | null;
   knowledgeBaseEnabled: boolean;
@@ -48,6 +63,10 @@ interface ChatState {
   setWorkflowTrace: (trace: WorkflowTrace) => void;
   mergeWorkflowTrace: (trace: Partial<WorkflowTrace>) => void;
   clearWorkflowTrace: () => void;
+  setRuntimeGoal: (goal: TaskRuntimeGoal | null) => void;
+  setRuntimePlan: (plan: TaskRuntimePlan | null) => void;
+  setRuntimeTaskStatus: (status: TaskRuntimeStatus | null) => void;
+  clearRuntimeState: () => void;
   setCitations: (citations: Citation[]) => void;
   setError: (error: string | null) => void;
   setKnowledgeBaseEnabled: (enabled: boolean) => void;
@@ -63,6 +82,9 @@ export const useChatStore = create<ChatState>((set) => ({
   streamingContent: '',
   thinkingSteps: [],
   workflowTrace: {},
+  runtimeGoal: null,
+  runtimePlan: null,
+  runtimeTaskStatus: null,
   citations: [],
   error: null,
   selectedKnowledgeBaseId: getInitialKnowledgeBaseId(),
@@ -89,7 +111,23 @@ export const useChatStore = create<ChatState>((set) => ({
   appendStreamingContent: (content) =>
     set((state) => ({ streamingContent: state.streamingContent + content })),
   addThinkingStep: (step) =>
-    set((state) => ({ thinkingSteps: [...state.thinkingSteps, step] })),
+    set((state) => {
+      const existingIndex = state.thinkingSteps.findIndex((item) => item.id === step.id);
+      if (existingIndex < 0) {
+        return { thinkingSteps: [...state.thinkingSteps, step] };
+      }
+
+      const nextSteps = [...state.thinkingSteps];
+      const existingStep = nextSteps[existingIndex];
+      nextSteps[existingIndex] = {
+        ...existingStep,
+        ...step,
+        description: step.description || existingStep.description,
+        startedAt: step.startedAt ?? existingStep.startedAt,
+        endedAt: step.endedAt ?? existingStep.endedAt,
+      };
+      return { thinkingSteps: nextSteps };
+    }),
   clearThinkingSteps: () => set({ thinkingSteps: [] }),
   setWorkflowTrace: (workflowTrace) => set({ workflowTrace }),
   mergeWorkflowTrace: (trace) => {
@@ -106,6 +144,10 @@ export const useChatStore = create<ChatState>((set) => ({
     }));
   },
   clearWorkflowTrace: () => set({ workflowTrace: {} }),
+  setRuntimeGoal: (runtimeGoal) => set({ runtimeGoal }),
+  setRuntimePlan: (runtimePlan) => set({ runtimePlan }),
+  setRuntimeTaskStatus: (runtimeTaskStatus) => set({ runtimeTaskStatus }),
+  clearRuntimeState: () => set({ runtimeGoal: null, runtimePlan: null, runtimeTaskStatus: null }),
   setCitations: (citations) => set({ citations }),
   setError: (error) => set({ error }),
   setKnowledgeBaseEnabled: (enabled) =>
@@ -141,6 +183,9 @@ export const useChatStore = create<ChatState>((set) => ({
       streamingContent: '',
       thinkingSteps: [],
       workflowTrace: {},
+      runtimeGoal: null,
+      runtimePlan: null,
+      runtimeTaskStatus: null,
       citations: [],
       error: null,
       knowledgeBaseEnabled: false,

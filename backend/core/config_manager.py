@@ -287,7 +287,6 @@ class ConfigManager:
             "model.primary_model.provider",
             "model.primary_model.model_name",
             "agent.common",
-            "agent.router_agent",
             "database.mysql.host",
             "database.mysql.port",
             "database.mysql.database",

@@ -73,6 +73,12 @@ class KnowledgeBaseCrudApplicationService(KnowledgeBaseServiceSupport):
             knowledge_base_id,
         )
 
+        # 文档查询服务仅在真正删除知识库时才需要，避免列表接口提前初始化整套文档链路。
+        if self.document_service is None:
+            from backend.application.service_factory import build_document_query_application_service
+
+            self.document_service = build_document_query_application_service()
+
         if self.document_service is not None:
             documents = self.document_service.list_documents(user_id=user_id, knowledge_base_id=knowledge_base_id)
             for document in documents:

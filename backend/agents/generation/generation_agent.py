@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
 
 
+import json
 from datetime import datetime
 """
 生成 Agent 模块，负责结合检索上下文、工具结果与会话历史生成最终回答。
 """
 
 from typing import AsyncGenerator, Optional, List, Dict, Any
+
+from pydantic import BaseModel, ConfigDict, Field
 from backend.agents.base.base_agent import BaseAgent
 from backend.agents.base.agent_input import AgentInput
 from backend.agents.base.agent_output import AgentOutput, ExecutionStatus
@@ -16,6 +19,20 @@ from backend.agents.generation.hallucination_checker import HallucinationChecker
 from backend.core.llm_manager import get_langchain_model_manager
 from backend.database.repositories.agent_execution_repository import get_agent_execution_repository
 from backend.models.agent_execution import AgentExecutionCreate, AgentExecutionUpdate
+
+
+class AnswerQualityStructuredResult(BaseModel):
+    """回答质量评估的结构化结果。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    overall_score: float = 0.0
+    relevance_score: Optional[float] = None
+    completeness_score: Optional[float] = None
+    clarity_score: Optional[float] = None
+    grounded_score: Optional[float] = None
+    reasoning: str = ""
+    error: Optional[str] = None
 
 
 class GenerationAgent(BaseAgent):
@@ -49,6 +66,17 @@ class GenerationAgent(BaseAgent):
         logger = self.logger
         logger.info(f"Generation agent initialized (citation={self.enable_citation}, hallucination_check={self.enable_hallucination_check})")
 
+    @staticmethod
+    def _resolve_conversation_history(agent_input: AgentInput) -> List[Dict[str, Any]]:
+        """Resolve conversation history from the canonical field first."""
+        history = agent_input.get_conversation_history()
+        if history:
+            return history
+
+        metadata = getattr(agent_input, "metadata", None)
+        fallback_history = metadata.get("conversation_history") if isinstance(metadata, dict) else None
+        return fallback_history if isinstance(fallback_history, list) else []
+
     async def execute(self, agent_input: AgentInput) -> AgentOutput:
         """
         执行非流式生成流程，根据上下文类型选择不同的回答路径。
@@ -72,17 +100,17 @@ class GenerationAgent(BaseAgent):
                 if retrieval_results:
                     return await self.generate_with_context(agent_input, retrieval_results)
 
-            # 若上游未提供检索或工具上下文，则退化为基于对话历史的普通生成。
-            messages = self._build_messages(
+            # 若上游未提供检索或工具上下文，则走专门的直答 Prompt。
+            prompt_template, prompt_variables = self._build_plain_response_prompt_call(
                 user_content=agent_input.content,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
+                conversation_history=self._resolve_conversation_history(agent_input),
             )
 
-            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
-            response = await self.model_manager.invoke_messages(
-                messages=messages,
+            response = await self.model_manager.invoke_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
-                max_tokens=self._get_config_value("max_tokens", 2000)
+                max_tokens=self._get_config_value("max_tokens", 2000),
             )
 
             # 先创建执行记录，便于后续关联输出内容和执行状态。
@@ -167,15 +195,16 @@ class GenerationAgent(BaseAgent):
 
             yield StreamChunk.create_thinking("正在生成回答...")
 
-            # 若上游未提供检索或工具上下文，则退化为基于对话历史的普通生成。
-            messages = self._build_messages(
+            # 若上游未提供检索或工具上下文，则走专门的直答 Prompt。
+            prompt_template, prompt_variables = self._build_plain_response_prompt_call(
                 user_content=agent_input.content,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
+                conversation_history=self._resolve_conversation_history(agent_input)
             )
 
             full_content = ""
-            async for chunk in self.model_manager.stream_messages(
-                messages=messages,
+            async for chunk in self.model_manager.stream_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
             ):
@@ -231,17 +260,17 @@ class GenerationAgent(BaseAgent):
         try:
             context = self._format_retrieval_context(retrieval_results)
 
-            messages = self._build_messages_with_context(
+            prompt_template, prompt_variables = self._build_messages_with_context(
                 user_content=agent_input.content,
                 context=context,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
+                conversation_history=self._resolve_conversation_history(agent_input)
             )
 
-            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
-            response = await self.model_manager.invoke_messages(
-                messages=messages,
+            response = await self.model_manager.invoke_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
-                max_tokens=self._get_config_value("max_tokens", 2000)
+                max_tokens=self._get_config_value("max_tokens", 2000),
             )
 
             citations = self._extract_citations(response, retrieval_results)
@@ -311,15 +340,16 @@ class GenerationAgent(BaseAgent):
 
             context = self._format_retrieval_context(retrieval_results)
 
-            messages = self._build_messages_with_context(
+            prompt_template, prompt_variables = self._build_messages_with_context(
                 user_content=agent_input.content,
                 context=context,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
+                conversation_history=self._resolve_conversation_history(agent_input)
             )
 
             full_content = ""
-            async for chunk in self.model_manager.stream_messages(
-                messages=messages,
+            async for chunk in self.model_manager.stream_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
             ):
@@ -378,15 +408,15 @@ class GenerationAgent(BaseAgent):
         """
         try:
             combined_context = self._format_combined_context(retrieval_results, tool_result)
-            messages = self._build_messages_with_context(
+            prompt_template, prompt_variables = self._build_messages_with_context(
                 user_content=agent_input.content,
                 context=combined_context,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else [],
+                conversation_history=self._resolve_conversation_history(agent_input),
             )
 
-            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
-            response = await self.model_manager.invoke_messages(
-                messages=messages,
+            response = await self.model_manager.invoke_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000),
             )
@@ -454,15 +484,16 @@ class GenerationAgent(BaseAgent):
             yield StreamChunk.create_thinking("正在综合检索结果和工具结果生成回答...")
 
             combined_context = self._format_combined_context(retrieval_results, tool_result)
-            messages = self._build_messages_with_context(
+            prompt_template, prompt_variables = self._build_messages_with_context(
                 user_content=agent_input.content,
                 context=combined_context,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else [],
+                conversation_history=self._resolve_conversation_history(agent_input),
             )
 
             full_content = ""
-            async for chunk in self.model_manager.stream_messages(
-                messages=messages,
+            async for chunk in self.model_manager.stream_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000),
             ):
@@ -526,22 +557,32 @@ class GenerationAgent(BaseAgent):
 
         context_parts = []
         for i, result in enumerate(retrieval_results, start=1):
-            context_format = self._get_prompt("context_format")
-            if context_format:
-                context_part = context_format.format(
-                    index=i,
-                    source_name=result.get("metadata", {}).get("source", "Unknown"),
-                    relevance_score=f"{result.get('score', 0):.2f}",
-                    content=result.get("content", "")
-                )
-            else:
-                context_part = f"[{i}] 来源：{result.get('metadata', {}).get('source', 'Unknown')}\n"
-                context_part += f"相关度：{result.get('score', 0):.2f}\n"
-                context_part += f"内容：{result.get('content', '')}\n"
+            context_part = self._get_prompt(
+                "context_format",
+                index=i,
+                source_name=result.get("metadata", {}).get("source", "Unknown"),
+                relevance_score=f"{result.get('score', 0):.2f}",
+                content=result.get("content", ""),
+            )
 
             context_parts.append(context_part)
 
         return "\n\n".join(context_parts)
+
+    def _build_plain_response_prompt_call(
+        self,
+        user_content: str,
+        conversation_history: list | None = None,
+    ) -> tuple:
+        """构建无外部上下文时的普通回答 Prompt 调用参数。"""
+        return self.prompt_manager.build_chat_prompt_call(
+            user_prompt_key="generation.generation_plain_response_prompt",
+            user_variables={
+                "question": user_content,
+            },
+            conversation_history=conversation_history,
+            system_prompt_key="generation.generation_plain_response_system_prompt",
+        )
 
     def _extract_citations(self, content: str, retrieval_results: list) -> list:
         """
@@ -585,48 +626,26 @@ class GenerationAgent(BaseAgent):
         answer: str
     ) -> dict:
         """
-        从引用覆盖率、幻觉风险等角度对答案质量进行综合评估。
+        评估回答质量，并返回结构化评分结果。
         """
         try:
-            eval_prompt = self._get_prompt(
-                "answer_quality_prompt",
-                question=question,
-                answer=answer
+            prompt_template, prompt_variables = self.prompt_manager.build_chat_prompt_call(
+                user_prompt_key="generation.answer_quality_prompt",
+                user_variables={
+                    "question": question,
+                    "answer": answer,
+                    "conversation_history": "",
+                },
             )
-
-            if not eval_prompt:
-                self.logger.warning("Answer quality prompt not found")
-                return {"overall_score": 0.0}
-
-            messages = [{"role": "user", "content": eval_prompt}]
-            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
-            response = await self.model_manager.invoke_messages(
-                messages=messages,
+            result_model = await self.model_manager.with_structured_output(
+                AnswerQualityStructuredResult
+            ).invoke_chat_prompt_template(
+                prompt_template,
+                prompt_variables,
                 temperature=0.3,
-                max_tokens=500
+                max_tokens=500,
             )
-
-            import json
-            import re
-
-            try:
-                # 尝试提取JSON内容（处理LLM可能返回的额外文本）
-                json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
-                if json_match:
-                    json_str = json_match.group(1)
-                else:
-                    json_match = re.search(r'\{.*\}', response, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(0)
-                    else:
-                        json_str = response
-
-                result = json.loads(json_str)
-                return result
-            except json.JSONDecodeError as e:
-                self.logger.warning(f"JSON 解析失败: {e}，返回默认评分")
-                return {"overall_score": 0.0, "error": "JSON解析失败"}
-
+            return result_model.model_dump()
         except Exception as e:
             self.logger.error(f"Answer quality evaluation failed: {str(e)}")
             return {"overall_score": 0.0, "error": str(e)}
@@ -636,45 +655,19 @@ class GenerationAgent(BaseAgent):
         user_content: str,
         context: str,
         conversation_history: list = None
-    ) -> list:
+    ) -> tuple:
         """
-        构建带检索上下文的模型消息列表。
+        构建带检索上下文的 ChatPromptTemplate 调用参数。
         """
-        messages = []
-
-        system_prompt = self._get_prompt("generation_system_prompt")
-        if system_prompt:
-            messages.append({
-                "role": "system",
-                "content": system_prompt
-            })
-
-        history_str = ""
-        if conversation_history:
-            history_str = self.prompt_manager.format_conversation_history(
-                conversation_history,
-                prompt_type=self.agent_type
-            )
-
-        user_prompt = self._get_prompt(
-            "generation_with_context_prompt",
-            question=user_content,
-            context=context,
-            conversation_history=history_str
+        return self.prompt_manager.build_chat_prompt_call(
+            user_prompt_key="generation.generation_with_context_prompt",
+            user_variables={
+                "question": user_content,
+                "context": context,
+            },
+            conversation_history=conversation_history,
+            system_prompt_key="generation.generation_system_prompt",
         )
-
-        if user_prompt:
-            messages.append({
-                "role": "user",
-                "content": user_prompt
-            })
-        else:
-            messages.append({
-                "role": "user",
-                "content": f"参考以下上下文回答问题：\n\n上下文：\n{context}\n\n问题：{user_content}"
-            })
-
-        return messages
 
     async def generate_with_tool_result(
         self,
@@ -687,17 +680,17 @@ class GenerationAgent(BaseAgent):
         try:
             tool_context = self._format_tool_result_context(tool_result)
 
-            messages = self._build_messages_with_tool_result(
+            prompt_template, prompt_variables = self._build_messages_with_tool_result(
                 user_content=agent_input.content,
                 tool_context=tool_context,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
+                conversation_history=self._resolve_conversation_history(agent_input)
             )
 
-            # 调用大模型生成答案，并使用配置中的 temperature 与 max_tokens 控制输出行为。
-            response = await self.model_manager.invoke_messages(
-                messages=messages,
+            response = await self.model_manager.invoke_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
-                max_tokens=self._get_config_value("max_tokens", 2000)
+                max_tokens=self._get_config_value("max_tokens", 2000),
             )
 
             # 先创建执行记录，便于后续关联输出内容和执行状态。
@@ -765,15 +758,16 @@ class GenerationAgent(BaseAgent):
 
             tool_context = self._format_tool_result_context(tool_result)
 
-            messages = self._build_messages_with_tool_result(
+            prompt_template, prompt_variables = self._build_messages_with_tool_result(
                 user_content=agent_input.content,
                 tool_context=tool_context,
-                conversation_history=agent_input.metadata.get("conversation_history", []) if agent_input.metadata else []
+                conversation_history=self._resolve_conversation_history(agent_input)
             )
 
             full_content = ""
-            async for chunk in self.model_manager.stream_messages(
-                messages=messages,
+            async for chunk in self.model_manager.stream_chat_prompt_template(
+                prompt_template=prompt_template,
+                prompt_variables=prompt_variables,
                 temperature=self._get_config_value("temperature", 0.7),
                 max_tokens=self._get_config_value("max_tokens", 2000)
             ):
@@ -826,14 +820,40 @@ class GenerationAgent(BaseAgent):
         if not tool_result:
             return ""
 
+        tool_results = tool_result.get("tool_results") if isinstance(tool_result.get("tool_results"), list) else None
+        if tool_results:
+            context_parts = []
+            for index, tool_item in enumerate(tool_results, start=1):
+                if not isinstance(tool_item, dict):
+                    continue
+                current_tool_name = tool_item.get("tool_name", f"Tool {index}")
+                interpreted_result = tool_item.get("interpreted_result") or {}
+                formatted_text = interpreted_result.get("formatted_text") or self._safe_stringify(tool_item.get("tool_result"))
+                context_parts.append(f"工具 {index}：{current_tool_name}\n工具返回结果：\n{formatted_text}")
+            if context_parts:
+                return "\n\n".join(context_parts)
+
         tool_name = tool_result.get("tool_name", "Unknown")
         interpreted_result = tool_result.get("interpreted_result", {})
         formatted_text = interpreted_result.get("formatted_text", "")
+        if not formatted_text:
+            formatted_text = self._safe_stringify(tool_result.get("tool_result"))
 
         context = f"工具名称：{tool_name}\n"
         context += f"工具返回结果：\n{formatted_text}\n"
 
         return context
+
+    @staticmethod
+    def _safe_stringify(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        try:
+            return json.dumps(value, ensure_ascii=False, default=str)
+        except Exception:
+            return str(value)
 
     def _format_combined_context(self, retrieval_results: list, tool_result: dict) -> str:
         """
@@ -854,45 +874,16 @@ class GenerationAgent(BaseAgent):
         user_content: str,
         tool_context: str,
         conversation_history: list = None
-    ) -> list:
+    ) -> tuple:
         """
-        构建包含工具结果的模型消息列表。
+        构建包含工具结果的 ChatPromptTemplate 调用参数。
         """
-        messages = []
-
-        system_prompt = self._get_prompt("generation_system_prompt_with_tool_result")
-        if not system_prompt:
-            system_prompt = self._get_prompt("generation_system_prompt")
-
-        if system_prompt:
-            messages.append({
-                "role": "system",
-                "content": system_prompt
-            })
-
-        history_str = ""
-        if conversation_history:
-            history_str = self.prompt_manager.format_conversation_history(
-                conversation_history,
-                prompt_type=self.agent_type
-            )
-
-        user_prompt = self._get_prompt(
-            "generation_user_prompt_with_tool_result",
-            question=user_content,
-            tool_context=tool_context,
-            conversation_history=history_str
+        return self.prompt_manager.build_chat_prompt_call(
+            user_prompt_key="generation.generation_user_prompt_with_tool_result",
+            user_variables={
+                "question": user_content,
+                "tool_context": tool_context,
+            },
+            conversation_history=conversation_history,
+            system_prompt_key="generation.generation_system_prompt_with_tool_result",
         )
-
-        if user_prompt:
-            messages.append({
-                "role": "user",
-                "content": user_prompt
-            })
-        else:
-            messages.append({
-                "role": "user",
-                "content": f"参考以下工具调用结果回答问题：\n\n工具结果：\n{tool_context}\n\n问题：{user_content}"
-            })
-
-        return messages

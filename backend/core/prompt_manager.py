@@ -8,16 +8,18 @@
 2. 生成 `PromptTemplate`；
 3. 生成 `ChatPromptTemplate`；
 4. 生成 `ChatPromptValue` 与项目内部 message 数组；
-5. 保留旧接口，避免业务层在当前阶段发生不必要扩散。
+5. 统一由显式的 ChatPromptTemplate 调用参数进入模型交互层。
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.prompt_values import ChatPromptValue
 
@@ -41,24 +43,44 @@ class PromptManager:
         "change_log",
         "prompts",
     }
+    # REQUIRED_CHANGE_LOG_FIELDS：每条变更记录必须具备的字段，避免 Prompt 版本追踪失真。
+    REQUIRED_CHANGE_LOG_FIELDS = {"version", "date", "summary"}
+    # PROMPT_VARIABLE_PATTERN：用于提取 Prompt 模板中的显式变量占位符。
+    PROMPT_VARIABLE_PATTERN = re.compile(r"(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})")
+    # FULL_PROMPT_KEY_PATTERN：用于从代码中提取完整 Prompt key 字面量。
+    FULL_PROMPT_KEY_PATTERN = re.compile(
+        r'["\']((?:router|retrieval|generation|file_processor|tool|planner|critic)\.[a-zA-Z0-9_\.]+)["\']'
+    )
+    # LOCAL_PROMPT_CALL_PATTERN：用于识别 `_get_prompt("local_key")` 这种局部 Prompt 调用。
+    LOCAL_PROMPT_CALL_PATTERN = re.compile(r'_get_prompt\(\s*["\']([^"\']+)["\']')
 
-    def __init__(self, prompts_dir: str | Path | None = None, *, strict: bool = False):
+    def __init__(
+        self,
+        prompts_dir: str | Path | None = None,
+        *,
+        strict: bool = False,
+        project_root: str | Path | None = None,
+    ):
         """初始化 Prompt 管理器。"""
         if prompts_dir is None:
             from backend.utils.path_utils import find_project_root
 
             # project_root：项目根目录，用于定位统一的 Prompt 配置目录。
-            project_root = find_project_root(Path(__file__).parent)
+            project_root = Path(project_root) if project_root is not None else find_project_root(Path(__file__).parent)
             prompts_dir = project_root / "config" / "prompts"
 
         # prompts_dir：Prompt 配置根目录，所有 Prompt 必须从这里统一加载。
         self.prompts_dir = Path(prompts_dir)
+        # project_root：项目根目录，用于执行未引用 Prompt 校验等工程级校验逻辑。
+        self.project_root = Path(project_root) if project_root is not None else self._infer_project_root()
         # strict：是否开启严格模式；开启后若存在校验错误会直接抛异常。
         self.strict = strict
         # _prompts：Prompt 正文缓存，按 agent_type 分组存放。
         self._prompts: Dict[str, Dict[str, Any]] = {}
         # _metadata：Prompt 元信息缓存，按 agent_type -> scene 分层存放。
         self._metadata: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        # _prompt_sources：记录每个 Prompt key 来自哪个文件，便于做重复定义与未引用排查。
+        self._prompt_sources: Dict[str, Dict[str, Path]] = {}
         # _validation_errors：加载和校验过程中累计的错误列表。
         self._validation_errors: list[str] = []
         # 初始化时立即加载全部 Prompt，保持运行期读取为内存访问。
@@ -87,6 +109,24 @@ class PromptManager:
 
         if loaded_count == 0:
             logger.warning("No prompt files found in: %s", self.prompts_dir)
+            return
+
+        # 全部 Prompt 加载完成后，再执行跨文件级别的统一校验。
+        self._validate_unused_prompts()
+
+    def _infer_project_root(self) -> Path | None:
+        """根据 Prompt 目录推断项目根目录。"""
+        resolved_dir = self.prompts_dir.resolve()
+        parents = [resolved_dir, *resolved_dir.parents]
+        for current_path in parents:
+            if (current_path / "backend").exists() and (current_path / "config").exists():
+                return current_path
+        return None
+
+    def _record_validation_error(self, message: str) -> None:
+        """统一记录 Prompt 校验错误。"""
+        logger.error(message)
+        self._validation_errors.append(message)
 
     def _load_yaml(self, file_path: Path) -> Dict[str, Any]:
         """读取单个 YAML Prompt 文档。"""
@@ -105,11 +145,32 @@ class PromptManager:
         missing = sorted(self.REQUIRED_VERSIONED_FIELDS - set(prompt_data.keys()))
         if missing:
             error = f"{prompt_file}: missing required fields {', '.join(missing)}"
-            logger.error(error)
-            self._validation_errors.append(error)
+            self._record_validation_error(error)
             return
 
-        # agent_type：Prompt 所属的 Agent 类型，例如 router / retrieval / generation。
+        # `input_variables`：Prompt 文件声明的输入变量集合，必须是字符串列表。
+        input_variables = prompt_data.get("input_variables")
+        if not isinstance(input_variables, list) or any(not isinstance(item, str) for item in input_variables):
+            self._record_validation_error(f"{prompt_file}: input_variables must be a list of strings")
+            return
+
+        # `change_log`：Prompt 变更记录，必须保证结构完整，便于版本治理。
+        change_log = prompt_data.get("change_log")
+        if not isinstance(change_log, list) or not change_log:
+            self._record_validation_error(f"{prompt_file}: change_log must be a non-empty list")
+            return
+        for index, change_item in enumerate(change_log):
+            if not isinstance(change_item, dict):
+                self._record_validation_error(f"{prompt_file}: change_log[{index}] must be a mapping")
+                return
+            missing_change_fields = sorted(self.REQUIRED_CHANGE_LOG_FIELDS - set(change_item.keys()))
+            if missing_change_fields:
+                self._record_validation_error(
+                    f"{prompt_file}: change_log[{index}] missing fields {', '.join(missing_change_fields)}"
+                )
+                return
+
+        # agent_type：Prompt 所属的 Agent 类型，例如 router / retrieval / generation / planner / critic。
         agent_type = str(prompt_data["agent"])
         # scene：Prompt 的场景标识，用于元信息分类与版本追踪。
         scene = str(prompt_data["scene"])
@@ -117,12 +178,47 @@ class PromptManager:
         prompts = prompt_data.get("prompts") or {}
         if not isinstance(prompts, dict) or not prompts:
             error = f"{prompt_file}: prompts must be a non-empty mapping"
-            logger.error(error)
-            self._validation_errors.append(error)
+            self._record_validation_error(error)
+            return
+
+        # `used_variables`：当前文件所有 Prompt 文本中真实使用到的变量集合。
+        used_variables = self._collect_prompt_variables(prompts)
+        declared_variables = set(input_variables)
+        missing_variables = sorted(used_variables - declared_variables)
+        if missing_variables:
+            self._record_validation_error(
+                f"{prompt_file}: input_variables missing {', '.join(missing_variables)}"
+            )
+            return
+
+        extra_variables = sorted(declared_variables - used_variables)
+        if extra_variables:
+            self._record_validation_error(
+                f"{prompt_file}: input_variables declared but unused {', '.join(extra_variables)}"
+            )
+            return
+
+        # 在写入缓存前先检查是否存在跨文件重复 key，禁止覆盖式加载。
+        duplicate_keys = sorted(
+            prompt_key
+            for prompt_key in prompts.keys()
+            if prompt_key in (self._prompts.get(agent_type) or {})
+        )
+        if duplicate_keys:
+            duplicate_sources = ", ".join(
+                f"{prompt_key} -> {self._prompt_sources[agent_type][prompt_key]}"
+                for prompt_key in duplicate_keys
+            )
+            self._record_validation_error(
+                f"{prompt_file}: duplicate prompt keys detected for agent '{agent_type}': {duplicate_sources}"
+            )
             return
 
         # 核心逻辑：Prompt 正文按 agent_type 聚合，便于通过 `agent.key` 方式统一读取。
         self._prompts.setdefault(agent_type, {}).update(prompts)
+        self._prompt_sources.setdefault(agent_type, {}).update(
+            {prompt_key: prompt_file for prompt_key in prompts.keys()}
+        )
         # 元信息单独缓存，避免与正文混在一起，便于后续查询版本、模型适用范围、变更记录等信息。
         self._metadata.setdefault(agent_type, {})[scene] = {
             key: value
@@ -130,6 +226,85 @@ class PromptManager:
             if key != "prompts"
         }
         logger.info("Loaded versioned prompts for agent=%s scene=%s", agent_type, scene)
+
+    def _collect_prompt_variables(self, prompt_value: Any) -> set[str]:
+        """递归提取 Prompt 文本中使用的变量名。"""
+        collected_variables: set[str] = set()
+        if isinstance(prompt_value, str):
+            collected_variables.update(self.PROMPT_VARIABLE_PATTERN.findall(prompt_value))
+            return collected_variables
+        if isinstance(prompt_value, dict):
+            for nested_value in prompt_value.values():
+                collected_variables.update(self._collect_prompt_variables(nested_value))
+        elif isinstance(prompt_value, list):
+            for nested_value in prompt_value:
+                collected_variables.update(self._collect_prompt_variables(nested_value))
+        return collected_variables
+
+    def _normalize_prompt_reference(self, prompt_key: str) -> str:
+        """把完整 Prompt 引用归一化为 `agent.top_level_key` 形式。"""
+        normalized_key = str(prompt_key or "").rstrip(".")
+        segments = normalized_key.split(".")
+        if len(segments) < 2:
+            return normalized_key
+        return f"{segments[0]}.{segments[1]}"
+
+    def _infer_agent_scope_from_file(self, file_path: Path) -> str | None:
+        """根据文件路径推断 `_get_prompt()` 的 Agent 命名空间。"""
+        normalized_parts = [part.lower() for part in file_path.parts]
+        if "agents" in normalized_parts:
+            agent_index = normalized_parts.index("agents") + 1
+            if agent_index < len(normalized_parts):
+                candidate_scope = normalized_parts[agent_index]
+                if candidate_scope in {"router", "retrieval", "generation", "file_processor", "tool", "planner", "critic"}:
+                    return candidate_scope
+        if "tools" in normalized_parts:
+            return "tool"
+        return None
+
+    def _find_referenced_prompt_keys(self) -> set[str]:
+        """扫描代码中实际引用到的 Prompt key。"""
+        if self.project_root is None:
+            return set()
+
+        backend_dir = self.project_root / "backend"
+        if not backend_dir.exists():
+            return set()
+
+        referenced_keys: set[str] = set()
+        for python_file in backend_dir.rglob("*.py"):
+            try:
+                file_text = python_file.read_text(encoding="utf-8")
+            except Exception:
+                continue
+
+            for match in self.FULL_PROMPT_KEY_PATTERN.finditer(file_text):
+                referenced_keys.add(self._normalize_prompt_reference(match.group(1)))
+
+            agent_scope = self._infer_agent_scope_from_file(python_file)
+            if agent_scope is None:
+                continue
+            for match in self.LOCAL_PROMPT_CALL_PATTERN.finditer(file_text):
+                local_key = str(match.group(1) or "")
+                top_level_key = local_key.split(".", 1)[0]
+                referenced_keys.add(f"{agent_scope}.{top_level_key}")
+        return referenced_keys
+
+    def _validate_unused_prompts(self) -> None:
+        """检查是否存在未被业务代码引用的 Prompt。"""
+        referenced_keys = self._find_referenced_prompt_keys()
+        if not referenced_keys:
+            return
+
+        for agent_type, prompts in self._prompts.items():
+            for prompt_key in prompts.keys():
+                full_prompt_key = f"{agent_type}.{prompt_key}"
+                if full_prompt_key in referenced_keys:
+                    continue
+                prompt_source = self._prompt_sources.get(agent_type, {}).get(prompt_key)
+                self._record_validation_error(
+                    f"{prompt_source}: unused prompt key {full_prompt_key}"
+                )
 
     def get_prompt(self, prompt_key: str, default: str | None = None) -> str:
         """根据点分路径读取 Prompt 原文。"""
@@ -172,37 +347,8 @@ class PromptManager:
             # 使用 LangChain 的模板渲染能力统一完成变量替换。
             return prompt_template.invoke(kwargs).to_string()
         except Exception as error:
-            # 若渲染失败，则退回原始 Prompt 文本，避免上层直接崩溃。
-            logger.warning("Error rendering prompt %s: %s", prompt_key, error)
-            return self.get_prompt(prompt_key)
-
-    def format_conversation_history(
-        self,
-        messages: List[Dict[str, str]],
-        prompt_type: str = "router",
-        max_messages: int = 10,
-    ) -> str:
-        """把对话历史渲染为 Prompt 可消费的文本。"""
-        if not messages:
-            # 没有历史消息时返回可配置的占位文案，避免 Prompt 中历史变量为空导致语义不完整。
-            return self.get_prompt(f"{prompt_type}.no_history_placeholder", "（这是新对话的第一条消息）")
-
-        # format_template：单条历史消息的格式模板。
-        format_template = self.get_prompt(f"{prompt_type}.conversation_history_format", "{role}: {content}")
-        # recent_messages：只保留最近 N 条消息，避免 Prompt 上下文无限膨胀。
-        recent_messages = messages[-max_messages:] if len(messages) > max_messages else messages
-        # formatted_messages：格式化后的历史消息文本列表。
-        formatted_messages: list[str] = []
-        for msg in recent_messages:
-            try:
-                # 核心逻辑：逐条按统一模板渲染 role/content，形成最终历史上下文文本。
-                formatted_messages.append(
-                    format_template.format(role=msg.get("role", "unknown"), content=msg.get("content", ""))
-                )
-            except Exception:
-                # 单条历史消息格式异常时跳过，避免影响整段历史构建。
-                continue
-        return "\n".join(formatted_messages)
+            logger.error("Error rendering prompt %s: %s", prompt_key, error)
+            raise ValueError(f"Failed to render prompt {prompt_key}: {error}") from error
 
     def get_system_prompt(self, agent_type: str) -> str:
         """读取某类 Agent 的系统 Prompt。"""
@@ -214,81 +360,87 @@ class PromptManager:
         # 统一按约定命名规则读取用户 Prompt 模板原文。
         return self.get_prompt(f"{agent_type}.{agent_type}_user_prompt", "")
 
-    def build_chat_prompt_template(
+    def _normalize_chat_role(self, role: str) -> str:
+        """把项目内部 role 归一化为聊天消息角色。"""
+        normalized_role = str(role or "user").lower()
+        if normalized_role in {"assistant", "ai"}:
+            return "assistant"
+        if normalized_role == "system":
+            return "system"
+        if normalized_role == "tool":
+            return "tool"
+        return "user"
+
+    def _deserialize_history_message(self, message: Dict[str, Any]) -> BaseMessage:
+        """把历史消息恢复为真实聊天消息对象，保留 tool protocol 字段。"""
+        role = self._normalize_chat_role(str(message.get("role", "user")))
+        content = str(message.get("content", ""))
+        if role == "system":
+            return SystemMessage(content=content)
+        if role == "assistant":
+            raw_tool_calls = message.get("tool_calls") if isinstance(message.get("tool_calls"), list) else []
+            normalized_tool_calls = []
+            for tool_call in raw_tool_calls:
+                if not isinstance(tool_call, dict):
+                    continue
+                normalized_tool_calls.append(
+                    {
+                        "id": tool_call.get("id"),
+                        "type": "tool_call",
+                        "name": tool_call.get("name"),
+                        "args": tool_call.get("args") if isinstance(tool_call.get("args"), dict) else {},
+                    }
+                )
+            if normalized_tool_calls:
+                return AIMessage(content=content, tool_calls=normalized_tool_calls)
+            return AIMessage(content=content)
+        if role == "tool":
+            tool_call_id = str(message.get("tool_call_id") or "")
+            if tool_call_id:
+                tool_name = message.get("name")
+                status = "error" if str(message.get("status") or "success") == "error" else "success"
+                return ToolMessage(
+                    content=content,
+                    tool_call_id=tool_call_id,
+                    name=str(tool_name) if tool_name else None,
+                    status=status,
+                )
+        return HumanMessage(content=content)
+
+    def build_chat_prompt_call(
         self,
-        agent_type: str,
         *,
+        user_prompt_key: str,
+        user_variables: Dict[str, Any],
+        conversation_history: List[Dict[str, Any]] | None = None,
         system_prompt_key: str | None = None,
-        user_prompt_key: str | None = None,
-    ) -> ChatPromptTemplate:
-        """构造 Agent 级 `ChatPromptTemplate`。
+        user_prompt_default: str = "{question}",
+        max_history_messages: int = 10,
+    ) -> tuple[ChatPromptTemplate, Dict[str, Any]]:
+        """构造可直接调用的 `ChatPromptTemplate` 与变量映射。
 
-        默认约定：
-        - system key: `{agent_type}.{agent_type}_system_prompt`
-        - user key: `{agent_type}.{agent_type}_user_prompt`
+        关键点：
+        - 保留系统 Prompt 与用户 Prompt 的集中管理
+        - 对话历史以真实消息形式进入模板，而不是先字符串化
+        - 不再为旧版 `{conversation_history}` 占位符注入兼容变量
         """
-        # resolved_system_key / resolved_user_key：允许调用方覆盖默认 Prompt 键。
-        resolved_system_key = system_prompt_key or f"{agent_type}.{agent_type}_system_prompt"
-        resolved_user_key = user_prompt_key or f"{agent_type}.{agent_type}_user_prompt"
+        template_messages: List[Any] = []
+        prompt_variables: Dict[str, Any] = dict(user_variables)
 
-        # template_messages：ChatPromptTemplate 所需的消息模板定义列表。
-        template_messages: List[tuple[str, str]] = []
-        # system_prompt：系统角色 Prompt 文本。
-        system_prompt = self.get_prompt(resolved_system_key, "")
-        # user_prompt：用户角色 Prompt 文本，默认保底为 `{question}`。
-        user_prompt = self.get_prompt(resolved_user_key, "{question}")
+        if system_prompt_key:
+            system_prompt = self.get_prompt(system_prompt_key, "")
+            if system_prompt:
+                template_messages.append(("system", system_prompt))
 
-        if system_prompt:
-            template_messages.append(("system", system_prompt))
-        # 至少保留一条 user 模板消息，确保模板可被正常调用。
-        template_messages.append(("user", user_prompt or "{question}"))
-        return ChatPromptTemplate.from_messages(template_messages)
+        recent_history = conversation_history[-max_history_messages:] if conversation_history and len(conversation_history) > max_history_messages else (conversation_history or [])
+        for message in recent_history:
+            # 中文说明：历史消息必须保留原始角色和 tool protocol 字段，
+            # 否则 ToolAgent 二轮推理时会失去上下文闭环。
+            template_messages.append(self._deserialize_history_message(message))
 
-    def build_chat_prompt_value(
-        self,
-        agent_type: str,
-        user_content: str,
-        conversation_history: List[Dict[str, str]] | None = None,
-        **kwargs: Any,
-    ) -> ChatPromptValue:
-        """构造 LangChain `ChatPromptValue`。"""
-        # chat_prompt_template：当前 Agent 对应的聊天模板。
-        chat_prompt_template = self.build_chat_prompt_template(agent_type)
-        # history_str：把历史消息压缩为 Prompt 可消费的字符串片段。
-        history_str = self.format_conversation_history(conversation_history, prompt_type=agent_type) if conversation_history else ""
-        # variables：统一注入模板变量，question / conversation_history 是约定保留变量。
-        variables = {"question": user_content, "conversation_history": history_str, **kwargs}
-        return chat_prompt_template.invoke(variables)
-
-    def build_chat_messages(
-        self,
-        agent_type: str,
-        user_content: str,
-        conversation_history: List[Dict[str, str]] | None = None,
-        **kwargs: Any,
-    ) -> List[Dict[str, str]]:
-        """基于 `ChatPromptTemplate` 构造项目内部消息数组。"""
-        # 先构造 LangChain ChatPromptValue，再统一映射为项目内部消息结构。
-        prompt_value = self.build_chat_prompt_value(
-            agent_type=agent_type,
-            user_content=user_content,
-            conversation_history=conversation_history,
-            **kwargs,
-        )
-        # messages：最终产出的项目内部标准消息数组。
-        messages: List[Dict[str, str]] = []
-        for message in prompt_value.to_messages():
-            # message_type：LangChain 消息对象的原生角色类型。
-            message_type = getattr(message, "type", "user")
-            if message_type == "system":
-                role = "system"
-            elif message_type in {"ai", "assistant"}:
-                role = "assistant"
-            else:
-                role = "user"
-            # 核心逻辑：统一把框架消息结构收敛成项目内部约定的 role/content 格式。
-            messages.append({"role": role, "content": str(getattr(message, "content", ""))})
-        return messages
+        user_prompt = self.get_prompt(user_prompt_key, user_prompt_default)
+        template_messages.append(("user", user_prompt or user_prompt_default))
+        return ChatPromptTemplate.from_messages(template_messages), prompt_variables
 
     def get_prompt_metadata(self, agent_type: str, scene: str | None = None) -> Dict[str, Any]:
         """读取 Prompt 元信息。"""
@@ -333,5 +485,5 @@ def get_prompt_manager() -> PromptManager:
     global _prompt_manager
     # 懒加载单例：首次使用时才初始化 PromptManager。
     if _prompt_manager is None:
-        _prompt_manager = PromptManager()
+        _prompt_manager = PromptManager(strict=True)
     return _prompt_manager
